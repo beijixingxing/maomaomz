@@ -99,10 +99,7 @@ export function getChatIdSafe(): string {
     }
 
     // 2. 尝试 SillyTavern.getCurrentChatId() 方法
-    if (
-      typeof SillyTavern !== 'undefined' &&
-      typeof SillyTavern.getCurrentChatId === 'function'
-    ) {
+    if (typeof SillyTavern !== 'undefined' && typeof SillyTavern.getCurrentChatId === 'function') {
       const chatId = SillyTavern.getCurrentChatId();
       if (chatId) return chatId;
     }
