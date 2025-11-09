@@ -1,13 +1,13 @@
 {
-  "display_name": "<插件名称>",
+  "display_name": "猫猫的记忆管理工具",
   "loading_order": 120,
   "requires": [],
   "optional": [],
   "js": "dist/index.js",
   "css": "dist/index.css",
-  "author": "<作者名称>",
+  "author": "猫猫 (mzrodyu)",
   "version": "1.0.0",
-  "homePage": "<仓库URL>",
+  "homePage": "https://github.com/mzrodyu/maomaomz",
   "auto_update": true,
   "i18n": {
     "en": "i18n/en.json"
