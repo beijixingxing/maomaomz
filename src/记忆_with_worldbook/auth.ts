@@ -17,21 +17,31 @@ const STORAGE_VERIFIED_KEY = 'maomaomz_auth_verified';
 function getCurrentApiEndpoint(): string {
   try {
     // 尝试从 SillyTavern 配置中获取 API 端点
-    const apiUrl = (window as any).api_server || '';
+    let apiUrl = (window as any).api_server || '';
     const apiType = (window as any).main_api || 'unknown';
     
-    if (apiUrl) {
+    // 如果 apiUrl 是对象，尝试转换为字符串
+    if (typeof apiUrl === 'object') {
+      console.warn('API端点是对象，尝试提取字符串:', apiUrl);
+      apiUrl = '';
+    }
+    
+    // 确保是字符串
+    apiUrl = String(apiUrl || '').trim();
+    
+    if (apiUrl && apiUrl !== '' && apiUrl !== '[object Object]') {
       // 只返回域名部分，不要完整URL（保护隐私）
       try {
         const url = new URL(apiUrl);
         return url.hostname || apiUrl;
       } catch {
+        // 如果不是有效的URL，直接返回（可能是类型名）
         return apiUrl;
       }
     }
     
-    // 如果没有，返回API类型
-    return apiType || 'unknown';
+    // 如果没有有效的URL，返回API类型
+    return String(apiType || 'unknown');
   } catch (error) {
     console.error('获取API端点失败:', error);
     return 'unknown';
