@@ -382,7 +382,7 @@
 import { reactive, ref, onMounted } from 'vue';
 import { CURRENT_VERSION, manualCheckUpdates } from '../versionCheck';
 
-const AUTH_API_URL = 'https://maomaomz-auth.mzrodyu.workers.dev';
+const AUTH_API_URL = 'https://maomaomz-auth.baobaoyu99972727.workers.dev';
 
 const currentVersion = CURRENT_VERSION;
 const isCheckingUpdate = ref(false);
