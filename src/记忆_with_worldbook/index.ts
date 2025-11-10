@@ -207,44 +207,83 @@ $(() => {
         }
       };
 
-      // 监听消息接收事件（TavernHelper环境 - 使用 eventOn）
-      try {
-        if (typeof eventOn === 'function' && typeof (window as any).tavern_events !== 'undefined') {
-          // TavernHelper环境：使用 eventOn 和 tavern_events
-          const tavern_events = (window as any).tavern_events;
+      // 监听消息接收事件（支持多种环境）
+      const setupEventListeners = () => {
+        try {
+          // 方式1: TavernHelper环境 - 使用 eventOn
+          if (typeof eventOn === 'function' && typeof (window as any).tavern_events !== 'undefined') {
+            const tavern_events = (window as any).tavern_events;
 
-          eventOn(tavern_events.CHARACTER_MESSAGE_RENDERED, () => {
-            console.log('📨 收到消息渲染事件，检查自动总结...');
-            checkAutoSummarize();
-          });
+            eventOn(tavern_events.CHARACTER_MESSAGE_RENDERED, () => {
+              console.log('📨 收到消息渲染事件，检查自动总结...');
+              checkAutoSummarize();
+            });
 
-          // 监听聊天切换事件
-          eventOn(tavern_events.CHAT_CHANGED, (chat_file_name: string) => {
-            console.log('🔄 聊天切换事件:', chat_file_name);
+            eventOn(tavern_events.CHAT_CHANGED, (chat_file_name: string) => {
+              console.log('🔄 聊天切换事件:', chat_file_name);
+              try {
+                const scriptId = getScriptIdSafe();
+                const chatId = getChatIdSafe();
+                const storageKey = `${scriptId}_auto_summary_start_id_${chatId}`;
+                const auto_summary_start_id = localStorage.getItem(storageKey);
 
-            // 插件环境：检查新聊天的localStorage状态
-            try {
-              const scriptId = getScriptIdSafe();
-              const chatId = getChatIdSafe();
-              const storageKey = `${scriptId}_auto_summary_start_id_${chatId}`;
-              const auto_summary_start_id = localStorage.getItem(storageKey);
-
-              if (auto_summary_start_id) {
-                console.log(`✅ 切换到已有自动总结的聊天: ${chat_file_name}, 起始楼层: ${auto_summary_start_id}`);
-              } else {
-                console.log(`🆕 切换到新聊天: ${chat_file_name}, 等待下一条消息时初始化`);
+                if (auto_summary_start_id) {
+                  console.log(`✅ 切换到已有自动总结的聊天: ${chat_file_name}, 起始楼层: ${auto_summary_start_id}`);
+                } else {
+                  console.log(`🆕 切换到新聊天: ${chat_file_name}, 等待下一条消息时初始化`);
+                }
+              } catch (error) {
+                console.warn('检查聊天状态失败:', error);
               }
-            } catch (error) {
-              console.warn('检查聊天状态失败:', error);
-            }
-          });
+            });
 
-          console.log('✅ 事件监听器已注册 (TavernHelper)');
-        } else {
-          console.warn('⚠️ eventOn 或 tavern_events 不可用，跳过事件监听');
+            console.log('✅ 事件监听器已注册 (TavernHelper eventOn)');
+            return true;
+          }
+
+          // 方式2: SillyTavern插件环境 - 使用 eventSource
+          if (typeof SillyTavern !== 'undefined' && SillyTavern.eventSource) {
+            SillyTavern.eventSource.on(SillyTavern.eventTypes.CHARACTER_MESSAGE_RENDERED, () => {
+              console.log('📨 收到消息渲染事件，检查自动总结...');
+              checkAutoSummarize();
+            });
+
+            SillyTavern.eventSource.on(SillyTavern.eventTypes.CHAT_CHANGED, (chat_file_name: string) => {
+              console.log('🔄 聊天切换事件:', chat_file_name);
+              try {
+                const scriptId = getScriptIdSafe();
+                const chatId = getChatIdSafe();
+                const storageKey = `${scriptId}_auto_summary_start_id_${chatId}`;
+                const auto_summary_start_id = localStorage.getItem(storageKey);
+
+                if (auto_summary_start_id) {
+                  console.log(`✅ 切换到已有自动总结的聊天: ${chat_file_name}, 起始楼层: ${auto_summary_start_id}`);
+                } else {
+                  console.log(`🆕 切换到新聊天: ${chat_file_name}, 等待下一条消息时初始化`);
+                }
+              } catch (error) {
+                console.warn('检查聊天状态失败:', error);
+              }
+            });
+
+            console.log('✅ 事件监听器已注册 (SillyTavern eventSource)');
+            return true;
+          }
+
+          console.warn('⚠️ eventOn 和 SillyTavern.eventSource 都不可用，将在1秒后重试...');
+          return false;
+        } catch (error) {
+          console.error('❌ 注册事件监听器失败:', error);
+          return false;
         }
-      } catch (error) {
-        console.error('❌ 注册事件监听器失败:', error);
+      };
+
+      // 尝试设置事件监听器，如果失败则延迟重试
+      if (!setupEventListeners()) {
+        setTimeout(() => {
+          console.log('🔄 延迟重试事件监听器注册...');
+          setupEventListeners();
+        }, 1000);
       }
 
       // 添加设置监控，当设置变化时重新验证（插件环境 - 使用 localStorage）
@@ -542,6 +581,18 @@ $(() => {
         }
       };
 
+      // 7. 手动检查总结（用于没有事件监听的环境）
+      (window as any).manualCheckSummary = () => {
+        try {
+          console.log('🔍 手动检查自动总结...');
+          checkAutoSummarize();
+          window.toastr.info('已手动触发总结检查，请查看控制台');
+        } catch (error) {
+          console.error('❌ 手动检查失败:', error);
+          window.toastr.error('手动检查失败: ' + (error as Error).message);
+        }
+      };
+
       console.log('✅ 调试函数已注册:', [
         'smartResetChat',
         'testCompleteAutoSummary',
@@ -549,6 +600,7 @@ $(() => {
         'checkCurrentFloor',
         'testFloorCalculation',
         'checkAutoSummaryStatus',
+        'manualCheckSummary',
       ]);
 
       window.toastr.success('mzrodyu猫猫的小破烂脚本已加载');
