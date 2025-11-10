@@ -207,84 +207,100 @@ $(() => {
         }
       };
 
-      // 监听消息接收事件（支持多种环境）
-      const setupEventListeners = () => {
+      // 使用 DOM 监控 + 轮询实现自动总结
+      console.log('🔍 环境诊断: eventOn 不可用，使用 DOM 监控方案');
+
+      let lastCheckedMessageId = -1;
+      let domObserver: MutationObserver | null = null;
+
+      // 方式1: DOM 变化监控
+      const setupDOMMonitoring = () => {
         try {
-          // 方式1: TavernHelper环境 - 使用 eventOn
-          if (typeof eventOn === 'function' && typeof (window as any).tavern_events !== 'undefined') {
-            const tavern_events = (window as any).tavern_events;
-
-            eventOn(tavern_events.CHARACTER_MESSAGE_RENDERED, () => {
-              console.log('📨 收到消息渲染事件，检查自动总结...');
-              checkAutoSummarize();
-            });
-
-            eventOn(tavern_events.CHAT_CHANGED, (chat_file_name: string) => {
-              console.log('🔄 聊天切换事件:', chat_file_name);
-              try {
-                const scriptId = getScriptIdSafe();
-                const chatId = getChatIdSafe();
-                const storageKey = `${scriptId}_auto_summary_start_id_${chatId}`;
-                const auto_summary_start_id = localStorage.getItem(storageKey);
-
-                if (auto_summary_start_id) {
-                  console.log(`✅ 切换到已有自动总结的聊天: ${chat_file_name}, 起始楼层: ${auto_summary_start_id}`);
-                } else {
-                  console.log(`🆕 切换到新聊天: ${chat_file_name}, 等待下一条消息时初始化`);
-                }
-              } catch (error) {
-                console.warn('检查聊天状态失败:', error);
-              }
-            });
-
-            console.log('✅ 事件监听器已注册 (TavernHelper eventOn)');
-            return true;
+          const chatContainer = document.getElementById('chat');
+          if (!chatContainer) {
+            console.warn('⚠️ 未找到聊天容器 #chat');
+            return false;
           }
 
-          // 方式2: SillyTavern插件环境 - 使用 eventSource
-          if (typeof SillyTavern !== 'undefined' && SillyTavern.eventSource) {
-            SillyTavern.eventSource.on(SillyTavern.eventTypes.CHARACTER_MESSAGE_RENDERED, () => {
-              console.log('📨 收到消息渲染事件，检查自动总结...');
-              checkAutoSummarize();
-            });
-
-            SillyTavern.eventSource.on(SillyTavern.eventTypes.CHAT_CHANGED, (chat_file_name: string) => {
-              console.log('🔄 聊天切换事件:', chat_file_name);
-              try {
-                const scriptId = getScriptIdSafe();
-                const chatId = getChatIdSafe();
-                const storageKey = `${scriptId}_auto_summary_start_id_${chatId}`;
-                const auto_summary_start_id = localStorage.getItem(storageKey);
-
-                if (auto_summary_start_id) {
-                  console.log(`✅ 切换到已有自动总结的聊天: ${chat_file_name}, 起始楼层: ${auto_summary_start_id}`);
-                } else {
-                  console.log(`🆕 切换到新聊天: ${chat_file_name}, 等待下一条消息时初始化`);
+          domObserver = new MutationObserver((mutations) => {
+            // 检查是否有新的消息节点添加
+            let hasNewMessage = false;
+            for (const mutation of mutations) {
+              if (mutation.addedNodes.length > 0) {
+                for (const node of Array.from(mutation.addedNodes)) {
+                  if (node.nodeType === 1) {
+                    const element = node as Element;
+                    const classList = Array.from(element.classList);
+                    if (classList.includes('mes') && !classList.includes('mes_stop')) {
+                      hasNewMessage = true;
+                      break;
+                    }
+                  }
                 }
-              } catch (error) {
-                console.warn('检查聊天状态失败:', error);
               }
-            });
+              if (hasNewMessage) break;
+            }
 
-            console.log('✅ 事件监听器已注册 (SillyTavern eventSource)');
-            return true;
-          }
+            if (hasNewMessage) {
+              console.log('📨 检测到新消息节点，延迟检查自动总结...');
+              // 延迟500ms等待消息完全渲染
+              setTimeout(() => {
+                const currentMessageId = typeof getLastMessageId === 'function' ? getLastMessageId() : -1;
+                if (currentMessageId !== lastCheckedMessageId) {
+                  lastCheckedMessageId = currentMessageId;
+                  checkAutoSummarize();
+                }
+              }, 500);
+            }
+          });
 
-          console.warn('⚠️ eventOn 和 SillyTavern.eventSource 都不可用，将在1秒后重试...');
-          return false;
+          domObserver.observe(chatContainer, {
+            childList: true,
+            subtree: true,
+          });
+
+          console.log('✅ DOM 监控已启动，监控容器: #chat');
+          return true;
         } catch (error) {
-          console.error('❌ 注册事件监听器失败:', error);
+          console.error('❌ DOM 监控设置失败:', error);
           return false;
         }
       };
 
-      // 尝试设置事件监听器，如果失败则延迟重试
-      if (!setupEventListeners()) {
-        setTimeout(() => {
-          console.log('🔄 延迟重试事件监听器注册...');
-          setupEventListeners();
-        }, 1000);
+      // 方式2: 定时轮询（作为备用）
+      const startPolling = () => {
+        setInterval(() => {
+          try {
+            const currentMessageId = typeof getLastMessageId === 'function' ? getLastMessageId() : -1;
+            if (currentMessageId !== lastCheckedMessageId && currentMessageId >= 0) {
+              lastCheckedMessageId = currentMessageId;
+              console.log('🔄 轮询检测到消息变化，检查自动总结...');
+              checkAutoSummarize();
+            }
+          } catch (error) {
+            console.error('❌ 轮询检查失败:', error);
+          }
+        }, 3000); // 每3秒检查一次
+      };
+
+      // 启动监控
+      const domSuccess = setupDOMMonitoring();
+      if (domSuccess) {
+        console.log('✅ 使用 DOM 监控方案');
+      } else {
+        console.log('⚠️ DOM 监控失败，使用轮询方案');
       }
+
+      // 总是启动轮询作为备用
+      startPolling();
+      console.log('✅ 轮询检查已启动（每3秒）');
+
+      // 页面卸载时清理
+      $(window).on('pagehide', () => {
+        if (domObserver) {
+          domObserver.disconnect();
+        }
+      });
 
       // 添加设置监控，当设置变化时重新验证（插件环境 - 使用 localStorage）
       const settingsStore = useSettingsStore();
