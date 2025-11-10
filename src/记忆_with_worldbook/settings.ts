@@ -104,23 +104,19 @@ export function filterApiParams(params: any, endpoint: string): any {
   const provider = detectApiProvider(endpoint);
 
   if (provider === 'gemini') {
-    // Gemini 只支持: model, messages, temperature, max_tokens (在 generation_config 中)
+    // Gemini OpenAI 兼容 API 支持: model, messages, temperature, max_tokens
+    // 但不支持 frequency_penalty, presence_penalty, top_p 等参数
     const filtered: any = {
       model: params.model,
       messages: params.messages,
     };
 
-    // 如果有 temperature 或 max_tokens，放入 generation_config
-    const generationConfig: any = {};
+    // 直接使用 OpenAI 标准参数名，不需要 generation_config 包装
     if (params.temperature !== undefined) {
-      generationConfig.temperature = params.temperature;
+      filtered.temperature = params.temperature;
     }
     if (params.max_tokens !== undefined) {
-      generationConfig.maxOutputTokens = params.max_tokens;
-    }
-
-    if (Object.keys(generationConfig).length > 0) {
-      filtered.generation_config = generationConfig;
+      filtered.max_tokens = params.max_tokens;
     }
 
     console.log('🔍 检测到 Gemini API，已过滤不支持的参数');

@@ -1983,7 +1983,7 @@ const handle_summarize = async () => {
     saveGenerationStatus();
 
     // 创建任务
-    taskId = taskStore.addTask({
+    taskId = taskStore.createTask({
       title: '生成总结',
       description: `正在总结楼层 ${settings.value.start_message_id} - ${settings.value.end_message_id}`,
       category: '总结',
@@ -2084,7 +2084,7 @@ const handle_generate_table = async () => {
     saveGenerationStatus();
 
     // 创建任务
-    taskId = taskStore.addTask({
+    taskId = taskStore.createTask({
       title: '生成表格',
       description: `正在生成楼层 ${settings.value.table_start_message_id} - ${settings.value.table_end_message_id} 的表格`,
       category: '表格',
