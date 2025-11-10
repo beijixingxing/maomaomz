@@ -217,17 +217,40 @@ export async function summarizeMessages(start_id: number, end_id: number): Promi
   }
 
   // 获取要总结的消息
-  // 遍历每个楼层获取消息
+  // 使用 TavernHelper.getChatMessages() 获取消息范围
   const messages: Array<{ role: string; message: string }> = [];
-  for (let i = start_id; i <= end_id; i++) {
-    const msg = getChatMessages(i);
-    if (msg.length > 0) {
-      messages.push(...msg);
+  
+  try {
+    // 尝试使用 TavernHelper.getChatMessages()
+    if (typeof (window as any).TavernHelper !== 'undefined' && 
+        typeof (window as any).TavernHelper.getChatMessages === 'function') {
+      const range = `${start_id}-${end_id}`;
+      const msgs = (window as any).TavernHelper.getChatMessages(range);
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        messages.push(...msgs);
+      }
+    } else {
+      // 降级方案：遍历每个楼层（如果可用）
+      for (let i = start_id; i <= end_id; i++) {
+        // 尝试从 SillyTavern.chat 获取
+        if (typeof SillyTavern !== 'undefined' && Array.isArray(SillyTavern.chat) && SillyTavern.chat[i]) {
+          const msg = SillyTavern.chat[i];
+          if (msg) {
+            messages.push({
+              role: msg.is_user ? 'user' : 'assistant',
+              message: msg.mes || '',
+            });
+          }
+        }
+      }
     }
+  } catch (error) {
+    console.error('❌ 获取消息失败:', error);
+    throw new Error('获取消息失败: ' + (error as Error).message);
   }
 
   if (messages.length === 0) {
-    throw new Error('没有可总结的消息');
+    throw new Error(`没有可总结的消息（范围: ${start_id}-${end_id}）`);
   }
 
   // 构建总结提示 - 要求详细全面的剧情总结
