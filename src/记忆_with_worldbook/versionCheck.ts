@@ -40,7 +40,7 @@ function compareVersions(v1: string, v2: string): number {
 async function fetchLatestVersion(): Promise<{ version: string; url: string; notes: string } | null> {
   try {
     console.log('🔍 正在从 GitHub API 获取版本信息...');
-    
+
     // 尝试从 GitHub Releases API 获取
     const response = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/releases/latest`, {
       headers: {
@@ -60,7 +60,7 @@ async function fetchLatestVersion(): Promise<{ version: string; url: string; not
 
     const data = await response.json();
     console.log('✅ 成功获取版本信息:', data.tag_name);
-    
+
     return {
       version: data.tag_name.replace(/^v/, ''),
       url: data.html_url,
@@ -68,7 +68,7 @@ async function fetchLatestVersion(): Promise<{ version: string; url: string; not
     };
   } catch (error: any) {
     console.error('❌ GitHub API 请求失败:', error.message || error);
-    
+
     // 如果是网络错误，尝试备用方案
     console.warn('🔄 尝试使用 jsDelivr CDN 备用方案...');
     return await fetchVersionFromCDN();
@@ -81,7 +81,7 @@ async function fetchLatestVersion(): Promise<{ version: string; url: string; not
 async function fetchVersionFromCDN(): Promise<{ version: string; url: string; notes: string } | null> {
   try {
     console.log('🔍 正在从 jsDelivr CDN 获取版本信息...');
-    
+
     // 使用 jsDelivr CDN，国内访问更稳定
     const response = await fetch(`https://cdn.jsdelivr.net/gh/${GITHUB_REPO}@main/package.json`, {
       cache: 'no-store',
@@ -95,7 +95,7 @@ async function fetchVersionFromCDN(): Promise<{ version: string; url: string; no
 
     const data = await response.json();
     console.log('✅ 从 CDN 成功获取版本:', data.version);
-    
+
     return {
       version: data.version,
       url: `https://github.com/${GITHUB_REPO}/releases/latest`,
@@ -367,7 +367,7 @@ export async function manualCheckUpdates(): Promise<void> {
     (window as any).toastr?.error(
       '❌ 无法获取版本信息\n\n可能原因：\n1. GitHub API 访问受限\n2. 网络连接问题\n3. CDN 访问失败\n\n请稍后重试或查看控制台了解详情',
       '检查失败',
-      { timeOut: 8000 }
+      { timeOut: 8000 },
     );
     return;
   }
