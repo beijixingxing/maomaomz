@@ -30,6 +30,10 @@ export default {
         return await handleUpdate(request, env, corsHeaders);
       } else if (path === '/stats') {
         return await handleStats(request, env, corsHeaders);
+      } else if (path === '/plugin-info') {
+        return await handleGetPluginInfo(request, env, corsHeaders);
+      } else if (path === '/update-plugin-info') {
+        return await handleUpdatePluginInfo(request, env, corsHeaders);
       } else if (path === '/admin' || path === '/') {
         return handleAdmin(env);
       } else {
@@ -359,7 +363,8 @@ function handleAdmin(env) {
         }
 
         input[type="text"],
-        input[type="password"] {
+        input[type="password"],
+        textarea {
             width: 100%;
             padding: 14px;
             background: #1a1a1a;
@@ -368,11 +373,21 @@ function handleAdmin(env) {
             color: #fff;
             font-size: 16px;
             transition: border-color 0.3s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
         }
 
-        input:focus {
+        textarea {
+            resize: vertical;
+            min-height: 200px;
+            line-height: 1.6;
+            font-family: 'Courier New', 'Monaco', monospace;
+        }
+
+        input:focus,
+        textarea:focus {
             outline: none;
             border-color: #4a9eff;
+            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.1);
         }
 
         .button {
@@ -521,6 +536,31 @@ function handleAdmin(env) {
 
         <div id="alert-container"></div>
 
+        <!-- 插件信息管理 -->
+        <div class="card">
+            <h2>📦 插件信息管理</h2>
+            <div class="form-group">
+                <label>当前版本号</label>
+                <input type="text" id="pluginVersion" placeholder="例如：1.4.0" />
+            </div>
+            <div class="form-group">
+                <label>更新日志（支持 Markdown）</label>
+                <textarea id="pluginChangelog" placeholder="例如：&#10;## v1.4.0&#10;- 新增功能A&#10;- 修复Bug B&#10;&#10;## v1.3.0&#10;- 修复了XXX问题" style="min-height: 300px;"></textarea>
+            </div>
+            <div class="form-group">
+                <label>使用说明（支持 Markdown）</label>
+                <textarea id="pluginUsage" placeholder="例如：&#10;## 功能简介&#10;&#10;### 总结功能&#10;- 自动/手动总结对话&#10;&#10;### 写卡辅助&#10;- 生成角色卡、世界书等" style="min-height: 400px;"></textarea>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="button" onclick="updatePluginInfo()">💾 保存插件信息</button>
+                <button class="button button-secondary" onclick="loadPluginInfo()">🔄 重新加载</button>
+            </div>
+            <div id="plugin-info-status" style="margin-top: 15px; padding: 12px; background: rgba(74, 158, 255, 0.1); border-radius: 8px; border-left: 4px solid #4a9eff; display: none;">
+                <strong>📋 当前插件信息：</strong>
+                <div id="plugin-info-display" style="margin-top: 10px; font-size: 14px;"></div>
+            </div>
+        </div>
+
         <!-- 更新授权码 -->
         <div class="card">
             <h2>🔑 更新今日授权码</h2>
@@ -627,6 +667,7 @@ function handleAdmin(env) {
                 document.getElementById('adminKey').value = savedKey;
                 refreshStats();
             }
+            loadPluginInfo(); // 加载插件信息
         };
 
         // 显示提示消息
@@ -869,6 +910,69 @@ function handleAdmin(env) {
             navigator.clipboard.writeText(code);
             showAlert('✅ 授权码已复制到剪贴板！', 'success');
         }
+
+        // 加载插件信息
+        async function loadPluginInfo() {
+            try {
+                const response = await fetch('/plugin-info');
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const data = result.data;
+                    document.getElementById('pluginVersion').value = data.version || '';
+                    document.getElementById('pluginChangelog').value = data.changelog || '';
+                    document.getElementById('pluginUsage').value = data.usage || '';
+
+                    // 显示当前信息
+                    const displayDiv = document.getElementById('plugin-info-display');
+                    displayDiv.innerHTML = \`
+                        <div style="color: #ccc;">
+                            <div style="margin-bottom: 8px;">📌 版本：<strong style="color: #4a9eff;">\${data.version}</strong></div>
+                            <div style="margin-bottom: 8px;">🕐 最后更新：\${new Date(data.lastUpdated).toLocaleString('zh-CN')}</div>
+                            <div style="font-size: 12px; color: #888;">💡 插件前端可以通过 /plugin-info 接口获取这些信息</div>
+                        </div>
+                    \`;
+                    document.getElementById('plugin-info-status').style.display = 'block';
+                } else {
+                    showAlert('⚠️ 暂无插件信息，请填写并保存', 'error');
+                }
+            } catch (error) {
+                console.error('加载插件信息失败:', error);
+                showAlert('❌ 加载插件信息失败：' + error.message, 'error');
+            }
+        }
+
+        // 更新插件信息
+        async function updatePluginInfo() {
+            const version = document.getElementById('pluginVersion').value.trim();
+            const changelog = document.getElementById('pluginChangelog').value.trim();
+            const usage = document.getElementById('pluginUsage').value.trim();
+
+            if (!version || !changelog || !usage) {
+                showAlert('❌ 版本号、更新日志和使用说明不能为空', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/update-plugin-info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version, changelog, usage })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert('✅ ' + result.message, 'success');
+                    loadPluginInfo(); // 重新加载显示
+                } else {
+                    showAlert('❌ ' + (result.message || '更新失败'), 'error');
+                }
+            } catch (error) {
+                console.error('更新插件信息失败:', error);
+                showAlert('❌ 更新失败：' + error.message, 'error');
+            }
+        }
     </script>
 </body>
 </html>`;
@@ -1031,5 +1135,76 @@ async function recordApiEndpoint(env, apiEndpoint, ip, country) {
     await env.CODES.put('api_endpoints', JSON.stringify(endpoints));
   } catch (error) {
     console.error('记录API端点失败:', error);
+  }
+}
+
+/**
+ * 获取插件信息（版本、更新日志、使用说明）
+ */
+async function handleGetPluginInfo(request, env, corsHeaders) {
+  try {
+    const pluginInfoStr = await env.CODES.get('plugin_info');
+    const pluginInfo = pluginInfoStr
+      ? JSON.parse(pluginInfoStr)
+      : {
+          version: '1.4.0',
+          changelog: '暂无更新日志',
+          usage: '暂无使用说明',
+          lastUpdated: new Date().toISOString(),
+        };
+
+    return jsonResponse(
+      {
+        success: true,
+        data: pluginInfo,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('获取插件信息失败:', error);
+    return jsonResponse({ success: false, error: error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 更新插件信息（仅管理员）
+ */
+async function handleUpdatePluginInfo(request, env, corsHeaders) {
+  try {
+    const { version, changelog, usage } = await request.json();
+
+    if (!version || !changelog || !usage) {
+      return jsonResponse(
+        {
+          success: false,
+          message: '版本号、更新日志和使用说明不能为空',
+        },
+        400,
+        corsHeaders,
+      );
+    }
+
+    const pluginInfo = {
+      version: version.trim(),
+      changelog: changelog.trim(),
+      usage: usage.trim(),
+      lastUpdated: new Date().toISOString(),
+    };
+
+    await env.CODES.put('plugin_info', JSON.stringify(pluginInfo));
+
+    return jsonResponse(
+      {
+        success: true,
+        message: '✅ 插件信息已更新',
+        data: pluginInfo,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('更新插件信息失败:', error);
+    return jsonResponse({ success: false, error: error.message }, 500, corsHeaders);
   }
 }

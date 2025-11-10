@@ -144,43 +144,8 @@
         v-show="expandedSections.usageGuide"
         style="color: #e0e0e0; font-size: 14px; line-height: 1.8; animation: fadeIn 0.3s ease-in"
       >
-        <!-- 功能简介 -->
-        <div style="margin-bottom: 20px">
-          <h4 style="color: #4a9eff; margin-bottom: 12px; font-size: 16px">📋 功能简介</h4>
-          <ul style="list-style: none; padding: 0; margin: 0">
-            <li style="margin-bottom: 8px"><strong>总结：</strong>自动/手动总结对话，存入世界书</li>
-            <li style="margin-bottom: 8px">
-              <strong>写卡辅助：</strong>生成角色卡、世界书条目，支持流式传输和 AI 修改
-            </li>
-            <li style="margin-bottom: 8px">
-              <strong>状态栏生成：</strong>可视化配置状态栏，生成正则 JSON 和世界书条目
-            </li>
-            <li style="margin-bottom: 8px"><strong>MVU Beta：</strong>生成变量结构、提示词模板、meta 配置</li>
-            <li><strong>其他：</strong>去八股、正则界面生成、前端项目管理、表格生成</li>
-          </ul>
-        </div>
-
-        <!-- 使用方法 -->
-        <div>
-          <h4 style="color: #ffc107; margin-bottom: 12px; font-size: 16px">💡 使用方法</h4>
-
-          <div style="margin-bottom: 15px">
-            <div style="color: #ff6b6b; font-weight: 600; margin-bottom: 8px">⚠️ API 配置</div>
-            <div style="margin-bottom: 10px">
-              <strong>支持的格式：</strong>
-              <ul style="margin: 8px 0; padding-left: 20px">
-                <li><code>https://api.openai.com</code> → 自动补全为 <code>/v1</code></li>
-                <li><code>https://api.openai.com/v1</code> → 直接使用</li>
-                <li><code>https://your-proxy.com/v1/chat/completions</code> → 直接使用</li>
-              </ul>
-            </div>
-          </div>
-
-          <ul style="list-style: disc; padding-left: 20px; margin: 0">
-            <li style="margin-bottom: 8px"><strong>导入：</strong>酒馆助手 → 脚本库 → 导入 → 全局脚本</li>
-            <li style="margin-bottom: 8px"><strong>首次使用：</strong>先去"设置"页配置 API</li>
-            <li><strong>自动总结：</strong>建议开启，每 20-30 楼自动生成一次</li>
-          </ul>
+        <div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+          {{ pluginUsage }}
         </div>
       </div>
     </div>
@@ -222,7 +187,12 @@
         v-show="expandedSections.changelog"
         style="color: #e0e0e0; font-size: 14px; line-height: 1.8; animation: fadeIn 0.3s ease-in"
       >
-        <!-- v1.34 -->
+        <div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+          {{ pluginChangelog }}
+        </div>
+
+        <!-- 旧的硬编码版本记录（作为备份） -->
+        <div v-if="false">
         <div
           style="
             padding: 20px;
@@ -385,6 +355,8 @@
             <li class="update-item">支持自动/手动总结、表格生成、反八股、世界书条目管理、楼层隐藏/显示</li>
           </ul>
         </div>
+        </div>
+        <!-- 结束备份的硬编码内容 -->
       </div>
     </div>
 
@@ -407,11 +379,15 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { reactive, ref, onMounted } from 'vue';
 import { CURRENT_VERSION, manualCheckUpdates } from '../versionCheck';
+
+const AUTH_API_URL = 'https://maomaomz-auth.mzrodyu.workers.dev';
 
 const currentVersion = CURRENT_VERSION;
 const isCheckingUpdate = ref(false);
+const pluginUsage = ref('加载中...');
+const pluginChangelog = ref('加载中...');
 
 const expandedSections = reactive({
   usageGuide: true,
@@ -434,6 +410,33 @@ const checkForUpdates = async () => {
     isCheckingUpdate.value = false;
   }
 };
+
+// 从后端加载插件信息
+const loadPluginInfo = async () => {
+  try {
+    console.log('🔍 正在从后端加载使用说明和更新日志...');
+    const response = await fetch(`${AUTH_API_URL}/plugin-info`);
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      pluginUsage.value = result.data.usage || '暂无使用说明';
+      pluginChangelog.value = result.data.changelog || '暂无更新日志';
+      console.log('✅ 成功加载插件信息', result.data);
+    } else {
+      pluginUsage.value = '❌ 加载失败，请稍后重试';
+      pluginChangelog.value = '❌ 加载失败，请稍后重试';
+    }
+  } catch (error) {
+    console.error('❌ 加载插件信息失败:', error);
+    pluginUsage.value = '❌ 无法连接到服务器';
+    pluginChangelog.value = '❌ 无法连接到服务器';
+  }
+};
+
+// 页面加载时获取插件信息
+onMounted(() => {
+  loadPluginInfo();
+});
 </script>
 
 <style scoped>
