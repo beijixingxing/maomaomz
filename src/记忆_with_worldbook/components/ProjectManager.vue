@@ -1409,55 +1409,18 @@
 
         <!-- 模板列表 -->
         <div style="padding: 28px">
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px">
-            <!-- 同层对话界面 -->
-            <div
-              style="
-                background: #252525;
-                border: 1px solid transparent;
-                border-radius: 16px;
-                padding: 24px;
-                cursor: pointer;
-                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-              "
-              @click="createProjectFromTemplate('同层对话界面')"
-              @mouseenter="
-                (e: any) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.borderColor = '#555';
-                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.5)';
-                }
-              "
-              @mouseleave="
-                (e: any) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.borderColor = 'transparent';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
-                }
-              "
-            >
-              <div
-                style="
-                  width: 56px;
-                  height: 56px;
-                  background: #2a2a2a;
-                  border-radius: 16px;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  font-size: 28px;
-                  margin-bottom: 16px;
-                "
-              >
-                💬
-              </div>
-              <h4 style="margin: 0 0 8px 0; color: #fff; font-size: 17px; font-weight: 600">同层对话界面</h4>
-              <p style="margin: 0; color: #999; font-size: 13px; line-height: 1.6">流式对话、消息历史、正则清理</p>
-            </div>
+          <!-- 加载状态 -->
+          <div v-if="templatesLoading" style="text-align: center; padding: 60px 0; color: #888">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 12px"></i>
+            <p style="margin: 0; font-size: 14px">正在从后端加载模板...</p>
+          </div>
 
-            <!-- 状态栏面板 -->
+          <!-- 模板列表 -->
+          <div v-else style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px">
+            <!-- 动态渲染后端模板 -->
             <div
+              v-for="template in backendTemplates"
+              :key="template.id"
               style="
                 background: #252525;
                 border: 1px solid transparent;
@@ -1467,7 +1430,7 @@
                 transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
               "
-              @click="createProjectFromTemplate('状态栏面板')"
+              @click="createProjectFromTemplate(template.title)"
               @mouseenter="
                 (e: any) => {
                   e.currentTarget.style.transform = 'translateY(-4px)';
@@ -1496,56 +1459,10 @@
                   margin-bottom: 16px;
                 "
               >
-                📊
+                {{ template.icon }}
               </div>
-              <h4 style="margin: 0 0 8px 0; color: #fff; font-size: 17px; font-weight: 600">状态栏面板</h4>
-              <p style="margin: 0; color: #999; font-size: 13px; line-height: 1.6">HP/MP/经验值，进度条动画</p>
-            </div>
-
-            <!-- 好感度面板 -->
-            <div
-              style="
-                background: #252525;
-                border: 1px solid transparent;
-                border-radius: 16px;
-                padding: 24px;
-                cursor: pointer;
-                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-              "
-              @click="createProjectFromTemplate('好感度面板')"
-              @mouseenter="
-                (e: any) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.borderColor = '#555';
-                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.5)';
-                }
-              "
-              @mouseleave="
-                (e: any) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.borderColor = 'transparent';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
-                }
-              "
-            >
-              <div
-                style="
-                  width: 56px;
-                  height: 56px;
-                  background: #2a2a2a;
-                  border-radius: 16px;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  font-size: 28px;
-                  margin-bottom: 16px;
-                "
-              >
-                💝
-              </div>
-              <h4 style="margin: 0 0 8px 0; color: #fff; font-size: 17px; font-weight: 600">好感度面板</h4>
-              <p style="margin: 0; color: #999; font-size: 13px; line-height: 1.6">多角色卡片，爱心图标</p>
+              <h4 style="margin: 0 0 8px 0; color: #fff; font-size: 17px; font-weight: 600">{{ template.title }}</h4>
+              <p style="margin: 0; color: #999; font-size: 13px; line-height: 1.6">{{ template.description }}</p>
             </div>
           </div>
 
@@ -1586,7 +1503,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch, watchEffect } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
 import { normalizeApiEndpoint, useSettingsStore } from '../settings';
 import { getScriptIdSafe, getChatIdSafe } from '../utils';
 import { useTaskStore } from '../taskStore';
@@ -1616,6 +1533,14 @@ interface AIHistoryRecord {
   changes: AIChange[];
 }
 
+interface BackendTemplate {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  enabled: boolean;
+}
+
 const projects = ref<Project[]>([]);
 const currentId = ref('');
 const currentFile = ref('');
@@ -1631,6 +1556,8 @@ const aiChanges = ref<AIChange[]>([]);
 const previewMode = ref<'before' | 'after'>('after');
 const showHistory = ref(false);
 const aiHistory = ref<Record<string, AIHistoryRecord[]>>({});
+const backendTemplates = ref<BackendTemplate[]>([]); // 从后端获取的模板列表
+const templatesLoading = ref(true); // 模板加载状态
 
 // AI 快捷建议
 const quickSuggestions = [
@@ -6207,6 +6134,43 @@ function openInNewWindow() {
     toastr.error('无法打开新窗口，请检查浏览器弹窗设置');
   }
 }
+
+// 从后端获取项目模板
+async function loadTemplatesFromBackend() {
+  templatesLoading.value = true;
+  try {
+    const AUTH_API_URL = 'https://maomaomz-auth.baobaoyu999727272.workers.dev';
+    const response = await fetch(`${AUTH_API_URL}/get-templates`);
+    const result = await response.json();
+
+    if (result.success && result.data.templates) {
+      backendTemplates.value = result.data.templates.filter((t: BackendTemplate) => t.enabled);
+      console.log('✅ 从后端加载项目模板:', backendTemplates.value);
+    } else {
+      console.warn('⚠️ 后端模板加载失败，使用默认模板');
+      backendTemplates.value = [
+        { id: 'chat-interface', icon: '💬', title: '同层对话界面', description: '流式对话、消息历史、正则清洗', enabled: true },
+        { id: 'status-bar', icon: '📊', title: '状态栏面板', description: 'HP/MP/经验槽，进度条动画', enabled: true },
+        { id: 'favorability', icon: '💖', title: '好感度面板', description: '多角色卡片，爱心图标', enabled: true },
+      ];
+    }
+  } catch (error) {
+    console.error('❌ 获取项目模板失败:', error);
+    // 使用默认模板
+    backendTemplates.value = [
+      { id: 'chat-interface', icon: '💬', title: '同层对话界面', description: '流式对话、消息历史、正则清洗', enabled: true },
+      { id: 'status-bar', icon: '📊', title: '状态栏面板', description: 'HP/MP/经验槽，进度条动画', enabled: true },
+      { id: 'favorability', icon: '💖', title: '好感度面板', description: '多角色卡片，爱心图标', enabled: true },
+    ];
+  } finally {
+    templatesLoading.value = false;
+  }
+}
+
+// 组件挂载时加载模板
+onMounted(() => {
+  loadTemplatesFromBackend();
+});
 </script>
 
 <style scoped>

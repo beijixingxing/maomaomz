@@ -34,6 +34,10 @@ export default {
         return await handleGetPluginInfo(request, env, corsHeaders);
       } else if (path === '/update-plugin-info') {
         return await handleUpdatePluginInfo(request, env, corsHeaders);
+      } else if (path === '/get-templates') {
+        return await handleGetTemplates(request, env, corsHeaders);
+      } else if (path === '/update-templates') {
+        return await handleUpdateTemplates(request, env, corsHeaders);
       } else if (path === '/admin' || path === '/') {
         return handleAdmin(env);
       } else {
@@ -348,7 +352,44 @@ function handleAdmin(env) {
             font-size: 24px;
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 10px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.3s ease;
+        }
+
+        .card h2:hover {
+            color: #6ab4ff;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .collapse-icon {
+            font-size: 16px;
+            transition: transform 0.3s ease;
+            color: #888;
+        }
+
+        .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .card-content {
+            max-height: 2000px;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+            opacity: 1;
+        }
+
+        .card-content.collapsed {
+            max-height: 0 !important;
+            opacity: 0;
+            pointer-events: none;
         }
 
         .form-group {
@@ -538,7 +579,11 @@ function handleAdmin(env) {
 
         <!-- 插件信息管理 -->
         <div class="card">
-            <h2>📦 插件信息管理</h2>
+            <h2 onclick="toggleCard('plugin-info')">
+                <span class="card-header">📦 插件信息管理</span>
+                <span class="collapse-icon" id="plugin-info-icon">▼</span>
+            </h2>
+            <div class="card-content" id="plugin-info-content">
             <div class="form-group">
                 <label>当前版本号</label>
                 <input type="text" id="pluginVersion" placeholder="例如：1.4.0" />
@@ -559,11 +604,16 @@ function handleAdmin(env) {
                 <strong>📋 当前插件信息：</strong>
                 <div id="plugin-info-display" style="margin-top: 10px; font-size: 14px;"></div>
             </div>
+            </div>
         </div>
 
         <!-- 更新授权码 -->
         <div class="card">
-            <h2>🔑 更新今日授权码</h2>
+            <h2 onclick="toggleCard('update-code')">
+                <span class="card-header">🔑 更新今日授权码</span>
+                <span class="collapse-icon" id="update-code-icon">▼</span>
+            </h2>
+            <div class="card-content" id="update-code-content">
             <div class="form-group">
                 <label>管理员密钥</label>
                 <input type="password" id="adminKey" placeholder="输入你的管理员密钥" />
@@ -576,11 +626,16 @@ function handleAdmin(env) {
                 <button class="button" onclick="updateCode()">🚀 更新授权码</button>
                 <button class="button button-secondary" onclick="generateCode()">🎲 自动生成</button>
             </div>
+            </div>
         </div>
 
         <!-- 当前授权码显示 -->
         <div class="card">
-            <h2>📊 当前授权码</h2>
+            <h2 onclick="toggleCard('current-code')">
+                <span class="card-header">📊 当前授权码</span>
+                <span class="collapse-icon" id="current-code-icon">▼</span>
+            </h2>
+            <div class="card-content" id="current-code-content">
             <div class="code-display" id="currentCode">加载中...</div>
             <p style="text-align: center; color: #888;">
                 <span id="updatedTime">更新时间: 加载中...</span>
@@ -588,11 +643,16 @@ function handleAdmin(env) {
             <button class="button" onclick="copyCode()" style="width: 100%; margin-top: 15px;">
                 📋 复制到剪贴板
             </button>
+            </div>
         </div>
 
         <!-- 使用统计 -->
         <div class="card">
-            <h2>📈 今日使用统计</h2>
+            <h2 onclick="toggleCard('stats')">
+                <span class="card-header">📈 今日使用统计</span>
+                <span class="collapse-icon" id="stats-icon">▼</span>
+            </h2>
+            <div class="card-content" id="stats-content">
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-value" id="statSuccess">0</div>
@@ -618,68 +678,146 @@ function handleAdmin(env) {
             <button class="button button-secondary" onclick="refreshStats()" style="width: 100%;">
                 🔄 刷新统计
             </button>
+            </div>
         </div>
 
         <!-- 授权码使用统计 -->
         <div class="card">
-            <h2>🔑 授权码使用统计</h2>
+            <h2 onclick="toggleCard('code-usage')">
+                <span class="card-header">🔑 授权码使用统计</span>
+                <span class="collapse-icon" id="code-usage-icon">▼</span>
+            </h2>
+            <div class="card-content" id="code-usage-content">
             <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
                 📊 每个授权码的使用次数、独立IP数量、API端点分布
             </p>
             <div id="codeUsageList" style="max-height: 400px; overflow-y: auto;">
                 <p style="color: #888; text-align: center;">加载中...</p>
             </div>
+            </div>
         </div>
 
         <!-- API端点统计（用于抓第三方商业化） -->
         <div class="card">
-            <h2>🌐 API端点统计（用于抓第三方）</h2>
+            <h2 onclick="toggleCard('api-endpoints')">
+                <span class="card-header">🌐 API端点统计（用于抓第三方）</span>
+                <span class="collapse-icon" id="api-endpoints-icon">▼</span>
+            </h2>
+            <div class="card-content" id="api-endpoints-content">
             <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
                 📊 追踪用户使用的API服务商，如果某个端点频繁出现，可能是商业化倒卖行为
             </p>
             <div id="endpointsList" style="max-height: 500px; overflow-y: auto;">
                 <p style="color: #888; text-align: center;">加载中...</p>
             </div>
+            </div>
         </div>
 
         <!-- 验证日志 -->
         <div class="card">
-            <h2>📋 验证日志（最近50条）</h2>
+            <h2 onclick="toggleCard('logs')">
+                <span class="card-header">📋 验证日志（最近50条）</span>
+                <span class="collapse-icon" id="logs-icon">▼</span>
+            </h2>
+            <div class="card-content" id="logs-content">
             <div id="logsList" style="max-height: 500px; overflow-y: auto;">
                 <p style="color: #888; text-align: center;">加载中...</p>
+            </div>
             </div>
         </div>
 
         <!-- 历史授权码 -->
         <div class="card">
-            <h2>📜 历史授权码</h2>
+            <h2 onclick="toggleCard('history')">
+                <span class="card-header">📜 历史授权码</span>
+                <span class="collapse-icon" id="history-icon">▼</span>
+            </h2>
+            <div class="card-content" id="history-content">
             <div id="historyList">
                 <p style="color: #888; text-align: center;">加载中...</p>
+            </div>
+            </div>
+        </div>
+
+        <!-- 项目模板管理 -->
+        <div class="card">
+            <h2 onclick="toggleCard('templates')">
+                <span class="card-header">📁 项目模板管理</span>
+                <span class="collapse-icon" id="templates-icon">▼</span>
+            </h2>
+            <div class="card-content" id="templates-content">
+                <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
+                    🎨 管理前端项目的模板选项，前端会从这里读取模板列表
+                </p>
+                <div id="templatesList" style="margin-bottom: 20px;">
+                    <p style="color: #888; text-align: center;">加载中...</p>
+                </div>
+                <button class="button" onclick="saveTemplates()" style="width: 100%;">
+                    💾 保存模板配置
+                </button>
             </div>
         </div>
     </div>
 
     <script>
+        // 折叠/展开卡片功能
+        function toggleCard(cardId) {
+            const content = document.getElementById(cardId + '-content');
+            const icon = document.getElementById(cardId + '-icon');
+
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                icon.classList.remove('collapsed');
+                icon.textContent = '▼';
+                localStorage.setItem('card-' + cardId, 'expanded');
+            } else {
+                content.classList.add('collapsed');
+                icon.classList.add('collapsed');
+                icon.textContent = '▶';
+                localStorage.setItem('card-' + cardId, 'collapsed');
+            }
+        }
+
+        // 恢复卡片折叠状态
+        function restoreCardStates() {
+            const cardIds = ['plugin-info', 'update-code', 'current-code', 'stats', 'code-usage', 'api-endpoints', 'logs', 'history', 'templates'];
+            cardIds.forEach(function(cardId) {
+                const state = localStorage.getItem('card-' + cardId);
+                if (state === 'collapsed') {
+                    const content = document.getElementById(cardId + '-content');
+                    const icon = document.getElementById(cardId + '-icon');
+                    if (content && icon) {
+                        content.classList.add('collapsed');
+                        icon.classList.add('collapsed');
+                        icon.textContent = '▶';
+                    }
+                }
+            });
+        }
+
         // 页面加载时自动获取统计
         window.onload = function() {
+            restoreCardStates(); // 恢复卡片折叠状态
             const savedKey = localStorage.getItem('adminKey');
             if (savedKey) {
                 document.getElementById('adminKey').value = savedKey;
                 refreshStats();
             }
             loadPluginInfo(); // 加载插件信息
+            loadTemplates(); // 加载项目模板
         };
 
         // 显示提示消息
-        function showAlert(message, type = 'success') {
+        function showAlert(message, type) {
+            if (type === undefined) type = 'success';
             const container = document.getElementById('alert-container');
             const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
             const alert = document.createElement('div');
-            alert.className = \`alert \${alertClass}\`;
+            alert.className = 'alert ' + alertClass;
             alert.textContent = message;
             container.innerHTML = '';
             container.appendChild(alert);
-            setTimeout(() => alert.remove(), 5000);
+            setTimeout(function() { alert.remove(); }, 5000);
         }
 
         // 更新授权码
@@ -732,7 +870,7 @@ function handleAdmin(env) {
                 random += chars[Math.floor(Math.random() * chars.length)];
             }
 
-            const code = \`MEOW-\${dateStr}-\${random}\`;
+            const code = 'MEOW-' + dateStr + '-' + random;
             document.getElementById('newCode').value = code;
             showAlert('✅ 已生成授权码: ' + code, 'success');
         }
@@ -973,6 +1111,132 @@ function handleAdmin(env) {
                 showAlert('❌ 更新失败：' + error.message, 'error');
             }
         }
+
+        // 全局存储模板数据
+        let currentTemplates = [];
+
+        // 加载项目模板
+        async function loadTemplates() {
+            try {
+                const response = await fetch('/get-templates');
+                const result = await response.json();
+
+                if (result.success) {
+                    currentTemplates = result.data.templates || [];
+                    renderTemplates();
+                } else {
+                    document.getElementById('templatesList').innerHTML =
+                        '<p style="color: #ef4444; text-align: center;">❌ 加载失败</p>';
+                }
+            } catch (error) {
+                console.error('加载模板失败:', error);
+                document.getElementById('templatesList').innerHTML =
+                    '<p style="color: #ef4444; text-align: center;">❌ 加载失败：' + error.message + '</p>';
+            }
+        }
+
+        // 渲染模板列表
+        function renderTemplates() {
+            const listHtml = currentTemplates.map((template, index) => {
+                const borderColor = template.enabled ? '#4a9eff' : '#6b7280';
+                const checkedAttr = template.enabled ? 'checked' : '';
+                return '<div style="background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid ' + borderColor + ';">' +
+                    '<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">' +
+                        '<div style="flex: 1;">' +
+                            '<input type="text" id="template-icon-' + index + '" value="' + template.icon + '" ' +
+                                   'style="width: 60px; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 20px; text-align: center; margin-right: 10px;" ' +
+                                   'placeholder="🎨" />' +
+                            '<input type="text" id="template-title-' + index + '" value="' + template.title + '" ' +
+                                   'style="width: calc(100% - 80px); padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 14px;" ' +
+                                   'placeholder="模板标题" />' +
+                        '</div>' +
+                    '</div>' +
+                    '<div style="margin-bottom: 10px;">' +
+                        '<input type="text" id="template-desc-' + index + '" value="' + template.description + '" ' +
+                               'style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 13px;" ' +
+                               'placeholder="模板描述" />' +
+                    '</div>' +
+                    '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                        '<label style="display: flex; align-items: center; cursor: pointer;">' +
+                            '<input type="checkbox" id="template-enabled-' + index + '" ' + checkedAttr + ' ' +
+                                   'style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;" />' +
+                            '<span style="color: #888; font-size: 13px;">启用模板</span>' +
+                        '</label>' +
+                        '<button onclick="removeTemplate(' + index + ')" ' +
+                                'style="padding: 6px 12px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">' +
+                            '🗑️ 删除' +
+                        '</button>' +
+                    '</div>' +
+                    '<div style="margin-top: 8px; padding: 8px; background: #2a2a2a; border-radius: 4px;">' +
+                        '<span style="color: #666; font-size: 11px;">ID: </span>' +
+                        '<input type="text" id="template-id-' + index + '" value="' + template.id + '" ' +
+                               'style="width: calc(100% - 40px); padding: 4px 8px; background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 4px; color: #888; font-size: 11px; font-family: \'Courier New\', monospace;" ' +
+                               'placeholder="template-id" />' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
+            document.getElementById('templatesList').innerHTML = listHtml +
+                '<button onclick="addTemplate()" ' +
+                        'style="width: 100%; padding: 12px; background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; margin-top: 10px;">' +
+                    '➕ 添加新模板' +
+                '</button>';
+        }
+
+        // 添加新模板
+        function addTemplate() {
+            currentTemplates.push({
+                id: 'new-template-' + Date.now(),
+                icon: '📝',
+                title: '新模板',
+                description: '描述',
+                enabled: true
+            });
+            renderTemplates();
+        }
+
+        // 删除模板
+        function removeTemplate(index) {
+            if (confirm('确定要删除这个模板吗？')) {
+                currentTemplates.splice(index, 1);
+                renderTemplates();
+            }
+        }
+
+        // 保存模板配置
+        async function saveTemplates() {
+            try {
+                // 从DOM读取最新数据
+                const templates = currentTemplates.map(function(_, index) {
+                    return {
+                        id: document.getElementById('template-id-' + index).value.trim(),
+                        icon: document.getElementById('template-icon-' + index).value.trim(),
+                        title: document.getElementById('template-title-' + index).value.trim(),
+                        description: document.getElementById('template-desc-' + index).value.trim(),
+                        enabled: document.getElementById('template-enabled-' + index).checked
+                    };
+                });
+
+                const response = await fetch('/update-templates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ templates })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert('✅ ' + result.message, 'success');
+                    currentTemplates = result.data.templates;
+                    renderTemplates();
+                } else {
+                    showAlert('❌ ' + (result.message || '保存失败'), 'error');
+                }
+            } catch (error) {
+                console.error('保存模板失败:', error);
+                showAlert('❌ 保存失败：' + error.message, 'error');
+            }
+        }
     </script>
 </body>
 </html>`;
@@ -1205,6 +1469,101 @@ async function handleUpdatePluginInfo(request, env, corsHeaders) {
     );
   } catch (error) {
     console.error('更新插件信息失败:', error);
+    return jsonResponse({ success: false, error: error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 获取项目模板列表
+ */
+async function handleGetTemplates(request, env, corsHeaders) {
+  try {
+    const templatesStr = await env.CODES.get('project_templates');
+    const templates = templatesStr
+      ? JSON.parse(templatesStr)
+      : {
+          templates: [
+            {
+              id: 'chat-interface',
+              icon: '💬',
+              title: '同层对话界面',
+              description: '流式对话、消息历史、正则清洗',
+              enabled: true,
+            },
+            {
+              id: 'status-bar',
+              icon: '📊',
+              title: '状态栏面板',
+              description: 'HP/MP/经验槽，进度条动画',
+              enabled: true,
+            },
+            {
+              id: 'favorability',
+              icon: '💖',
+              title: '好感度面板',
+              description: '多角色卡片，爱心图标',
+              enabled: true,
+            },
+          ],
+          lastUpdated: new Date().toISOString(),
+        };
+
+    return jsonResponse(
+      {
+        success: true,
+        data: templates,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('获取项目模板失败:', error);
+    return jsonResponse({ success: false, error: error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 更新项目模板（仅管理员）
+ */
+async function handleUpdateTemplates(request, env, corsHeaders) {
+  try {
+    const { templates } = await request.json();
+
+    if (!templates || !Array.isArray(templates)) {
+      return jsonResponse(
+        {
+          success: false,
+          message: '模板列表格式错误',
+        },
+        400,
+        corsHeaders,
+      );
+    }
+
+    const templateData = {
+      templates: templates.map(t => ({
+        id: t.id,
+        icon: t.icon,
+        title: t.title,
+        description: t.description,
+        enabled: t.enabled !== false,
+      })),
+      lastUpdated: new Date().toISOString(),
+    };
+
+    await env.CODES.put('project_templates', JSON.stringify(templateData));
+
+    return jsonResponse(
+      {
+        success: true,
+        message: '✅ 项目模板已更新',
+        data: templateData,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('更新项目模板失败:', error);
     return jsonResponse({ success: false, error: error.message }, 500, corsHeaders);
   }
 }
