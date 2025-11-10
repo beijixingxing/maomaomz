@@ -300,7 +300,7 @@ ${updateInfo.notes}
     (window as any).toastr?.info(
       '请在 GitHub 页面下载最新版本，或在插件目录执行 git pull\n\n更新后请刷新页面',
       '更新指引',
-      { timeOut: 0, extendedTimeOut: 0 }
+      { timeOut: 0, extendedTimeOut: 0 },
     );
 
     // 关闭对话框
@@ -364,4 +364,3 @@ export async function manualCheckUpdates(): Promise<void> {
     (window as any).toastr?.success(`✅ 已是最新版本 v${result.currentVersion}`);
   }
 }
-

@@ -875,7 +875,7 @@ $(() => {
       // 暴露授权相关函数
       (window as any).clearAuth = clearAuth;
       (window as any).isAuthorized = isAuthorized;
-      
+
       // 暴露版本检测函数
       (window as any).checkUpdate = manualCheckUpdates;
       (window as any).currentVersion = CURRENT_VERSION;
@@ -892,7 +892,7 @@ $(() => {
 
       console.log(`📦 猫猫的小破烂 v${CURRENT_VERSION} 已加载`);
       window.toastr.success(`🐱 猫猫的小破烂 v${CURRENT_VERSION} 已加载 | 授权验证成功`);
-      
+
       // 🔄 自动检查更新（延迟3秒，避免影响启动速度）
       setTimeout(() => {
         console.log('🔍 开始自动检查更新...');
