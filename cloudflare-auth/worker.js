@@ -47,11 +47,16 @@ export default {
  */
 async function handleVerify(request, env, corsHeaders) {
   try {
-    const { code } = await request.json();
+    const { code, device } = await request.json();
 
     if (!code) {
       return jsonResponse({ valid: false, message: '❌ 授权码不能为空' }, 400, corsHeaders);
     }
+
+    // 获取请求的 IP 地址
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const country = request.headers.get('CF-IPCountry') || 'unknown';
+
     // 获取当前有效的授权码
     const currentCode = await env.CODES.get('current_code');
 
@@ -69,9 +74,24 @@ async function handleVerify(request, env, corsHeaders) {
     // 验证授权码（不区分大小写）
     const isValid = code.toUpperCase() === currentCode.toUpperCase();
 
+    // 记录详细的验证日志
+    await logVerification(env, {
+      code,
+      isValid,
+      device,
+      ip,
+      country,
+      timestamp: new Date().toISOString(),
+    });
+
     if (isValid) {
-      // 记录成功的验证
+      // 记录成功的验证和设备信息
       await incrementStats(env, 'success');
+
+      // 记录设备ID（用于统计独立用户）
+      if (device && device.deviceId) {
+        await recordDevice(env, device);
+      }
 
       return jsonResponse(
         {
@@ -179,6 +199,15 @@ async function handleStats(request, env, corsHeaders) {
     const stats = await getStats(env);
     const history = await getHistory(env);
 
+    // 获取设备数据
+    const devicesStr = await env.CODES.get('devices');
+    const devices = devicesStr ? JSON.parse(devicesStr) : {};
+    const deviceCount = Object.keys(devices).length;
+
+    // 获取验证日志
+    const logsStr = await env.CODES.get('verification_logs');
+    const logs = logsStr ? JSON.parse(logsStr) : [];
+
     return jsonResponse(
       {
         success: true,
@@ -193,8 +222,11 @@ async function handleStats(request, env, corsHeaders) {
               stats.success + stats.failed > 0
                 ? ((stats.success / (stats.success + stats.failed)) * 100).toFixed(1)
                 : '0',
+            deviceCount: deviceCount,
           },
-          history: history.slice(0, 10), // 最近 10 条
+          history: history.slice(0, 10), // 最近 10 条历史授权码
+          devices: Object.values(devices).slice(0, 20), // 最近 20 个设备
+          logs: logs.slice(0, 50), // 最近 50 条验证日志
         },
       },
       200,
@@ -517,13 +549,33 @@ function handleAdmin(env) {
                     <div class="stat-value" id="statRate">0%</div>
                     <div class="stat-label">成功率</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statDevices">0</div>
+                    <div class="stat-label">独立设备数</div>
+                </div>
             </div>
             <button class="button button-secondary" onclick="refreshStats()" style="width: 100%;">
                 🔄 刷新统计
             </button>
         </div>
 
-        <!-- 历史记录 -->
+        <!-- 设备统计 -->
+        <div class="card">
+            <h2>📱 设备统计（最近20个）</h2>
+            <div id="devicesList" style="max-height: 400px; overflow-y: auto;">
+                <p style="color: #888; text-align: center;">加载中...</p>
+            </div>
+        </div>
+
+        <!-- 验证日志 -->
+        <div class="card">
+            <h2>📋 验证日志（最近50条）</h2>
+            <div id="logsList" style="max-height: 500px; overflow-y: auto;">
+                <p style="color: #888; text-align: center;">加载中...</p>
+            </div>
+        </div>
+
+        <!-- 历史授权码 -->
         <div class="card">
             <h2>📜 历史授权码</h2>
             <div id="historyList">
@@ -639,8 +691,60 @@ function handleAdmin(env) {
                     document.getElementById('statFailed').textContent = data.stats.failed;
                     document.getElementById('statTotal').textContent = data.stats.total;
                     document.getElementById('statRate').textContent = data.stats.successRate + '%';
+                    document.getElementById('statDevices').textContent = data.stats.deviceCount || 0;
 
-                    // 更新历史记录
+                    // 更新设备列表
+                    const devicesList = document.getElementById('devicesList');
+                    if (data.devices && data.devices.length > 0) {
+                        devicesList.innerHTML = data.devices.map(device => \`
+                            <div class="history-item">
+                                <div>
+                                    <div style="font-family: 'Courier New', monospace; font-weight: 700; color: #4a9eff; margin-bottom: 4px;">
+                                        \${device.deviceId}
+                                    </div>
+                                    <div style="color: #888; font-size: 13px;">
+                                        访问次数: \${device.accessCount} |
+                                        首次: \${new Date(device.firstAccess).toLocaleString('zh-CN')}
+                                    </div>
+                                    <div style="color: #666; font-size: 12px; margin-top: 2px;">
+                                        \${device.info.platform} | \${device.info.screenResolution} | \${device.info.timezone}
+                                    </div>
+                                </div>
+                                <span class="history-time">\${new Date(device.lastAccess).toLocaleString('zh-CN')}</span>
+                            </div>
+                        \`).join('');
+                    } else {
+                        devicesList.innerHTML = '<p style="color: #888; text-align: center;">暂无设备数据</p>';
+                    }
+
+                    // 更新验证日志
+                    const logsList = document.getElementById('logsList');
+                    if (data.logs && data.logs.length > 0) {
+                        logsList.innerHTML = data.logs.map(log => \`
+                            <div class="history-item" style="border-left-color: \${log.isValid ? '#10b981' : '#ef4444'}">
+                                <div>
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                        <span style="font-size: 14px;">\${log.isValid ? '✅' : '❌'}</span>
+                                        <span style="font-family: 'Courier New', monospace; color: \${log.isValid ? '#10b981' : '#ef4444'};">
+                                            \${log.code}
+                                        </span>
+                                        <span style="color: #888; font-size: 12px;">
+                                            IP: \${log.ip} (\${log.country})
+                                        </span>
+                                    </div>
+                                    <div style="color: #666; font-size: 12px;">
+                                        设备: \${log.device ? log.device.deviceId : '未知'} |
+                                        \${log.device ? log.device.platform : '未知平台'}
+                                    </div>
+                                </div>
+                                <span class="history-time">\${new Date(log.timestamp).toLocaleString('zh-CN')}</span>
+                            </div>
+                        \`).join('');
+                    } else {
+                        logsList.innerHTML = '<p style="color: #888; text-align: center;">暂无验证日志</p>';
+                    }
+
+                    // 更新历史授权码
                     const historyList = document.getElementById('historyList');
                     if (data.history && data.history.length > 0) {
                         historyList.innerHTML = data.history.map(item => \`
@@ -713,4 +817,62 @@ async function getHistory(env) {
     return [];
   }
   return JSON.parse(historyStr);
+}
+
+/**
+ * 记录详细的验证日志
+ */
+async function logVerification(env, logData) {
+  try {
+    const logsStr = await env.CODES.get('verification_logs');
+    const logs = logsStr ? JSON.parse(logsStr) : [];
+
+    logs.unshift(logData);
+
+    // 只保留最近 500 条日志
+    if (logs.length > 500) {
+      logs.length = 500;
+    }
+
+    await env.CODES.put('verification_logs', JSON.stringify(logs));
+  } catch (error) {
+    console.error('记录日志失败:', error);
+  }
+}
+
+/**
+ * 记录设备信息（用于统计独立用户）
+ */
+async function recordDevice(env, device) {
+  try {
+    const devicesStr = await env.CODES.get('devices');
+    const devices = devicesStr ? JSON.parse(devicesStr) : {};
+
+    const deviceId = device.deviceId;
+
+    if (devices[deviceId]) {
+      // 设备已存在，更新最后访问时间和次数
+      devices[deviceId].lastAccess = new Date().toISOString();
+      devices[deviceId].accessCount = (devices[deviceId].accessCount || 0) + 1;
+    } else {
+      // 新设备
+      devices[deviceId] = {
+        deviceId: deviceId,
+        firstAccess: new Date().toISOString(),
+        lastAccess: new Date().toISOString(),
+        accessCount: 1,
+        info: {
+          userAgent: device.userAgent,
+          platform: device.platform,
+          language: device.language,
+          screenResolution: device.screenResolution,
+          timezone: device.timezone,
+        },
+      };
+    }
+
+    await env.CODES.put('devices', JSON.stringify(devices));
+  } catch (error) {
+    console.error('记录设备失败:', error);
+  }
 }
