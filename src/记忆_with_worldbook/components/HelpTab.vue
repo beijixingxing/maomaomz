@@ -40,7 +40,17 @@
       <div style="position: relative; z-index: 1">
         <div style="font-size: 48px; margin-bottom: 10px">🐱</div>
         <h2 style="margin: 0 0 10px 0; color: white; font-size: 24px; font-weight: 600">mzrodyu猫猫的小破烂</h2>
-        <div style="color: rgba(255, 255, 255, 0.9); font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 15px; flex-wrap: wrap;">
+        <div
+          style="
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+          "
+        >
           <span class="version-info">版本 v{{ currentVersion }}</span>
           <button
             @click="checkForUpdates"
@@ -414,7 +424,7 @@ const toggleSection = (section: keyof typeof expandedSections) => {
 
 const checkForUpdates = async () => {
   if (isCheckingUpdate.value) return;
-  
+
   isCheckingUpdate.value = true;
   try {
     await manualCheckUpdates();
