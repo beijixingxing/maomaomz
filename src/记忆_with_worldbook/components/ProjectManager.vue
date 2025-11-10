@@ -1587,7 +1587,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch, watchEffect } from 'vue';
-import { normalizeApiEndpoint } from '../settings';
+import { normalizeApiEndpoint, useSettingsStore } from '../settings';
 import { getScriptIdSafe, getChatIdSafe } from '../utils';
 import ProgressDialog from './ProgressDialog.vue';
 
