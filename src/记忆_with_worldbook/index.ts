@@ -40,13 +40,13 @@ $(() => {
             return;
           }
 
-          if (typeof settings.summary_interval !== 'number' || settings.summary_interval < 1) {
+          if (typeof settings.summarize_interval !== 'number' || settings.summarize_interval < 1) {
             console.warn('❌ 总结间隔设置无效，跳过检查');
             return;
           }
           console.log('📋 当前设置:', {
             auto_summarize_enabled: settings.auto_summarize_enabled,
-            summary_interval: settings.summary_interval,
+            summarize_interval: settings.summarize_interval,
             has_api_key: !!settings.api_key,
           });
 
@@ -185,7 +185,7 @@ $(() => {
           }
 
           console.log(
-            `检查自动总结: 当前楼层=${last_message_id}, 起始楼层=${auto_summary_start_id}, 间隔=${settings.summary_interval}`,
+            `检查自动总结: 当前楼层=${last_message_id}, 起始楼层=${auto_summary_start_id}, 间隔=${settings.summarize_interval}`,
           );
 
           // 检查是否需要自动总结
@@ -195,24 +195,24 @@ $(() => {
 
           // 修复：间隔为5表示每5层总结一次（0-4, 5-9...）
           // 从楼层0到楼层4共5层，relative_position=4，所以触发条件是 >= interval - 1
-          const should_trigger = relative_position >= settings.summary_interval - 1;
+          const should_trigger = relative_position >= settings.summarize_interval - 1;
 
           console.log('🧮 计算检查:', {
             last_message_id,
             auto_summary_start_id,
             relative_position,
-            summarize_interval: settings.summary_interval,
+            summarize_interval: settings.summarize_interval,
             should_trigger,
-            calculation: `${relative_position} >= ${settings.summary_interval - 1} (包含起始楼层，共${relative_position + 1}层)`,
-            expected_trigger_at_floor: auto_summary_start_id + settings.summary_interval - 1,
-            will_summarize_range: `${auto_summary_start_id}-${auto_summary_start_id + settings.summary_interval - 1}`,
+            calculation: `${relative_position} >= ${settings.summarize_interval - 1} (包含起始楼层，共${relative_position + 1}层)`,
+            expected_trigger_at_floor: auto_summary_start_id + settings.summarize_interval - 1,
+            will_summarize_range: `${auto_summary_start_id}-${auto_summary_start_id + settings.summarize_interval - 1}`,
             floor_explanation: '楼层编号：0=AI开场白, 1=用户, 2=AI, 3=用户...',
           });
 
           if (last_message_id >= auto_summary_start_id && should_trigger) {
             // 计算总结范围：固定总结interval层（例如间隔5就总结5层）
             const start_id = auto_summary_start_id;
-            const end_id = auto_summary_start_id + settings.summary_interval - 1;
+            const end_id = auto_summary_start_id + settings.summarize_interval - 1;
 
             // 异步执行总结
             console.log(`🎯 触发自动总结: 楼层 ${start_id}-${end_id}`);
@@ -616,7 +616,7 @@ $(() => {
 
           console.log('当前设置:', {
             自动总结开启: settings.auto_summarize_enabled,
-            总结间隔: settings.summary_interval,
+            总结间隔: settings.summarize_interval,
             保存到世界书: settings.auto_save_to_worldbook,
           });
 
@@ -640,7 +640,7 @@ $(() => {
             聊天ID: chat_id,
             当前楼层: lastMessageId,
             起始楼层: auto_summary_start_id,
-            间隔: settings.summary_interval,
+            间隔: settings.summarize_interval,
           });
 
           window.toastr.info('测试信息已输出到控制台');
@@ -744,15 +744,15 @@ $(() => {
           const auto_summary_start_id = parseInt(localStorage.getItem(storageKey) || '0');
 
           const relative_position = current_floor - auto_summary_start_id;
-          const should_trigger = relative_position > 0 && relative_position % settings.summary_interval === 0;
+          const should_trigger = relative_position > 0 && relative_position % settings.summarize_interval === 0;
 
           console.log('计算结果:', {
             当前楼层: current_floor,
             起始楼层: auto_summary_start_id,
             相对位置: relative_position,
-            总结间隔: settings.summary_interval,
+            总结间隔: settings.summarize_interval,
             是否触发: should_trigger,
-            下次触发楼层: auto_summary_start_id + settings.summary_interval,
+            下次触发楼层: auto_summary_start_id + settings.summarize_interval,
           });
 
           window.toastr.info(`相对位置: ${relative_position}, 是否触发: ${should_trigger}`);
@@ -794,7 +794,7 @@ $(() => {
             },
             设置信息: {
               自动总结开启: settings.auto_summarize_enabled,
-              总结间隔: settings.summary_interval,
+              总结间隔: settings.summarize_interval,
               保存到世界书: settings.auto_save_to_worldbook,
               API配置: settings.api_endpoint ? '已配置' : '未配置',
             },
