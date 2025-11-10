@@ -2231,13 +2231,35 @@ ${messagesText}
     progressDialogRef.value?.setMessage('正在发送请求到 AI 服务器...');
     progressDialogRef.value?.addDetail(`表格列头: ${headers.join(', ')}`);
 
-    // 导入规范化函数
-    const { normalizeApiEndpoint } = await import('../settings');
+    // 导入规范化函数和参数过滤函数
+    const { normalizeApiEndpoint, filterApiParams } = await import('../settings');
     const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
 
     progressDialogRef.value?.setProgress(40);
     progressDialogRef.value?.setMessage('等待 AI 分析并生成表格...');
     progressDialogRef.value?.addDetail('这可能需要 10-30 秒，请耐心等待');
+
+    const requestParams = {
+      model: settings.value.model,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: userPrompt,
+        },
+      ],
+      max_tokens: settings.value.max_tokens,
+      temperature: 0.3, // 降低温度，提高稳定性
+      top_p: settings.value.top_p,
+      presence_penalty: settings.value.presence_penalty,
+      frequency_penalty: settings.value.frequency_penalty,
+    };
+    
+    // 根据 API 提供商过滤参数
+    const filteredParams = filterApiParams(requestParams, settings.value.api_endpoint);
 
     // 调用AI生成表格
     const response = await fetch(apiUrl, {
@@ -2246,24 +2268,7 @@ ${messagesText}
         'Content-Type': 'application/json',
         Authorization: `Bearer ${settings.value.api_key}`,
       },
-      body: JSON.stringify({
-        model: settings.value.model,
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          {
-            role: 'user',
-            content: userPrompt,
-          },
-        ],
-        max_tokens: settings.value.max_tokens,
-        temperature: 0.3, // 降低温度，提高稳定性
-        top_p: settings.value.top_p,
-        presence_penalty: settings.value.presence_penalty,
-        frequency_penalty: settings.value.frequency_penalty,
-      }),
+      body: JSON.stringify(filteredParams),
     });
 
     if (!response.ok) {

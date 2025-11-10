@@ -81,6 +81,59 @@ export function normalizeApiEndpoint(endpoint: string, path: string = '/chat/com
   return baseUrl + path;
 }
 
+/**
+ * 检测 API 提供商类型
+ */
+export function detectApiProvider(endpoint: string): 'gemini' | 'openai' | 'unknown' {
+  const trimmed = endpoint.trim().toLowerCase();
+  
+  // Gemini API 特征
+  if (trimmed.includes('generativelanguage.googleapis.com')) {
+    return 'gemini';
+  }
+  
+  // 其他默认为 OpenAI 兼容
+  return 'openai';
+}
+
+/**
+ * 根据 API 提供商过滤请求参数
+ * Gemini 不支持 frequency_penalty, presence_penalty, top_p 等参数
+ */
+export function filterApiParams(params: any, endpoint: string): any {
+  const provider = detectApiProvider(endpoint);
+  
+  if (provider === 'gemini') {
+    // Gemini 只支持: model, messages, temperature, max_tokens (在 generation_config 中)
+    const filtered: any = {
+      model: params.model,
+      messages: params.messages,
+    };
+    
+    // 如果有 temperature 或 max_tokens，放入 generation_config
+    const generationConfig: any = {};
+    if (params.temperature !== undefined) {
+      generationConfig.temperature = params.temperature;
+    }
+    if (params.max_tokens !== undefined) {
+      generationConfig.maxOutputTokens = params.max_tokens;
+    }
+    
+    if (Object.keys(generationConfig).length > 0) {
+      filtered.generation_config = generationConfig;
+    }
+    
+    console.log('🔍 检测到 Gemini API，已过滤不支持的参数');
+    console.log('原始参数:', params);
+    console.log('过滤后参数:', filtered);
+    
+    return filtered;
+  }
+  
+  // OpenAI 或其他 API，保留所有参数
+  return params;
+}
+
 // 固定的全局变量key，确保版本更新后数据不丢失
 const SETTINGS_GLOBAL_KEY = 'maomao_tool_settings';
 

@@ -507,6 +507,26 @@ ${interfaceDescription.value}
     taskStore.addTaskDetail(taskId, `触发词: ${triggerKeyword.value}`);
 
     const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
+    
+    const requestParams = {
+      model: settings.value.model,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: settings.value.temperature || 0.7,
+      max_tokens: settings.value.max_tokens || 16000,
+      top_p: settings.value.top_p,
+      presence_penalty: settings.value.presence_penalty,
+      frequency_penalty: settings.value.frequency_penalty,
+    };
+    
+    // 导入参数过滤函数
+    const { filterApiParams } = await import('../settings');
+    const filteredParams = filterApiParams(requestParams, settings.value.api_endpoint);
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -514,21 +534,7 @@ ${interfaceDescription.value}
         'Content-Type': 'application/json',
         Authorization: `Bearer ${settings.value.api_key}`,
       },
-      body: JSON.stringify({
-        model: settings.value.model,
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: settings.value.temperature || 0.7,
-        max_tokens: settings.value.max_tokens || 16000,
-        top_p: settings.value.top_p,
-        presence_penalty: settings.value.presence_penalty,
-        frequency_penalty: settings.value.frequency_penalty,
-      }),
+      body: JSON.stringify(filteredParams),
     });
 
     taskStore.updateTaskProgress(taskId, 40, '等待AI响应...');

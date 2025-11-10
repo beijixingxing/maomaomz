@@ -251,6 +251,22 @@ ${messages.map(msg => `[${msg.role}]: ${msg.message}`).join('\n\n')}
     temperature: settings.temperature,
   });
 
+  // 导入参数过滤函数
+  const { filterApiParams } = await import('../settings');
+  
+  const requestParams = {
+    model: settings.model,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: settings.max_tokens,
+    temperature: settings.temperature,
+    top_p: settings.top_p,
+    presence_penalty: settings.presence_penalty,
+    frequency_penalty: settings.frequency_penalty,
+  };
+  
+  // 根据 API 提供商过滤参数
+  const filteredParams = filterApiParams(requestParams, settings.api_endpoint);
+  
   try {
     response = await fetch(apiUrl, {
       method: 'POST',
@@ -258,15 +274,7 @@ ${messages.map(msg => `[${msg.role}]: ${msg.message}`).join('\n\n')}
         'Content-Type': 'application/json',
         Authorization: `Bearer ${settings.api_key}`,
       },
-      body: JSON.stringify({
-        model: settings.model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: settings.max_tokens,
-        temperature: settings.temperature,
-        top_p: settings.top_p,
-        presence_penalty: settings.presence_penalty,
-        frequency_penalty: settings.frequency_penalty,
-      }),
+      body: JSON.stringify(filteredParams),
     });
   } catch (error) {
     console.error('fetch 调用失败:', error);

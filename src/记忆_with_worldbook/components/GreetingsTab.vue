@@ -1181,6 +1181,25 @@ ${greetingContent}
 
     console.log('🚀 直接调用 AI API (插件环境)...');
 
+    // 导入参数过滤函数
+    const { filterApiParams } = await import('../settings');
+    
+    const requestParams = {
+      model: settings.value.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: settings.value.temperature,
+      max_tokens: settings.value.max_tokens,
+      top_p: settings.value.top_p,
+      presence_penalty: settings.value.presence_penalty,
+      frequency_penalty: settings.value.frequency_penalty,
+    };
+    
+    // 根据 API 提供商过滤参数
+    const filteredParams = filterApiParams(requestParams, settings.value.api_endpoint);
+
     // 插件环境：直接调用 API
     const response = await fetch(settings.value.api_endpoint + '/chat/completions', {
       method: 'POST',
@@ -1188,18 +1207,7 @@ ${greetingContent}
         'Content-Type': 'application/json',
         Authorization: `Bearer ${settings.value.api_key}`,
       },
-      body: JSON.stringify({
-        model: settings.value.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: settings.value.temperature,
-        max_tokens: settings.value.max_tokens,
-        top_p: settings.value.top_p,
-        presence_penalty: settings.value.presence_penalty,
-        frequency_penalty: settings.value.frequency_penalty,
-      }),
+      body: JSON.stringify(filteredParams),
     });
 
     if (!response.ok) {
@@ -1330,6 +1338,25 @@ ${requirement}
 
     console.log('🚀 直接调用 AI API (插件环境)...');
 
+    // 导入参数过滤函数
+    const { filterApiParams: filterApiParams2 } = await import('../settings');
+    
+    const requestParams2 = {
+      model: settings.value.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: settings.value.temperature,
+      max_tokens: settings.value.max_tokens,
+      top_p: settings.value.top_p,
+      presence_penalty: settings.value.presence_penalty,
+      frequency_penalty: settings.value.frequency_penalty,
+    };
+    
+    // 根据 API 提供商过滤参数
+    const filteredParams2 = filterApiParams2(requestParams2, settings.value.api_endpoint);
+
     // 插件环境：直接调用 API (编辑描述)
     const response = await fetch(settings.value.api_endpoint + '/chat/completions', {
       method: 'POST',
@@ -1337,18 +1364,7 @@ ${requirement}
         'Content-Type': 'application/json',
         Authorization: `Bearer ${settings.value.api_key}`,
       },
-      body: JSON.stringify({
-        model: settings.value.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: settings.value.temperature,
-        max_tokens: settings.value.max_tokens,
-        top_p: settings.value.top_p,
-        presence_penalty: settings.value.presence_penalty,
-        frequency_penalty: settings.value.frequency_penalty,
-      }),
+      body: JSON.stringify(filteredParams2),
     });
 
     if (!response.ok) {
@@ -1630,6 +1646,25 @@ ${switchGreetingCode}
     updateProgress(3, '调用 AI', `正在请求 ${settings.value.model} 生成界面样式...`);
     taskStore.updateTaskProgress(taskId, 50, `调用 AI (${settings.value.model})`);
 
+    // 导入参数过滤函数
+    const { filterApiParams: filterApiParams3 } = await import('../settings');
+    
+    const requestParams3 = {
+      model: settings.value.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: settings.value.temperature,
+      max_tokens: settings.value.max_tokens,
+      top_p: settings.value.top_p,
+      presence_penalty: settings.value.presence_penalty,
+      frequency_penalty: settings.value.frequency_penalty,
+    };
+    
+    // 根据 API 提供商过滤参数
+    const filteredParams3 = filterApiParams3(requestParams3, settings.value.api_endpoint);
+
     // 插件环境：直接调用 API (生成样式)
     const response = await fetch(settings.value.api_endpoint + '/chat/completions', {
       method: 'POST',
@@ -1637,18 +1672,7 @@ ${switchGreetingCode}
         'Content-Type': 'application/json',
         Authorization: `Bearer ${settings.value.api_key}`,
       },
-      body: JSON.stringify({
-        model: settings.value.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: settings.value.temperature,
-        max_tokens: settings.value.max_tokens,
-        top_p: settings.value.top_p,
-        presence_penalty: settings.value.presence_penalty,
-        frequency_penalty: settings.value.frequency_penalty,
-      }),
+      body: JSON.stringify(filteredParams3),
     });
 
     if (!response.ok) {
