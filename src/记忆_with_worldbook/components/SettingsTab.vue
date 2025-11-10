@@ -2118,8 +2118,15 @@ const handle_generate_table = async () => {
     try {
       const messageRange = `${settings.value.table_start_message_id}-${settings.value.table_end_message_id}`;
       console.log('获取消息范围:', messageRange);
-      chatMessages = getChatMessages(messageRange, { hide_state: 'all' });
-      console.log('获取到的消息数量:', chatMessages.length);
+      
+      // 使用 TavernHelper.getChatMessages()
+      if (typeof (window as any).TavernHelper !== 'undefined' && 
+          typeof (window as any).TavernHelper.getChatMessages === 'function') {
+        chatMessages = (window as any).TavernHelper.getChatMessages(messageRange);
+        console.log('✅ 通过 TavernHelper.getChatMessages() 获取到的消息数量:', chatMessages.length);
+      } else {
+        throw new Error('TavernHelper.getChatMessages 不可用');
+      }
 
       progressDialogRef.value?.addDetail(`获取到 ${chatMessages.length} 条消息`);
     } catch (error) {
@@ -2496,10 +2503,20 @@ const handle_hide_messages = async () => {
     // 获取当前聊天的消息
     let chatMessages;
     try {
-      const lastMessageId = getLastMessageId();
-      console.log('最新消息ID:', lastMessageId);
-      chatMessages = getChatMessages(`0-${lastMessageId}`, { hide_state: 'all' });
-      console.log('获取到的消息数量:', chatMessages.length);
+      // 使用 TavernHelper 获取消息
+      if (typeof (window as any).TavernHelper !== 'undefined') {
+        const lastMessageId = (window as any).TavernHelper.getLastMessageId?.() ?? 0;
+        console.log('最新消息ID:', lastMessageId);
+        
+        if (typeof (window as any).TavernHelper.getChatMessages === 'function') {
+          chatMessages = (window as any).TavernHelper.getChatMessages(`0-${lastMessageId}`);
+          console.log('✅ 通过 TavernHelper 获取到的消息数量:', chatMessages.length);
+        } else {
+          throw new Error('TavernHelper.getChatMessages 不可用');
+        }
+      } else {
+        throw new Error('TavernHelper 不可用');
+      }
     } catch (error) {
       console.error('获取聊天消息失败:', error);
       window.toastr.error('获取聊天消息失败: ' + (error as Error).message);
@@ -2597,10 +2614,20 @@ const handle_show_messages = async () => {
     // 获取当前聊天的消息
     let chatMessages;
     try {
-      const lastMessageId = getLastMessageId();
-      console.log('最新消息ID:', lastMessageId);
-      chatMessages = getChatMessages(`0-${lastMessageId}`, { hide_state: 'all' });
-      console.log('获取到的消息数量:', chatMessages.length);
+      // 使用 TavernHelper 获取消息
+      if (typeof (window as any).TavernHelper !== 'undefined') {
+        const lastMessageId = (window as any).TavernHelper.getLastMessageId?.() ?? 0;
+        console.log('最新消息ID:', lastMessageId);
+        
+        if (typeof (window as any).TavernHelper.getChatMessages === 'function') {
+          chatMessages = (window as any).TavernHelper.getChatMessages(`0-${lastMessageId}`);
+          console.log('✅ 通过 TavernHelper 获取到的消息数量:', chatMessages.length);
+        } else {
+          throw new Error('TavernHelper.getChatMessages 不可用');
+        }
+      } else {
+        throw new Error('TavernHelper 不可用');
+      }
     } catch (error) {
       console.error('获取聊天消息失败:', error);
       window.toastr.error('获取聊天消息失败: ' + (error as Error).message);
@@ -2676,10 +2703,20 @@ const handle_refresh_hidden = async (showToast: boolean = false) => {
     // 获取当前聊天的消息
     let chatMessages;
     try {
-      const lastMessageId = getLastMessageId();
-      console.log('最新消息ID:', lastMessageId);
-      chatMessages = getChatMessages(`0-${lastMessageId}`, { hide_state: 'all' });
-      console.log('获取到的消息数量:', chatMessages.length);
+      // 使用 TavernHelper 获取消息
+      if (typeof (window as any).TavernHelper !== 'undefined') {
+        const lastMessageId = (window as any).TavernHelper.getLastMessageId?.() ?? 0;
+        console.log('最新消息ID:', lastMessageId);
+        
+        if (typeof (window as any).TavernHelper.getChatMessages === 'function') {
+          chatMessages = (window as any).TavernHelper.getChatMessages(`0-${lastMessageId}`);
+          console.log('✅ 通过 TavernHelper 获取到的消息数量:', chatMessages.length);
+        } else {
+          throw new Error('TavernHelper.getChatMessages 不可用');
+        }
+      } else {
+        throw new Error('TavernHelper 不可用');
+      }
     } catch (error) {
       console.error('获取聊天消息失败:', error);
       if (showToast) {

@@ -194,16 +194,19 @@ export async function summarizeMessages(startId: number, endId: number, settings
     throw new Error(`API 端点格式不正确: ${apiUrl}`);
   }
 
-  // 收集消息
-  const messages: ChatMessage[] = [];
-  for (let messageId = startId; messageId <= endId; messageId++) {
-    const messageList = getChatMessages(messageId);
-    if (messageList.length > 0) {
-      messages.push(...messageList);
-    }
+  // 收集消息 - 使用 TavernHelper
+  let messages: ChatMessage[] = [];
+  
+  if (typeof (window as any).TavernHelper !== 'undefined' && 
+      typeof (window as any).TavernHelper.getChatMessages === 'function') {
+    // 使用范围获取
+    const range = `${startId}-${endId}`;
+    messages = (window as any).TavernHelper.getChatMessages(range);
+  } else {
+    throw new Error('TavernHelper.getChatMessages 不可用');
   }
 
-  if (messages.length === 0) {
+  if (!messages || messages.length === 0) {
     throw new Error('没有可总结的消息');
   }
 

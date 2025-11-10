@@ -1505,7 +1505,18 @@ async function generateStyleWithAI(styleDescription: string) {
           return;
         }
 
-        const messages = await window.getChatMessages(0, { include_swipe: true });
+        // 使用 TavernHelper 获取消息
+        let messages;
+        if (typeof (window as any).TavernHelper !== 'undefined' && 
+            typeof (window as any).TavernHelper.getChatMessages === 'function') {
+          messages = (window as any).TavernHelper.getChatMessages('0');
+        } else {
+          alert("TavernHelper 不可用");
+          if (loading) loading.classList.remove("active");
+          if (mainContainer) mainContainer.style.display = "block";
+          return;
+        }
+        
         if (!messages || messages.length === 0) {
           alert("未找到消息");
           if (loading) loading.classList.remove("active");

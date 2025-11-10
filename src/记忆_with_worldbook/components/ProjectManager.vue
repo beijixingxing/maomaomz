@@ -3351,9 +3351,13 @@ saveData(myData);
 \`\`\`javascript
 // 1. 读取最新消息内容
 async function updateStatusFromMessages() {
-  if (typeof getChatMessages !== 'function') return; // 预览模式跳过
+  // 使用 TavernHelper 获取消息
+  if (typeof (window as any).TavernHelper === 'undefined' || 
+      typeof (window as any).TavernHelper.getChatMessages !== 'function') {
+    return; // TavernHelper 不可用，跳过
+  }
 
-  const messages = await getChatMessages();
+  const messages = (window as any).TavernHelper.getChatMessages('0-{{lastMessageId}}');
   if (!messages || messages.length === 0) return;
 
   // 获取最新的 AI 消息（从后往前找第一条 is_user: false）
@@ -3444,9 +3448,13 @@ function convertXmlToHtml(xml: string): string {
 
 // ===== 3. 监听消息并更新 =====
 async function updateStateBar() {
-  if (typeof getChatMessages !== 'function') return;
+  // 使用 TavernHelper 获取消息
+  if (typeof (window as any).TavernHelper === 'undefined' || 
+      typeof (window as any).TavernHelper.getChatMessages !== 'function') {
+    return; // TavernHelper 不可用，跳过
+  }
 
-  const messages = await getChatMessages();
+  const messages = (window as any).TavernHelper.getChatMessages('0-{{lastMessageId}}');
   if (!messages || messages.length === 0) return;
 
   // 获取最新的 AI 消息
