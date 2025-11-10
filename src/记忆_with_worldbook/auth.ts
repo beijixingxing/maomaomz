@@ -47,16 +47,17 @@ async function verifyAuthCode(code: string): Promise<{ valid: boolean; message: 
  */
 function showAuthDialog(): Promise<string | null> {
   return new Promise((resolve) => {
-    // 创建遮罩层
+    // 创建遮罩层（最高优先级）
     const overlay = document.createElement('div');
+    overlay.id = 'maomaomz-auth-overlay';
     overlay.style.cssText = `
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.85);
-      z-index: 999999;
+      background: rgba(0, 0, 0, 0.92);
+      z-index: 9999999 !important;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -262,50 +263,79 @@ function showAuthDialog(): Promise<string | null> {
 }
 
 /**
- * 检查并执行授权验证
+ * 检查并执行授权验证（强制模式）
  */
 export async function checkAuthorization(): Promise<boolean> {
-  console.log('🔐 开始授权验证...');
+  console.log('🔐 【强制授权】开始授权验证...');
+
+  // 先清理可能存在的旧遮罩层
+  const oldOverlay = document.getElementById('maomaomz-auth-overlay');
+  if (oldOverlay) {
+    oldOverlay.remove();
+  }
 
   // 检查是否已有授权码
   const savedCode = localStorage.getItem(STORAGE_KEY);
-  const savedVerified = localStorage.getItem(STORAGE_VERIFIED_KEY);
 
-  // 如果有保存的授权码，先尝试验证
+  // 如果有保存的授权码，先尝试验证（静默验证）
   if (savedCode) {
-    console.log('📋 找到已保存的授权码，验证中...');
+    console.log('📋 找到已保存的授权码，后台验证中...');
     const result = await verifyAuthCode(savedCode);
 
     if (result.valid) {
-      console.log('✅ 授权验证成功！');
+      console.log('✅ 授权验证成功！（已保存的授权码有效）');
       localStorage.setItem(STORAGE_VERIFIED_KEY, 'true');
-      (window as any).toastr?.success('✅ 授权验证成功！猫猫欢迎你！🐱');
+      
+      // 短暂显示成功消息
+      setTimeout(() => {
+        (window as any).toastr?.success('✅ 授权验证成功！猫猫欢迎你！🐱', '', {
+          timeOut: 2000
+        });
+      }, 300);
+      
       return true;
     } else {
-      console.warn('⚠️ 保存的授权码已失效:', result.message);
+      console.warn('⚠️ 保存的授权码已失效，需要重新输入');
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(STORAGE_VERIFIED_KEY);
     }
   }
 
-  // 需要用户输入授权码
+  // 需要用户输入授权码 - 必须弹出对话框
+  console.log('🔐 需要用户输入授权码，显示授权对话框...');
+  
   let attempts = 0;
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 5; // 增加尝试次数
 
   while (attempts < MAX_ATTEMPTS) {
+    // 🔥 强制显示授权对话框
     const code = await showAuthDialog();
 
     if (!code) {
-      // 用户取消
-      (window as any).toastr?.error('❌ 授权已取消，插件功能将被限制');
-      return false;
+      // 用户取消 - 再次提示
+      console.error('❌ 用户取消了授权');
+      
+      const confirmCancel = confirm(
+        '⚠️ 未授权无法使用插件\n\n是否放弃授权？\n\n点击"确定"将禁用插件\n点击"取消"继续输入授权码'
+      );
+      
+      if (confirmCancel) {
+        (window as any).toastr?.error('❌ 授权已取消，插件已被禁用', '', {
+          timeOut: 0,
+          extendedTimeOut: 0
+        });
+        return false;
+      } else {
+        // 用户选择继续，重新显示对话框
+        continue;
+      }
     }
 
     attempts++;
     console.log(`🔄 验证授权码... (尝试 ${attempts}/${MAX_ATTEMPTS})`);
 
     // 显示加载提示
-    (window as any).toastr?.info('🔄 验证授权码中，请稍候...');
+    (window as any).toastr?.info('🔄 正在验证授权码，请稍候...', '', { timeOut: 3000 });
 
     const result = await verifyAuthCode(code);
 
@@ -314,14 +344,22 @@ export async function checkAuthorization(): Promise<boolean> {
       localStorage.setItem(STORAGE_KEY, code);
       localStorage.setItem(STORAGE_VERIFIED_KEY, 'true');
       console.log('✅ 授权验证成功！');
-      (window as any).toastr?.success(result.message);
+      (window as any).toastr?.success(result.message, '授权成功', {
+        timeOut: 3000
+      });
       return true;
     } else {
       console.warn(`❌ 授权验证失败 (尝试 ${attempts}/${MAX_ATTEMPTS}):`, result.message);
-      (window as any).toastr?.error(result.message);
+      (window as any).toastr?.error(result.message, `验证失败 (${attempts}/${MAX_ATTEMPTS})`, {
+        timeOut: 5000
+      });
 
       if (attempts >= MAX_ATTEMPTS) {
-        (window as any).toastr?.error('❌ 授权验证失败次数过多，插件功能将被限制');
+        (window as any).toastr?.error(
+          '❌ 授权验证失败次数过多\n\n插件已被禁用，请刷新页面重试',
+          '授权失败',
+          { timeOut: 0, extendedTimeOut: 0 }
+        );
         return false;
       }
     }

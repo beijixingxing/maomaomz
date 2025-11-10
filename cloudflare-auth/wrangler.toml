@@ -14,4 +14,3 @@ id = "736f830f14394b1b18c315a2d6b9db31b"
 # 注意：实际密钥应该在 Cloudflare Dashboard 中以 Secret 形式设置
 # 这里只是示例
 ADMIN_SECRET = "your-super-secret-admin-key-here"
-

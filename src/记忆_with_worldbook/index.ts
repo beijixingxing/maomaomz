@@ -3,37 +3,57 @@ import { klona } from 'klona';
 import { useSettingsStore, useSummaryHistoryStore } from './settings';
 import { getScriptIdSafe, getChatIdSafe, setGlobalScriptId } from './utils';
 import { summarizeMessages } from './总结功能';
-import './浮动面板';
-import './添加导航按钮';
+// 先导入授权模块，但不立即导入UI模块
+import { checkAuthorization, isAuthorized } from './auth';
 import { globalPinia } from './globalPinia';
 import TaskManager from './components/TaskManager.vue';
-import { checkAuthorization, isAuthorized } from './auth';
+
+// 🔐 最高优先级：授权验证（在所有UI加载之前）
+let authorizationPassed = false;
 
 $(() => {
-  // 延迟初始化，确保酒馆完全加载
-  setTimeout(async () => {
-    // 🔐 首先进行授权验证
-    console.log('🔐 开始插件授权验证...');
+  // 立即进行授权验证，不要延迟
+  (async () => {
+    console.log('🔐 【优先级最高】开始插件授权验证...');
+    
     const authorized = await checkAuthorization();
     
     if (!authorized) {
-      console.error('❌ 授权验证失败，插件功能将被限制');
-      (window as any).toastr?.error('❌ 未授权，插件功能已被限制\n\n请前往 Discord 获取授权码后刷新页面');
-      return; // 阻止插件继续初始化
+      console.error('❌ 授权验证失败，插件将不会加载');
+      authorizationPassed = false;
+      
+      // 显示永久错误提示
+      setTimeout(() => {
+        if ((window as any).toastr) {
+          (window as any).toastr.error(
+            '❌ 未通过授权验证\n\n插件已被禁用，请刷新页面重新输入授权码\n\n前往 Discord 获取最新授权码',
+            '授权失败',
+            { timeOut: 0, extendedTimeOut: 0 }
+          );
+        }
+      }, 500);
+      
+      return;
     }
     
-    console.log('✅ 授权验证通过，开始加载插件...');
+    authorizationPassed = true;
+    console.log('✅ 授权验证通过，开始加载插件UI和功能...');
     
-    // 插件环境：使用固定的ID
-    const script_id = 'maomaomz_extension_v1';
-
-    // 设置全局 script_id
-    setGlobalScriptId(script_id);
-
-    console.log('🐱 猫猫的记忆管理工具开始初始化，插件ID:', script_id);
-
-    // 等待一段时间确保完全准备好
+    // 授权通过后才加载UI模块
+    await import('./浮动面板');
+    await import('./添加导航按钮');
+    
+    console.log('✅ UI模块加载完成');
+    
+    // 延迟一下确保UI加载完成
     setTimeout(() => {
+      // 插件环境：使用固定的ID
+      const script_id = 'maomaomz_extension_v1';
+
+      // 设置全局 script_id
+      setGlobalScriptId(script_id);
+
+      console.log('🐱 猫猫的记忆管理工具开始初始化，插件ID:', script_id);
       // 监听消息变化，实现自动总结
       const checkAutoSummarize = () => {
         try {
@@ -865,9 +885,9 @@ $(() => {
         getChatIdSafe: '✅ 获取聊天ID',
       });
 
-      window.toastr.success('mzrodyu猫猫的小破烂脚本已加载');
+      window.toastr.success('🐱 猫猫的小破烂已加载 | 授权验证成功');
     }, 200);
-  }, 100);
+  })(); // 结束 async IIFE
 });
 
 // 全局挂载任务管理器（独立于主面板，不受面板开关影响）
