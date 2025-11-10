@@ -219,11 +219,13 @@ export async function summarizeMessages(start_id: number, end_id: number): Promi
   // 获取要总结的消息
   // 使用 TavernHelper.getChatMessages() 获取消息范围
   const messages: Array<{ role: string; message: string }> = [];
-  
+
   try {
     // 尝试使用 TavernHelper.getChatMessages()
-    if (typeof (window as any).TavernHelper !== 'undefined' && 
-        typeof (window as any).TavernHelper.getChatMessages === 'function') {
+    if (
+      typeof (window as any).TavernHelper !== 'undefined' &&
+      typeof (window as any).TavernHelper.getChatMessages === 'function'
+    ) {
       const range = `${start_id}-${end_id}`;
       const msgs = (window as any).TavernHelper.getChatMessages(range);
       if (Array.isArray(msgs) && msgs.length > 0) {
