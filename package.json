@@ -6,6 +6,7 @@
     "watch": "vite build --watch --mode development",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,scss,html,vue}\"",
     "lint": "eslint",
+    "release": "node scripts/release.js",
     "lint:fix": "eslint --fix"
   },
   "browserslist": [
