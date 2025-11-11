@@ -662,7 +662,14 @@ const createSummaryWorldbook = async () => {
 
     console.log('准备创建世界书:', worldbookName);
 
-    const existingWorldbooks = (window as any).getWorldbookNames();
+    // 检查 TavernHelper 是否可用
+    if (typeof (window as any).TavernHelper === 'undefined' || 
+        typeof (window as any).TavernHelper.getWorldbookNames !== 'function') {
+      window.toastr.error('世界书功能不可用，请确保在 SillyTavern 环境中运行');
+      return;
+    }
+
+    const existingWorldbooks = (window as any).TavernHelper.getWorldbookNames();
     if (existingWorldbooks.includes(worldbookName)) {
       window.toastr.warning(`世界书 "${worldbookName}" 已存在`);
       return;
@@ -686,7 +693,14 @@ const createSummaryWorldbook = async () => {
 // 绑定总结到世界书
 const bindToWorldbook = async (content: string, summaryIndex: number) => {
   try {
-    const worldbookNames = (window as any).getWorldbookNames();
+    // 检查 TavernHelper 是否可用
+    if (typeof (window as any).TavernHelper === 'undefined' || 
+        typeof (window as any).TavernHelper.getWorldbookNames !== 'function') {
+      window.toastr.error('世界书功能不可用，请确保在 SillyTavern 环境中运行');
+      return;
+    }
+
+    const worldbookNames = (window as any).TavernHelper.getWorldbookNames();
     if (worldbookNames.length === 0) {
       window.toastr.warning('没有可用的世界书，请先创建总结世界书');
       return;
