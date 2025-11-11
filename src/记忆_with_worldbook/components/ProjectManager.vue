@@ -6227,16 +6227,16 @@ function exportToQR() {
     };
 
     // 2. 构建 QR JSON（只包含触发词，节省 token）
-    // 在 AI 生成前执行，显示内容后立即中止生成，彻底阻止 AI 回复
+    // 使用 /sys 命令发送系统消息，不进入对话流，不触发 AI
     const qrId = Math.floor(Math.random() * 100000) + 1;
     const qrJson = {
       id: qrId,
       showLabel: true,
       label: `🎨 ${proj.name}`,
       title: '',
-      message: `${triggerWord} | /abort`, // 显示触发词（会被正则替换为HTML），然后立即中止 AI 生成
+      message: `/sys ${triggerWord}`, // 使用 /sys 发送系统消息（会被正则替换为HTML），不触发 AI
       contextList: [],
-      preventAutoExecute: false, // 必须为 false 才能执行命令
+      preventAutoExecute: true, // 防止自动执行（参考 Roll.qr.json）
       isHidden: false,
       executeOnStartup: false,
       executeOnUser: false,
@@ -6244,7 +6244,7 @@ function exportToQR() {
       executeOnChatChange: false,
       executeOnGroupMemberDraft: false,
       executeOnNewChat: false,
-      executeBeforeGeneration: true, // 在 AI 生成前执行
+      executeBeforeGeneration: false,
       automationId: '',
     };
 
