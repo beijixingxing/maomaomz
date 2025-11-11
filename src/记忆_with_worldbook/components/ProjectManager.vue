@@ -6210,16 +6210,16 @@ function exportToQR() {
     cleanHtml = cleanHtml.replace(/^<!DOCTYPE html>\n/, '');
 
     // 1. 构建正则 JSON（包含完整 HTML 代码）
-    // QR 导出的正则需要特殊配置：勾选"快捷命令"（Slash Commands）
+    // QR 导出的正则需要特殊配置：placement: [2, 3] + markdownOnly: true
     const regexJson = {
       id: uuid,
       scriptName: proj.name,
       findRegex: triggerWord.startsWith('/') ? triggerWord : `/${triggerWord}/g`,
       replaceString: '```html\n\n' + cleanHtml + '\n```',
       trimStrings: [],
-      placement: [3], // 3 = 快捷命令（Slash Commands）- 勾选"快捷命令"
+      placement: [2, 3], // 2 = AI回复前, 3 = 快捷命令（同时勾选"AI输出"和"快捷命令"）
       disabled: false,
-      markdownOnly: false,
+      markdownOnly: true, // 仅在 Markdown 中生效（让HTML渲染）
       promptOnly: false,
       runOnEdit: true,
       substituteRegex: 0,
