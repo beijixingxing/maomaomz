@@ -15,7 +15,10 @@ const manifestJson = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
 
 const VERSION = packageJson.version;
 const TAG_NAME = `v${VERSION}`;
-const CHANGELOG = manifestJson.changelog;
+// changelog 可能是字符串或对象，统一处理
+const CHANGELOG = typeof manifestJson.changelog === 'string' 
+  ? manifestJson.changelog 
+  : manifestJson.changelog[VERSION] || Object.values(manifestJson.changelog)[0] || '版本更新';
 
 console.log('\n🚀 开始自动发布流程...\n');
 console.log(`📦 版本号: ${VERSION}`);
@@ -54,7 +57,8 @@ try {
 // 3. 创建 Git Tag
 console.log('\n📌 创建 Git Tag...');
 try {
-  execSync(`git tag -a ${TAG_NAME} -m "${TAG_NAME} - ${CHANGELOG.split('\n')[0]}"`, { stdio: 'inherit' });
+  const tagMessage = `${TAG_NAME} - ${CHANGELOG}`.substring(0, 200); // 限制长度
+  execSync(`git tag -a ${TAG_NAME} -m "${tagMessage}"`, { stdio: 'inherit' });
   console.log('✅ Tag 创建成功');
 } catch (error) {
   console.error('❌ Tag 创建失败:', error.message);
@@ -90,7 +94,8 @@ try {
 }
 
 // 构建 Release 描述
-const releaseBody = `## ⚡ ${TAG_NAME} - ${CHANGELOG.split('\n')[0]}
+const releaseTitle = CHANGELOG.split(/\||[\r\n]/)[0].trim(); // 取第一行或第一个 | 前的内容
+const releaseBody = `## ⚡ ${TAG_NAME}
 
 ### 📋 更新内容
 ${CHANGELOG}
@@ -106,7 +111,7 @@ ${CHANGELOG}
 // GitHub API 请求
 const postData = JSON.stringify({
   tag_name: TAG_NAME,
-  name: `${TAG_NAME} - ${CHANGELOG.split('\n')[0]}`,
+  name: `${TAG_NAME} - ${releaseTitle}`,
   body: releaseBody,
   draft: false,
   prerelease: false
