@@ -1,9 +1,57 @@
 /**
- * 🐱 猫猫的小破烂 - 授权验证后端
+ * 🐱 猫猫的小破烂 - 授权验证后端 (Upstash Redis 版)
  * 作者: mzrodyu
  * 功能: 每日统一授权码验证系统
  * ⚠️ 商业化死全家，贩子死全家 ⚠️
  */
+
+// ========== Upstash Redis 配置 ==========
+const UPSTASH_REDIS_REST_URL = 'https://pro-piglet-36199.upstash.io';
+const UPSTASH_REDIS_REST_TOKEN = 'AY1nAAIncDI0ODNmMmM0MzhiODA0YjUzYTc4OTk0NjFhMjRlNTY2MnAyMzYxOTk';
+
+/**
+ * Upstash Redis REST API 辅助函数
+ */
+async function redisGet(key) {
+  const response = await fetch(`${UPSTASH_REDIS_REST_URL}/GET/${key}`, {
+    headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}` },
+  });
+  const data = await response.json();
+  return data.result;
+}
+
+async function redisSet(key, value) {
+  const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+  const response = await fetch(`${UPSTASH_REDIS_REST_URL}/SET/${key}/${encodeURIComponent(valueStr)}`, {
+    headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}` },
+  });
+  return await response.json();
+}
+
+async function redisKeys(pattern) {
+  const response = await fetch(`${UPSTASH_REDIS_REST_URL}/KEYS/${pattern}`, {
+    headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}` },
+  });
+  const data = await response.json();
+  return data.result || [];
+}
+
+async function redisIncr(key) {
+  const response = await fetch(`${UPSTASH_REDIS_REST_URL}/INCR/${key}`, {
+    headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}` },
+  });
+  const data = await response.json();
+  return data.result;
+}
+
+async function redisDel(key) {
+  const response = await fetch(`${UPSTASH_REDIS_REST_URL}/DEL/${key}`, {
+    headers: { Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}` },
+  });
+  return await response.json();
+}
+
+// ========== Cloudflare Workers 主程序 ==========
 
 export default {
   async fetch(request, env, ctx) {
@@ -72,7 +120,7 @@ async function handleVerify(request, env, corsHeaders) {
     }
 
     // 获取当前有效的授权码
-    const currentCode = await env.CODES.get('current_code');
+    const currentCode = await redisGet('current_code');
 
     if (!currentCode) {
       return jsonResponse(
@@ -88,39 +136,19 @@ async function handleVerify(request, env, corsHeaders) {
     // 验证授权码（不区分大小写）
     const isValid = code.toUpperCase() === currentCode.toUpperCase();
 
-    // 记录详细的验证日志（包含API端点）
-    await logVerification(env, {
-      code,
-      isValid,
-      apiEndpoint: cleanApiEndpoint, // 🔥 记录清理后的API端点
-      ip,
-      country,
-      timestamp: timestamp || new Date().toISOString(),
-    });
+    // ⚡ 性能优化：只在失败时记录详细日志，减少 KV 写入
+    if (!isValid) {
+      // 记录失败的详细日志
+      await logVerification(env, {
+        code,
+        isValid: false,
+        apiEndpoint: cleanApiEndpoint,
+        ip,
+        country,
+        timestamp: timestamp || new Date().toISOString(),
+      });
 
-    if (isValid) {
-      // 记录成功的验证
-      await incrementStats(env, 'success');
-
-      // 🔥 记录授权码使用次数
-      await recordCodeUsage(env, currentCode, cleanApiEndpoint, ip, country);
-
-      // 🔥 记录API端点使用情况（用于抓第三方商业化）
-      if (cleanApiEndpoint !== 'unknown') {
-        await recordApiEndpoint(env, cleanApiEndpoint, ip, country);
-      }
-
-      return jsonResponse(
-        {
-          valid: true,
-          message: '✅ 授权验证通过！猫猫欢迎你！🐱',
-          code: currentCode,
-        },
-        200,
-        corsHeaders,
-      );
-    } else {
-      // 记录失败的验证
+      // 记录失败统计
       await incrementStats(env, 'failed');
 
       return jsonResponse(
@@ -132,8 +160,41 @@ async function handleVerify(request, env, corsHeaders) {
         corsHeaders,
       );
     }
+
+    // 验证成功：只记录必要的统计数据
+    try {
+      // 简单计数，减少写入
+      await incrementStats(env, 'success');
+
+      // 只记录 API 端点（用于抓商业化）
+      if (cleanApiEndpoint !== 'unknown' && cleanApiEndpoint !== '[object HTMLSelectElement]') {
+        await recordApiEndpoint(env, cleanApiEndpoint, ip, country);
+      }
+    } catch (logError) {
+      // 日志失败不影响验证结果
+      console.warn('记录日志失败（可能超过 KV 限制）:', logError);
+    }
+
+    return jsonResponse(
+      {
+        valid: true,
+        message: '✅ 授权验证通过！猫猫欢迎你！🐱',
+        code: currentCode,
+      },
+      200,
+      corsHeaders,
+    );
   } catch (error) {
-    return jsonResponse({ valid: false, message: '❌ 请求格式错误' }, 400, corsHeaders);
+    console.error('❌ handleVerify 错误:', error);
+    console.error('错误堆栈:', error.stack);
+    return jsonResponse(
+      {
+        valid: false,
+        message: '❌ 请求格式错误: ' + error.message,
+      },
+      400,
+      corsHeaders,
+    );
   }
 }
 
@@ -156,7 +217,7 @@ async function handleUpdate(request, env, corsHeaders) {
     const code = newCode.trim().toUpperCase();
 
     // 保存旧的授权码到历史
-    const oldCode = await env.CODES.get('current_code');
+    const oldCode = await redisGet('current_code');
     if (oldCode) {
       const history = await getHistory(env);
       history.unshift({
@@ -167,15 +228,15 @@ async function handleUpdate(request, env, corsHeaders) {
       if (history.length > 30) {
         history.length = 30;
       }
-      await env.CODES.put('history', JSON.stringify(history));
+      await redisSet('history', JSON.stringify(history));
     }
 
     // 更新当前授权码
-    await env.CODES.put('current_code', code);
-    await env.CODES.put('updated_at', new Date().toISOString());
+    await redisSet('current_code', code);
+    await redisSet('updated_at', new Date().toISOString());
 
     // 重置今日统计
-    await env.CODES.put(
+    await redisSet(
       'stats',
       JSON.stringify({
         success: 0,
@@ -211,13 +272,13 @@ async function handleStats(request, env, corsHeaders) {
       return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
     }
 
-    const currentCode = await env.CODES.get('current_code');
-    const updatedAt = await env.CODES.get('updated_at');
+    const currentCode = await redisGet('current_code');
+    const updatedAt = await redisGet('updated_at');
     const stats = await getStats(env);
     const history = await getHistory(env);
 
     // 获取API端点数据 🔥
-    const endpointsStr = await env.CODES.get('api_endpoints');
+    const endpointsStr = await redisGet('api_endpoints');
     const endpoints = endpointsStr ? JSON.parse(endpointsStr) : {};
     const endpointList = Object.values(endpoints);
 
@@ -225,7 +286,7 @@ async function handleStats(request, env, corsHeaders) {
     endpointList.sort((a, b) => (b.accessCount || 0) - (a.accessCount || 0));
 
     // 🔥 获取授权码使用统计
-    const codeUsageStr = await env.CODES.get('code_usage');
+    const codeUsageStr = await redisGet('code_usage');
     const codeUsage = codeUsageStr ? JSON.parse(codeUsageStr) : {};
     const codeUsageList = Object.values(codeUsage);
 
@@ -233,7 +294,7 @@ async function handleStats(request, env, corsHeaders) {
     codeUsageList.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
 
     // 获取验证日志
-    const logsStr = await env.CODES.get('verification_logs');
+    const logsStr = await redisGet('verification_logs');
     const logs = logsStr ? JSON.parse(logsStr) : [];
 
     return jsonResponse(
@@ -1146,7 +1207,7 @@ function handleAdmin(env) {
             }
         }
 
-        console.log('✅ Worker.js 已加载最新版本 2024-11-11-01:30 - 模板卡片可折叠');
+          console.log('✅ Worker.js 已加载最新版本 2024-11-12-03:30 - Upstash Redis 版本');
 
         // 全局存储模板数据
         let currentTemplates = [];
@@ -1362,7 +1423,7 @@ function jsonResponse(data, status = 200, corsHeaders = {}) {
 }
 
 async function getStats(env) {
-  const statsStr = await env.CODES.get('stats');
+  const statsStr = await redisGet('stats');
   if (!statsStr) {
     return { success: 0, failed: 0, lastReset: new Date().toISOString() };
   }
@@ -1372,11 +1433,11 @@ async function getStats(env) {
 async function incrementStats(env, type) {
   const stats = await getStats(env);
   stats[type] = (stats[type] || 0) + 1;
-  await env.CODES.put('stats', JSON.stringify(stats));
+  await redisSet('stats', JSON.stringify(stats));
 }
 
 async function getHistory(env) {
-  const historyStr = await env.CODES.get('history');
+  const historyStr = await redisGet('history');
   if (!historyStr) {
     return [];
   }
@@ -1388,7 +1449,7 @@ async function getHistory(env) {
  */
 async function logVerification(env, logData) {
   try {
-    const logsStr = await env.CODES.get('verification_logs');
+    const logsStr = await redisGet('verification_logs');
     const logs = logsStr ? JSON.parse(logsStr) : [];
 
     logs.unshift(logData);
@@ -1398,7 +1459,7 @@ async function logVerification(env, logData) {
       logs.length = 500;
     }
 
-    await env.CODES.put('verification_logs', JSON.stringify(logs));
+    await redisSet('verification_logs', JSON.stringify(logs));
   } catch (error) {
     console.error('记录日志失败:', error);
   }
@@ -1409,7 +1470,7 @@ async function logVerification(env, logData) {
  */
 async function recordCodeUsage(env, code, apiEndpoint, ip, country) {
   try {
-    const usageStr = await env.CODES.get('code_usage');
+    const usageStr = await redisGet('code_usage');
     const usage = usageStr ? JSON.parse(usageStr) : {};
 
     if (usage[code]) {
@@ -1447,7 +1508,7 @@ async function recordCodeUsage(env, code, apiEndpoint, ip, country) {
       };
     }
 
-    await env.CODES.put('code_usage', JSON.stringify(usage));
+    await redisSet('code_usage', JSON.stringify(usage));
   } catch (error) {
     console.error('记录授权码使用失败:', error);
   }
@@ -1458,7 +1519,7 @@ async function recordCodeUsage(env, code, apiEndpoint, ip, country) {
  */
 async function recordApiEndpoint(env, apiEndpoint, ip, country) {
   try {
-    const endpointsStr = await env.CODES.get('api_endpoints');
+    const endpointsStr = await redisGet('api_endpoints');
     const endpoints = endpointsStr ? JSON.parse(endpointsStr) : {};
 
     if (endpoints[apiEndpoint]) {
@@ -1497,7 +1558,7 @@ async function recordApiEndpoint(env, apiEndpoint, ip, country) {
       };
     }
 
-    await env.CODES.put('api_endpoints', JSON.stringify(endpoints));
+    await redisSet('api_endpoints', JSON.stringify(endpoints));
   } catch (error) {
     console.error('记录API端点失败:', error);
   }
@@ -1508,7 +1569,7 @@ async function recordApiEndpoint(env, apiEndpoint, ip, country) {
  */
 async function handleGetPluginInfo(request, env, corsHeaders) {
   try {
-    const pluginInfoStr = await env.CODES.get('plugin_info');
+    const pluginInfoStr = await redisGet('plugin_info');
     const pluginInfo = pluginInfoStr
       ? JSON.parse(pluginInfoStr)
       : {
@@ -1557,7 +1618,7 @@ async function handleUpdatePluginInfo(request, env, corsHeaders) {
       lastUpdated: new Date().toISOString(),
     };
 
-    await env.CODES.put('plugin_info', JSON.stringify(pluginInfo));
+    await redisSet('plugin_info', JSON.stringify(pluginInfo));
 
     return jsonResponse(
       {
@@ -1579,7 +1640,7 @@ async function handleUpdatePluginInfo(request, env, corsHeaders) {
  */
 async function handleGetTemplates(request, env, corsHeaders) {
   try {
-    const templatesStr = await env.CODES.get('project_templates');
+    const templatesStr = await redisGet('project_templates');
     const templates = templatesStr
       ? JSON.parse(templatesStr)
       : {
@@ -1644,7 +1705,7 @@ async function handleUpdateTemplates(request, env, corsHeaders) {
       lastUpdated: new Date().toISOString(),
     };
 
-    await env.CODES.put('project_templates', JSON.stringify(templateData));
+    await redisSet('project_templates', JSON.stringify(templateData));
 
     return jsonResponse(
       {

@@ -1,0 +1,25 @@
+# Supabase 项目配置
+
+[project]
+# 填写你的 Supabase 项目 ID
+# 可以在 Settings -> General 中找到
+# ref = "your-project-ref"
+
+[api]
+# API 端口
+port = 54321
+# 数据库 URL
+schemas = ["public"]
+# 额外的搜索路径
+extra_search_path = ["extensions"]
+# 最大行数
+max_rows = 1000
+
+[db]
+# 数据库端口
+port = 54322
+
+[studio]
+# Supabase Studio 端口
+port = 54323
+

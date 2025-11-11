@@ -4,12 +4,19 @@
  * ⚠️ 商业化死全家，贩子死全家 ⚠️
  */
 
-// Cloudflare Workers 授权后端地址
-const AUTH_API_URL = 'https://maomaomz-auth.baobaoyu999727272.workers.dev';
+// Supabase Edge Functions 授权后端地址
+const AUTH_API_URL = 'https://gelaigbqpwkmbdovmwcc.supabase.co/functions/v1';
+// Supabase anon key（公开密钥，可以在前端使用）
+const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdlbGFpZ2JxcHdrbWJkb3Ztd2NjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4ODQ3OTIsImV4cCI6MjA3ODQ2MDc5Mn0.psf0ZCXCAKc7PDFZhlMB0Q0mX55w1N1X50MAY6PuUxw';
 
 // LocalStorage 键名
 const STORAGE_KEY = 'maomaomz_auth_code';
 const STORAGE_VERIFIED_KEY = 'maomaomz_auth_verified';
+const STORAGE_VERIFY_TIME_KEY = 'maomaomz_auth_verify_time'; // 上次验证时间
+
+// 缓存时长（毫秒）- 24 小时
+const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
 /**
  * 获取当前使用的 API 端点（用于追踪商业化倒卖）
@@ -74,6 +81,7 @@ async function verifyAuthCode(code: string): Promise<{ valid: boolean; message: 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`, // Supabase 需要授权头
       },
       body: JSON.stringify({
         code: code.trim().toUpperCase(),
@@ -184,9 +192,9 @@ function showAuthDialog(): Promise<string | null> {
             授权码每天更新，请前往 Discord 查看
           </span>
         </p>
-        <input 
-          type="text" 
-          id="authCodeInput" 
+        <input
+          type="text"
+          id="authCodeInput"
           placeholder="例如：MEOW-20251111-ABCD"
           style="
             width: 100%;
@@ -206,7 +214,7 @@ function showAuthDialog(): Promise<string | null> {
           "
         />
         <div style="display: flex; gap: 12px;">
-          <button 
+          <button
             id="authSubmitBtn"
             style="
               flex: 1;
@@ -224,7 +232,7 @@ function showAuthDialog(): Promise<string | null> {
           >
             ✅ 验证授权码
           </button>
-          <button 
+          <button
             id="authCancelBtn"
             style="
               padding: 14px 24px;
@@ -334,6 +342,31 @@ export async function checkAuthorization(): Promise<boolean> {
 
   // 检查是否已有授权码
   const savedCode = localStorage.getItem(STORAGE_KEY);
+  const lastVerifyTime = localStorage.getItem(STORAGE_VERIFY_TIME_KEY);
+
+  // 🔥 检查缓存是否有效（24小时内）
+  if (savedCode && lastVerifyTime) {
+    const timeSinceLastVerify = Date.now() - parseInt(lastVerifyTime);
+
+    if (timeSinceLastVerify < CACHE_DURATION) {
+      // 缓存仍然有效，直接使用
+      const hoursLeft = Math.floor((CACHE_DURATION - timeSinceLastVerify) / (60 * 60 * 1000));
+      console.log(`✅ 使用缓存的授权验证（剩余 ${hoursLeft} 小时有效期）`);
+
+      localStorage.setItem(STORAGE_VERIFIED_KEY, 'true');
+
+      // 短暂显示成功消息
+      setTimeout(() => {
+        (window as any).toastr?.success(`✅ 授权验证有效（缓存）！猫猫欢迎你！🐱`, '', {
+          timeOut: 2000,
+        });
+      }, 300);
+
+      return true;
+    } else {
+      console.log('⏰ 授权缓存已过期（超过24小时），需要重新验证');
+    }
+  }
 
   // 如果有保存的授权码，先尝试验证（静默验证）
   if (savedCode) {
@@ -343,6 +376,7 @@ export async function checkAuthorization(): Promise<boolean> {
     if (result.valid) {
       console.log('✅ 授权验证成功！（已保存的授权码有效）');
       localStorage.setItem(STORAGE_VERIFIED_KEY, 'true');
+      localStorage.setItem(STORAGE_VERIFY_TIME_KEY, Date.now().toString()); // 🔥 记录验证时间
 
       // 短暂显示成功消息
       setTimeout(() => {
@@ -356,6 +390,7 @@ export async function checkAuthorization(): Promise<boolean> {
       console.warn('⚠️ 保存的授权码已失效，需要重新输入');
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(STORAGE_VERIFIED_KEY);
+      localStorage.removeItem(STORAGE_VERIFY_TIME_KEY); // 🔥 清除验证时间
     }
   }
 
@@ -398,11 +433,12 @@ export async function checkAuthorization(): Promise<boolean> {
     const result = await verifyAuthCode(code);
 
     if (result.valid) {
-      // 验证成功，保存授权码
+      // 验证成功，保存授权码和验证时间
       localStorage.setItem(STORAGE_KEY, code);
       localStorage.setItem(STORAGE_VERIFIED_KEY, 'true');
-      console.log('✅ 授权验证成功！');
-      (window as any).toastr?.success(result.message, '授权成功', {
+      localStorage.setItem(STORAGE_VERIFY_TIME_KEY, Date.now().toString()); // 🔥 记录验证时间
+      console.log('✅ 授权验证成功！（24小时内有效）');
+      (window as any).toastr?.success(result.message + '\n\n💾 授权已缓存 24 小时', '授权成功', {
         timeOut: 3000,
       });
       return true;
