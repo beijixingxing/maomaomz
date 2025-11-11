@@ -144,9 +144,11 @@
         v-show="expandedSections.usageGuide"
         style="color: #e0e0e0; font-size: 14px; line-height: 1.8; animation: fadeIn 0.3s ease-in"
       >
-        <div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-          {{ pluginUsage }}
-        </div>
+        <div
+          v-html="renderMarkdown(pluginUsage)"
+          style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          class="markdown-content"
+        ></div>
       </div>
     </div>
 
@@ -187,9 +189,11 @@
         v-show="expandedSections.changelog"
         style="color: #e0e0e0; font-size: 14px; line-height: 1.8; animation: fadeIn 0.3s ease-in"
       >
-        <div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-          {{ pluginChangelog }}
-        </div>
+        <div
+          v-html="renderMarkdown(pluginChangelog)"
+          style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          class="markdown-content"
+        ></div>
 
         <!-- 旧的硬编码版本记录（作为备份） -->
         <div v-if="false">
@@ -433,6 +437,54 @@ const loadPluginInfo = async () => {
   }
 };
 
+// 简单的 Markdown 渲染函数
+const renderMarkdown = (text: string): string => {
+  if (!text) return '';
+
+  let html = text;
+
+  // 转义 HTML 特殊字符（防止 XSS）
+  html = html
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  // 标题（# ## ###）
+  html = html.replace(/^### (.+)$/gm, '<h3 style="color: #4a9eff; margin: 15px 0 10px 0; font-size: 16px;">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 style="color: #4a9eff; margin: 20px 0 12px 0; font-size: 18px;">$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1 style="color: #4a9eff; margin: 20px 0 15px 0; font-size: 20px; font-weight: 600;">$1</h1>');
+
+  // 加粗 **text**
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #fff; font-weight: 600;">$1</strong>');
+
+  // 斜体 *text*
+  html = html.replace(/\*(.+?)\*/g, '<em style="color: #ccc; font-style: italic;">$1</em>');
+
+  // 行内代码 `code`
+  html = html.replace(/`([^`]+)`/g, '<code style="background: rgba(255, 255, 255, 0.1); padding: 2px 6px; border-radius: 4px; color: #4a9eff; font-family: monospace;">$1</code>');
+
+  // 无序列表 - item
+  html = html.replace(/^- (.+)$/gm, '<li style="margin: 5px 0; padding-left: 8px;">$1</li>');
+  html = html.replace(/(<li.*<\/li>\n?)+/g, '<ul style="margin: 10px 0; padding-left: 20px; list-style-type: disc;">$&</ul>');
+
+  // 有序列表 1. item
+  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin: 5px 0; padding-left: 8px;">$1</li>');
+
+  // 链接 [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #4a9eff; text-decoration: none; border-bottom: 1px solid #4a9eff;">$1</a>');
+
+  // 水平线 ---
+  html = html.replace(/^---$/gm, '<hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 20px 0;">');
+
+  // 换行（两个空格+换行 或 \n\n）
+  html = html.replace(/\n\n/g, '<br><br>');
+  html = html.replace(/  \n/g, '<br>');
+
+  return html;
+};
+
 // 页面加载时获取插件信息
 onMounted(() => {
   loadPluginInfo();
@@ -460,5 +512,52 @@ onMounted(() => {
 .update-item {
   margin-bottom: 8px;
   line-height: 1.6;
+}
+
+/* Markdown 渲染样式 */
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3) {
+  margin-top: 20px;
+  margin-bottom: 12px;
+  color: #4a9eff;
+  font-weight: 600;
+}
+
+.markdown-content :deep(ul) {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.markdown-content :deep(li) {
+  margin: 5px 0;
+  line-height: 1.6;
+}
+
+.markdown-content :deep(code) {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #4a9eff;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 13px;
+}
+
+.markdown-content :deep(a) {
+  color: #4a9eff;
+  text-decoration: none;
+  border-bottom: 1px solid #4a9eff;
+  transition: all 0.2s;
+}
+
+.markdown-content :deep(a:hover) {
+  color: #6bb3ff;
+  border-bottom-color: #6bb3ff;
+}
+
+.markdown-content :deep(hr) {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 20px 0;
 }
 </style>
