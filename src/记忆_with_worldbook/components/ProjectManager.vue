@@ -172,6 +172,43 @@
           导入文件夹
         </button>
         <button
+          :style="{
+            padding: '8px 16px',
+            background: useGlobalStorage ? '#10b981' : '#f59e0b',
+            border: 'none',
+            borderRadius: '8px',
+            color: 'white',
+            fontSize: '13px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }"
+          :title="useGlobalStorage ? '当前：全局模式（所有聊天共享）' : '当前：分聊天模式（每个聊天独立）'"
+          @click="toggleStorageMode"
+        >
+          <i :class="useGlobalStorage ? 'fa-solid fa-globe' : 'fa-solid fa-comments'" style="margin-right: 6px"></i>
+          {{ useGlobalStorage ? '全局存储' : '分聊天存储' }}
+        </button>
+        <button
+          style="
+            padding: 8px 16px;
+            background: #6366f1;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+          "
+          @click="restoreFromBackup"
+          @mouseenter="(e: any) => (e.currentTarget.style.background = '#4f46e5')"
+          @mouseleave="(e: any) => (e.currentTarget.style.background = '#6366f1')"
+        >
+          <i class="fa-solid fa-clock-rotate-left" style="margin-right: 6px"></i>
+          恢复备份
+        </button>
+        <button
           style="
             padding: 8px 16px;
             background: #10b981;
@@ -1567,6 +1604,8 @@ const currentId = ref('');
 const currentFile = ref('');
 const code = ref('');
 const previewHtml = ref('');
+// 🔧 存储模式：true = 全局共享（所有聊天共用），false = 按聊天分开
+const useGlobalStorage = ref(true); // 默认使用全局存储
 const showAI = ref(false);
 const aiPrompt = ref('');
 const aiGenerating = ref(false);
@@ -2787,45 +2826,130 @@ function updatePreview() {
   previewHtml.value = buildPreviewFromFiles(proj.files);
 }
 
+// 🔧 获取存储键（支持全局/分聊天两种模式）
+function getStorageKey(): string {
+  const scriptId = getScriptIdSafe();
+
+  if (useGlobalStorage.value) {
+    // 全局模式：使用固定键名（类似API配置）
+    return `${scriptId}_frontend_projects_global_v2`;
+  } else {
+    // 分聊天模式：每个聊天独立存储
+    const chatId = getChatIdSafe();
+    return chatId ? `${scriptId}_frontend_projects_chat_${chatId}` : `${scriptId}_frontend_projects_temp`;
+  }
+}
+
 function saveToChatVar() {
   try {
-    // 插件环境：使用 SillyTavern.chatId 属性而不是 getCurrentChatId() 函数
-    const chatId = SillyTavern.chatId;
-    console.log('保存数据到 localStorage，聊天 ID:', chatId);
+    const storageMode = useGlobalStorage.value ? '全局模式' : '分聊天模式';
+    console.log(`保存数据到 localStorage (${storageMode})`);
 
     const dataToSave = {
       frontend_projects_files: projects.value,
       frontend_ai_history: aiHistory.value,
+      _saved_at: new Date().toISOString(), // 添加保存时间戳
+      _version: '2.0', // 版本号升级
+      _storage_mode: useGlobalStorage.value ? 'global' : 'chat', // 记录存储模式
     };
 
-    // 插件环境：保存到 localStorage
-    const scriptId = getScriptIdSafe();
-    const storageKey = chatId ? `${scriptId}_frontend_projects_${chatId}` : `${scriptId}_frontend_projects_global`;
+    const storageKey = getStorageKey();
 
+    // 🔧 保存前创建备份（保留最近3个备份）
+    try {
+      const existingData = localStorage.getItem(storageKey);
+      if (existingData) {
+        // 备份当前数据
+        const backupKey = `${storageKey}_backup_${Date.now()}`;
+        localStorage.setItem(backupKey, existingData);
+        console.log(`💾 已创建备份: ${backupKey}`);
+
+        // 清理旧备份（只保留最近3个）
+        const allKeys = Object.keys(localStorage);
+        const backupKeys = allKeys
+          .filter(k => k.startsWith(`${storageKey}_backup_`))
+          .sort()
+          .reverse();
+
+        if (backupKeys.length > 3) {
+          backupKeys.slice(3).forEach(oldKey => {
+            localStorage.removeItem(oldKey);
+            console.log(`🗑️ 已删除旧备份: ${oldKey}`);
+          });
+        }
+      }
+    } catch (backupError) {
+      console.warn('创建备份失败（继续保存）:', backupError);
+    }
+
+    // 保存新数据
     localStorage.setItem(storageKey, JSON.stringify(dataToSave));
-    console.log('保存成功到 localStorage！', dataToSave.frontend_projects_files.length, '个项目');
+
+    // 同时保存存储模式偏好
+    localStorage.setItem(`${getScriptIdSafe()}_storage_mode_preference`, useGlobalStorage.value ? 'global' : 'chat');
+
+    console.log(`✅ 保存成功 (${storageMode})！`, dataToSave.frontend_projects_files.length, '个项目');
+    console.log(`📍 存储键: ${storageKey}`);
   } catch (e) {
-    console.error('保存失败:', e);
+    console.error('❌ 保存失败:', e);
+    window.toastr?.error('保存失败: ' + (e as Error).message);
   }
 }
 
 function loadFromChatVar() {
   try {
-    // 插件环境：使用 getChatIdSafe() 函数
-    const chatId = getChatIdSafe();
-    console.log('正在从 localStorage 加载数据，聊天 ID:', chatId);
-
-    // 插件环境：从 localStorage 加载
     const scriptId = getScriptIdSafe();
-    const storageKey = chatId ? `${scriptId}_frontend_projects_${chatId}` : `${scriptId}_frontend_projects_global`;
+    const chatId = getChatIdSafe();
 
-    const savedData = localStorage.getItem(storageKey);
+    // 🔧 首先加载存储模式偏好
+    const storedPreference = localStorage.getItem(`${scriptId}_storage_mode_preference`);
+    if (storedPreference === 'chat' || storedPreference === 'global') {
+      useGlobalStorage.value = storedPreference === 'global';
+      console.log(`📋 已加载存储模式偏好: ${storedPreference === 'global' ? '全局模式' : '分聊天模式'}`);
+    }
+
+    const storageMode = useGlobalStorage.value ? '全局模式' : '分聊天模式';
+    console.log(`正在从 localStorage 加载数据 (${storageMode})，聊天 ID:`, chatId);
+
+    const currentKey = getStorageKey();
+
+    // 🔧 增强：尝试多个可能的存储键（兼容旧版本）
+    const possibleKeys = [
+      currentKey, // 当前版本的键（v2）
+      // 兼容旧版本的键
+      `${scriptId}_frontend_projects_global_v2`, // v2全局
+      chatId ? `${scriptId}_frontend_projects_chat_${chatId}` : '', // v2分聊天
+      chatId ? `${scriptId}_frontend_projects_${chatId}` : `${scriptId}_frontend_projects_global`, // v1
+      chatId ? `maomaomz_extension_v1_frontend_projects_${chatId}` : 'maomaomz_extension_v1_frontend_projects_global', // 更早的版本
+    ].filter(k => k); // 过滤空字符串
+
+    let savedData: string | null = null;
+    let usedKey = '';
+
+    // 按优先级尝试读取
+    for (const key of possibleKeys) {
+      savedData = localStorage.getItem(key);
+      if (savedData) {
+        usedKey = key;
+        console.log(`✅ 从存储键 "${key}" 读取到数据`);
+        break;
+      }
+    }
+
     let data = null;
 
     if (savedData) {
       try {
         data = JSON.parse(savedData);
         console.log('从 localStorage 读取到的数据:', data);
+
+        // 🔧 如果使用的是旧键，迁移到新键
+        if (usedKey !== currentKey) {
+          console.log(`🔄 正在将数据从旧键 "${usedKey}" 迁移到新键 "${currentKey}"`);
+          localStorage.setItem(currentKey, savedData);
+          // 保留旧数据作为备份，不删除
+          console.log('✅ 数据迁移完成（旧数据已保留作为备份）');
+        }
       } catch (parseError) {
         console.error('解析 localStorage 数据失败:', parseError);
       }
@@ -2833,35 +2957,206 @@ function loadFromChatVar() {
 
     if (data?.frontend_projects_files && Array.isArray(data.frontend_projects_files)) {
       projects.value = data.frontend_projects_files;
-      console.log('成功加载项目:', projects.value.length, '个');
+      console.log('✅ 成功加载项目:', projects.value.length, '个');
+
+      // 显示数据保存时间（如果有）
+      if (data._saved_at) {
+        console.log('📅 数据最后保存时间:', data._saved_at);
+      }
     } else {
-      console.log('没有找到已保存的项目数据');
-      projects.value = [];
+      console.log('⚠️ 没有找到已保存的项目数据');
+
+      // 🔧 尝试从备份恢复
+      const scriptId = getScriptIdSafe();
+      const storageKey = chatId ? `${scriptId}_frontend_projects_${chatId}` : `${scriptId}_frontend_projects_global`;
+      const allKeys = Object.keys(localStorage);
+      const backupKeys = allKeys
+        .filter(k => k.startsWith(`${storageKey}_backup_`))
+        .sort()
+        .reverse();
+
+      if (backupKeys.length > 0) {
+        console.log(`🔍 发现 ${backupKeys.length} 个备份，尝试从最新备份恢复...`);
+        try {
+          const latestBackup = localStorage.getItem(backupKeys[0]);
+          if (latestBackup) {
+            const backupData = JSON.parse(latestBackup);
+            if (backupData?.frontend_projects_files && Array.isArray(backupData.frontend_projects_files)) {
+              projects.value = backupData.frontend_projects_files;
+              console.log(`✅ 已从备份恢复项目:`, projects.value.length, '个');
+              window.toastr?.info(`已从备份恢复 ${projects.value.length} 个项目`, '数据恢复');
+
+              // 恢复成功后，将备份数据保存为当前数据
+              saveToChatVar();
+            }
+          }
+        } catch (backupError) {
+          console.error('❌ 备份恢复失败:', backupError);
+        }
+      }
+
+      // 如果还是没有数据，初始化为空
+      if (projects.value.length === 0) {
+        projects.value = [];
+      }
     }
 
     if (data?.frontend_ai_history) {
       aiHistory.value = data.frontend_ai_history;
-      console.log('成功加载历史记录');
+      console.log('✅ 成功加载历史记录');
     } else {
       aiHistory.value = {};
     }
   } catch (e) {
-    console.error('加载失败:', e);
+    console.error('❌ 加载失败:', e);
+    window.toastr?.error('加载数据失败: ' + (e as Error).message);
+  }
+}
+
+// 切换存储模式
+function toggleStorageMode() {
+  const oldMode = useGlobalStorage.value ? '全局模式' : '分聊天模式';
+  const newMode = !useGlobalStorage.value ? '全局模式' : '分聊天模式';
+
+  const confirmed = confirm(
+    `确定要切换存储模式吗？\n\n` +
+      `当前模式：${oldMode}\n` +
+      `切换后：${newMode}\n\n` +
+      `说明：\n` +
+      `• 全局模式：所有聊天共享同一份项目（类似API配置）\n` +
+      `• 分聊天模式：每个聊天有独立的项目\n\n` +
+      `切换后会自动重新加载数据。`,
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  // 保存当前数据
+  saveToChatVar();
+
+  // 切换模式
+  useGlobalStorage.value = !useGlobalStorage.value;
+
+  // 重新加载数据
+  loadFromChatVar();
+
+  // 清空当前选择
+  currentId.value = '';
+  currentFile.value = '';
+  code.value = '';
+  previewHtml.value = '';
+
+  const mode = useGlobalStorage.value ? '全局模式' : '分聊天模式';
+  window.toastr.success(`✅ 已切换到${mode}\n当前有 ${projects.value.length} 个项目`);
+  console.log(`✅ 存储模式已切换: ${mode}`);
+}
+
+// 手动恢复备份功能
+function restoreFromBackup() {
+  try {
+    const storageKey = getStorageKey();
+
+    // 获取所有备份
+    const allKeys = Object.keys(localStorage);
+    const backupKeys = allKeys
+      .filter(k => k.startsWith(`${storageKey}_backup_`))
+      .sort()
+      .reverse();
+
+    if (backupKeys.length === 0) {
+      window.toastr.warning('没有找到可用的备份数据');
+      return;
+    }
+
+    // 构建备份列表供用户选择
+    const backupList = backupKeys
+      .map((key, index) => {
+        const timestamp = key.split('_backup_')[1];
+        const date = new Date(parseInt(timestamp));
+        return `${index + 1}. ${date.toLocaleString('zh-CN')}`;
+      })
+      .join('\n');
+
+    const choice = prompt(
+      `发现 ${backupKeys.length} 个备份，请选择要恢复的备份（输入序号）：\n\n${backupList}\n\n输入 0 取消`,
+      '1',
+    );
+
+    if (!choice || choice === '0') {
+      window.toastr.info('已取消恢复');
+      return;
+    }
+
+    const index = parseInt(choice) - 1;
+    if (index < 0 || index >= backupKeys.length) {
+      window.toastr.error('无效的备份序号');
+      return;
+    }
+
+    // 恢复选中的备份
+    const backupData = localStorage.getItem(backupKeys[index]);
+    if (!backupData) {
+      window.toastr.error('读取备份数据失败');
+      return;
+    }
+
+    const data = JSON.parse(backupData);
+    if (data?.frontend_projects_files && Array.isArray(data.frontend_projects_files)) {
+      // 先备份当前数据
+      const currentData = {
+        frontend_projects_files: projects.value,
+        frontend_ai_history: aiHistory.value,
+      };
+      const currentBackupKey = `${storageKey}_manual_backup_${Date.now()}`;
+      localStorage.setItem(currentBackupKey, JSON.stringify(currentData));
+
+      // 恢复备份
+      projects.value = data.frontend_projects_files;
+      aiHistory.value = data.frontend_ai_history || {};
+
+      // 保存恢复的数据
+      saveToChatVar();
+
+      // 清空当前选择
+      currentId.value = '';
+      currentFile.value = '';
+      code.value = '';
+      previewHtml.value = '';
+
+      window.toastr.success(
+        `✅ 已恢复备份！\n恢复了 ${projects.value.length} 个项目\n当前数据已自动备份到 ${currentBackupKey}`,
+      );
+
+      console.log(`✅ 已从备份恢复: ${backupKeys[index]}`);
+      console.log(`💾 当前数据已备份到: ${currentBackupKey}`);
+    } else {
+      window.toastr.error('备份数据格式不正确');
+    }
+  } catch (error) {
+    console.error('恢复备份失败:', error);
+    window.toastr.error('恢复备份失败: ' + (error as Error).message);
   }
 }
 
 // 立即加载数据
 loadFromChatVar();
 
-// 插件环境：监听聊天变化（使用 getChatIdSafe）
+// 插件环境：监听聊天变化（仅在分聊天模式下生效）
 watch(
   () => getChatIdSafe(),
   () => {
-    loadFromChatVar();
-    currentId.value = '';
-    currentFile.value = '';
-    code.value = '';
-    previewHtml.value = '';
+    // 仅在分聊天模式下才需要重新加载
+    if (!useGlobalStorage.value) {
+      console.log('🔄 聊天切换，重新加载项目（分聊天模式）');
+      loadFromChatVar();
+      currentId.value = '';
+      currentFile.value = '';
+      code.value = '';
+      previewHtml.value = '';
+    } else {
+      console.log('ℹ️ 聊天切换，但使用全局模式，无需重新加载');
+    }
   },
 );
 
