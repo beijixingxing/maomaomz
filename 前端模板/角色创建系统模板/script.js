@@ -247,12 +247,12 @@ function addSkill() {
   skillItem.className = 'skill-item';
   skillItem.style.animation = 'glitchIn 0.3s';
   skillItem.innerHTML = `
-    <input type="text" placeholder="技能名称" name="skillName[]">
+        <input type="text" placeholder="技能名称" name="skillName[]">
     <input type="number" placeholder="等级 (1-10)" name="skillLevel[]" min="1" max="10" value="1">
-    <button type="button" class="btn-remove" onclick="removeSkill(this)">
-      <i class="fas fa-times"></i>
-    </button>
-  `;
+        <button type="button" class="btn-remove" onclick="removeSkill(this)">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
   skillsList.appendChild(skillItem);
   console.log('%c[SKILL] 添加技能', 'color: #00ff41;');
 }
@@ -261,7 +261,7 @@ function removeSkill(button) {
   const skillItem = button.parentElement;
   skillItem.style.animation = 'glitchOut 0.3s';
   setTimeout(() => {
-    skillItem.remove();
+  skillItem.remove();
     console.log('%c[SKILL] 移除技能', 'color: #ff006e;');
   }, 300);
 }
@@ -324,7 +324,7 @@ function generateCharacter() {
       弱点: document.getElementById('weaknesses').value || '',
     },
     元数据: {
-      创建时间: new Date().toLocaleString('zh-CN'),
+    创建时间: new Date().toLocaleString('zh-CN'),
       版本: '2.0_像素科技版',
       生成器: '角色创建系统',
     },
@@ -383,7 +383,7 @@ function displayResult(character) {
 
   // 滚动到结果区域
   setTimeout(() => {
-    resultSection.scrollIntoView({ behavior: 'smooth' });
+  resultSection.scrollIntoView({ behavior: 'smooth' });
   }, 100);
 
   showNotification('✅ 角色卡生成成功！', 'success');
@@ -415,19 +415,19 @@ function copyToClipboard() {
 }
 
 function fallbackCopy(text) {
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
   textarea.style.position = 'fixed';
   textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.select();
+      document.body.appendChild(textarea);
+      textarea.select();
   try {
-    document.execCommand('copy');
+      document.execCommand('copy');
     showNotification('✅ 已复制到剪贴板！', 'success');
   } catch (err) {
     showNotification('❌ 复制失败，请手动复制', 'error');
   }
-  document.body.removeChild(textarea);
+      document.body.removeChild(textarea);
 }
 
 function downloadJSON() {
@@ -606,45 +606,45 @@ function resetForm() {
 
   console.log('%c[RESET] 重置表单', 'color: #ff9500;');
 
-  // 重置表单
-  document.getElementById('characterForm').reset();
+    // 重置表单
+    document.getElementById('characterForm').reset();
 
-  // 重置步骤
-  currentStep = 1;
-  updateProgressBar();
-  showFormSection(1);
-  updateButtonVisibility();
+    // 重置步骤
+    currentStep = 1;
+    updateProgressBar();
+    showFormSection(1);
+    updateButtonVisibility();
 
-  // 显示表单，隐藏结果
-  document.getElementById('characterForm').style.display = 'block';
-  document.getElementById('resultSection').style.display = 'none';
+    // 显示表单，隐藏结果
+    document.getElementById('characterForm').style.display = 'block';
+    document.getElementById('resultSection').style.display = 'none';
 
-  // 清空头像预览
-  document.getElementById('avatarPreview').innerHTML = '';
+    // 清空头像预览
+    document.getElementById('avatarPreview').innerHTML = '';
 
-  // 重置属性值显示
-  document.querySelectorAll('.stat-value').forEach(span => {
-    span.textContent = '50';
+    // 重置属性值显示
+    document.querySelectorAll('.stat-value').forEach(span => {
+      span.textContent = '50';
     span.style.color = 'var(--cyber-green)';
-  });
+    });
 
-  // 清空技能列表，保留第一个
-  const skillsList = document.getElementById('skillsList');
-  skillsList.innerHTML = `
-    <div class="skill-item">
-      <input type="text" placeholder="技能名称" name="skillName[]">
+    // 清空技能列表，保留第一个
+    const skillsList = document.getElementById('skillsList');
+    skillsList.innerHTML = `
+            <div class="skill-item">
+                <input type="text" placeholder="技能名称" name="skillName[]">
       <input type="number" placeholder="等级 (1-10)" name="skillLevel[]" min="1" max="10" value="1">
-      <button type="button" class="btn-remove" onclick="removeSkill(this)">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-  `;
+                <button type="button" class="btn-remove" onclick="removeSkill(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
 
   // 清除草稿
   clearDraft();
 
-  // 滚动到顶部
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+    // 滚动到顶部
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
   showNotification('✅ 表单已重置', 'success');
 }

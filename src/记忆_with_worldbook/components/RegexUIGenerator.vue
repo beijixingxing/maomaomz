@@ -42,7 +42,7 @@
           <strong style="color: #fff">第4步：</strong> 看右侧<strong style="color: #51cf66">实时预览</strong
           >，不满意就点"AI 修改"继续调整
         </li>
-        <li><strong style="color: #fff">第5步：</strong> 点击"复制正则"，直接粘贴到酒馆正则里就完了！</li>
+        <li><strong style="color: #fff">第5步：</strong> 点击"导出为正则"，下载 JSON 文件后导入到酒馆正则里就完了！</li>
         <li>
           <strong style="color: #fff">完成！</strong> 现在在聊天中输入
           <code style="background: #1a1a1a; padding: 2px 6px; border-radius: 3px; color: #51cf66">【状态栏】</code>
@@ -199,7 +199,7 @@
           ></iframe>
         </div>
 
-        <!-- 复制正则按钮 -->
+        <!-- 导出正则按钮 -->
         <button
           v-if="generatedCode"
           style="
@@ -214,9 +214,9 @@
             font-weight: 600;
             transition: all 0.2s;
           "
-          @click="copyRegex"
+          @click="exportRegex"
         >
-          <i class="fa-solid fa-copy"></i> 复制正则代码
+          <i class="fa-solid fa-download"></i> 导出为正则
         </button>
       </div>
     </div>
@@ -822,7 +822,36 @@ ${result}
   }
 };
 
-// 复制正则代码
+// 导出正则为JSON文件
+const exportRegex = () => {
+  if (!generatedRegex.value) {
+    window.toastr.error('没有可导出的正则配置');
+    return;
+  }
+
+  try {
+    // 创建下载链接
+    const dataBlob = new Blob([generatedRegex.value], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    // 使用触发词作为文件名，去除特殊字符
+    const fileName = triggerKeyword.value.replace(/[【】\[\]]/g, '').trim() || '界面正则';
+    link.download = `${fileName}_regex.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    window.toastr.success(`正则配置已导出为 ${fileName}_regex.json`);
+  } catch (error: any) {
+    console.error('导出失败:', error);
+    window.toastr.error(`导出失败: ${error.message}`);
+  }
+};
+
+// 复制正则代码到剪贴板（备用功能）
 const copyRegex = () => {
   copyToClipboard(generatedRegex.value, '正则代码已复制到剪贴板');
 };
