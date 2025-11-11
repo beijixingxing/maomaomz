@@ -6216,7 +6216,7 @@ function exportToQR() {
       findRegex: triggerWord.startsWith('/') ? triggerWord : `/${triggerWord}/g`,
       replaceString: '```html\n\n' + cleanHtml + '\n```',
       trimStrings: [],
-      placement: [1, 2],
+      placement: [0], // 0 = 在用户输入后立即替换，不进入对话
       disabled: false,
       markdownOnly: true,
       promptOnly: false,
@@ -6227,15 +6227,16 @@ function exportToQR() {
     };
 
     // 2. 构建 QR JSON（只包含触发词，节省 token）
+    // 使用 /pass 包裹触发词，让正则在输入阶段就替换，不进入对话流
     const qrId = Math.floor(Math.random() * 100000) + 1;
     const qrJson = {
       id: qrId,
       showLabel: true,
       label: `🎨 ${proj.name}`,
       title: '',
-      message: triggerWord, // 只发送触发词，由正则替换为完整 HTML
+      message: `/pass ${triggerWord}`, // 使用 /pass 命令包裹触发词
       contextList: [],
-      preventAutoExecute: true, // 防止自动触发 AI 回复
+      preventAutoExecute: true, // 防止自动执行
       isHidden: false,
       executeOnStartup: false,
       executeOnUser: false,
