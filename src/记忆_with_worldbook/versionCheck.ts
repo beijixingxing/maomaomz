@@ -309,18 +309,15 @@ ${updateInfo.notes}
 
   // 绑定事件
   document.getElementById('maomaomz-update-now')?.addEventListener('click', () => {
-    // 打开 GitHub 页面
-    window.open(updateInfo.updateUrl, '_blank');
-
-    // 显示更新说明
-    (window as any).toastr?.info(
-      '请在 GitHub 页面下载最新版本，或在插件目录执行 git pull\n\n更新后请刷新页面',
-      '更新指引',
-      { timeOut: 0, extendedTimeOut: 0 },
-    );
-
     // 关闭对话框
     document.getElementById('maomaomz-update-overlay')?.remove();
+
+    // 显示更新说明 - 引导用户去扩展管理中更新
+    (window as any).toastr?.success(
+      `📦 请按以下步骤更新：\n\n1️⃣ 点击左侧【扩展】图标\n2️⃣ 找到【猫猫的记忆管理工具】\n3️⃣ 点击【立即更新】按钮\n4️⃣ 等待更新完成后刷新页面\n\n✨ 新版本 v${updateInfo.latestVersion} 即可安装成功！`,
+      '🎉 如何更新到最新版本',
+      { timeOut: 15000, extendedTimeOut: 5000 },
+    );
   });
 
   document.getElementById('maomaomz-update-later')?.addEventListener('click', () => {
