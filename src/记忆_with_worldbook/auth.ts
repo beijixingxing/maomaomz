@@ -44,7 +44,7 @@ function getCurrentApiEndpoint(): string {
       } catch {
         // 如果不是有效的URL，直接返回（可能是类型名）
         return apiUrl;
-}
+      }
     }
 
     // 如果没有有效的URL，返回API类型
@@ -62,16 +62,16 @@ async function verifyAuthCode(code: string): Promise<{ valid: boolean; message: 
   try {
     // 获取当前使用的 API 端点
     const apiEndpoint = getCurrentApiEndpoint();
-    
+
     console.log('🔐 正在验证授权码...');
     console.log('🌐 API端点:', apiEndpoint);
-    
+
     const response = await fetch(`${AUTH_API_URL}/verify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         code: code.trim().toUpperCase(),
         apiEndpoint: apiEndpoint, // 🔥 发送 API 端点信息，用于抓第三方
         timestamp: new Date().toISOString(),
