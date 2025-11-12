@@ -2374,7 +2374,7 @@
 import { debounce } from 'lodash';
 import { storeToRefs } from 'pinia';
 import { onBeforeUnmount, onMounted, ref, Ref, watch } from 'vue';
-import { normalizeApiEndpoint, useSettingsStore, filterApiParams, detectApiProvider } from '../settings';
+import { detectApiProvider, filterApiParams, normalizeApiEndpoint, useSettingsStore } from '../settings';
 import { copyToClipboard, getScriptIdSafe } from '../utils';
 
 const settingsStore = useSettingsStore();
@@ -2865,7 +2865,7 @@ const handleAntiClicheProcess = async () => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        await handleApiError(response);
       }
 
       const data = await response.json();
@@ -2951,7 +2951,7 @@ const handleModifyAntiCliche = async () => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        await handleApiError(response);
       }
 
       const data = await response.json();
@@ -3154,7 +3154,7 @@ const handleGenerateCharacterCard = async () => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        await handleApiError(response);
       }
 
       const data = await response.json();
@@ -3278,7 +3278,7 @@ ${modifyRequest.value}`,
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        await handleApiError(response);
       }
 
       const data = await response.json();
@@ -3362,8 +3362,7 @@ const generateWithStreaming = async (
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`请求失败：${response.status} ${response.statusText}\n${errorText.slice(0, 400)}`);
+      await handleApiError(response);
     }
 
     const data = await response.json();
@@ -3694,7 +3693,7 @@ const handleGenerateWorldbookEntry = async () => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        await handleApiError(response);
       }
 
       const data = await response.json();
@@ -3860,7 +3859,7 @@ ${worldbookModifyRequest.value}`,
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        await handleApiError(response);
       }
 
       const data = await response.json();

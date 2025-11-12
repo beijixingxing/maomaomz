@@ -756,8 +756,8 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { onMounted, ref, watch } from 'vue';
-import { normalizeApiEndpoint, useSettingsStore, filterApiParams } from '../settings';
-import { getScriptIdSafe } from '../utils';
+import { filterApiParams, normalizeApiEndpoint, useSettingsStore } from '../settings';
+import { getScriptIdSafe, handleApiError } from '../utils';
 import AIModifyDialog from './AIModifyDialog.vue';
 
 const settingsStore = useSettingsStore();
@@ -1047,47 +1047,11 @@ async function handleAIGenerateStructure() {
       body: JSON.stringify(filteredPayload),
     });
 
-    // 先读取响应文本
-    const responseText = await response.text();
-
     if (!response.ok) {
-      // 尝试解析错误信息
-      let errorMessage = `API 错误: ${response.status}`;
-      try {
-        const errorData = JSON.parse(responseText);
-        if (errorData.error) {
-          errorMessage = `${errorMessage} - ${errorData.error.message || JSON.stringify(errorData.error)}`;
-        } else if (errorData.message) {
-          errorMessage = `${errorMessage} - ${errorData.message}`;
-        } else {
-          errorMessage = `${errorMessage} - ${JSON.stringify(errorData)}`;
-        }
-      } catch (e) {
-        errorMessage = `${errorMessage} - ${responseText.slice(0, 200)}`;
-      }
-      console.error('API 请求失败:', errorMessage);
-      console.error('请求 URL:', settings.value.api_endpoint);
-      console.error(
-        '请求体:',
-        JSON.stringify(
-          {
-            model: settings.value.model,
-            messages: [
-              { role: 'system', content: systemPrompt.substring(0, 100) + '...' },
-              { role: 'user', content: `需求：${aiStructurePrompt.value.substring(0, 100)}...` },
-            ],
-            temperature: settings.value.temperature || 0.7,
-            max_tokens: settings.value.max_tokens || 4000,
-          },
-          null,
-          2,
-        ),
-      );
-      throw new Error(errorMessage);
+      await handleApiError(response);
     }
 
-    // 解析成功响应
-    const data = JSON.parse(responseText);
+    const data = await response.json();
     // 尝试从不同的响应格式中提取内容
     let result = '';
     if (data.choices && data.choices[0] && data.choices[0].message) {
@@ -1715,7 +1679,7 @@ ${modifyInstruction}
     });
 
     if (!response.ok) {
-      throw new Error(`API 错误: ${response.status}`);
+      await handleApiError(response);
     }
 
     const data = await response.json();
@@ -1857,7 +1821,7 @@ ${modifyInstruction}
     });
 
     if (!response.ok) {
-      throw new Error(`API 错误: ${response.status}`);
+      await handleApiError(response);
     }
 
     const data = await response.json();

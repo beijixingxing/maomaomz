@@ -802,7 +802,7 @@ import { computed, onMounted, ref } from 'vue';
 import { z } from 'zod';
 import { normalizeApiEndpoint, useSettingsStore } from '../settings';
 import { useTaskStore } from '../taskStore';
-import { copyToClipboard, getScriptIdSafe } from '../utils';
+import { copyToClipboard, getScriptIdSafe, handleApiError } from '../utils';
 import AIGenerateDialog from './AIGenerateDialog.vue';
 import AIModifyDialog from './AIModifyDialog.vue';
 
@@ -1211,7 +1211,7 @@ ${greetingContent}
     });
 
     if (!response.ok) {
-      throw new Error(`API 调用失败: ${response.status} ${response.statusText}`);
+      await handleApiError(response);
     }
 
     const data = await response.json();
@@ -1368,7 +1368,7 @@ ${requirement}
     });
 
     if (!response.ok) {
-      throw new Error(`API 调用失败: ${response.status} ${response.statusText}`);
+      await handleApiError(response);
     }
 
     const data = await response.json();
@@ -1676,7 +1676,7 @@ ${switchGreetingCode}
     });
 
     if (!response.ok) {
-      throw new Error(`API 调用失败: ${response.status} ${response.statusText}`);
+      await handleApiError(response);
     }
 
     const data = await response.json();

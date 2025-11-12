@@ -1371,7 +1371,6 @@
     </div>
 
     <!-- 进度对话框 -->
-    <ProgressDialog ref="progressDialogRef" :show="showProgress" title="AI 正在处理" />
   </div>
 
   <!-- 保存模板对话框 -->
@@ -1463,9 +1462,9 @@
 import { storeToRefs } from 'pinia';
 import { onMounted, ref } from 'vue';
 import { useSettingsStore, useSummaryHistoryStore } from '../settings';
-import { getChatIdSafe, getScriptIdSafe } from '../utils';
 import { useTaskStore } from '../taskStore';
-import ProgressDialog from './ProgressDialog.vue';
+import { getChatIdSafe, getScriptIdSafe } from '../utils';
+
 
 const settingsStore = useSettingsStore();
 const { settings } = storeToRefs(settingsStore);
@@ -1647,8 +1646,8 @@ const is_summarizing = ref(false);
 const is_generating_table = ref(false);
 
 // 进度对话框
-const showProgress = ref(false);
-const progressDialogRef = ref<InstanceType<typeof ProgressDialog> | null>(null);
+
+
 
 // 表格列头模板相关
 const headerTemplates = ref<Array<{ name: string; headers: string }>>([]);
@@ -2737,20 +2736,20 @@ ${messagesText}
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ API请求失败:', response.status, response.statusText);
-      console.error('错误详情:', errorText);
-      const errorMsg = `API请求失败 (${response.status}): ${response.statusText}`;
-      window.toastr.error(
-        `API请求失败！\n\n状态码: ${response.status}\n错误: ${response.statusText}\n\n请检查：\n1. API端点是否正确\n2. API Key是否有效\n3. 网络连接是否正常`,
-        '',
-        { timeOut: 10000 },
-      );
-      if (taskId) {
-        taskStore.failTask(taskId, errorMsg);
-        taskStore.addTaskDetail(taskId, `错误详情: ${errorText.slice(0, 500)}`);
+      try {
+        await handleApiError(response);
+      } catch (error: any) {
+        console.error('❌ API请求失败:', error.message);
+        window.toastr.error(
+          `API请求失败！\n\n${error.message}\n\n请检查：\n1. API端点是否正确\n2. API Key是否有效\n3. 网络连接是否正常`,
+          '',
+          { timeOut: 10000 },
+        );
+        if (taskId) {
+          taskStore.failTask(taskId, error.message);
+        }
+        return;
       }
-      return;
     }
 
     taskStore.updateTaskProgress(taskId, 60, '正在解析 AI 响应...');

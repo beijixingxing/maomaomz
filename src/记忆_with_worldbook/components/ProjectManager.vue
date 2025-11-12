@@ -1554,7 +1554,6 @@
     </div>
 
     <!-- 进度对话框 -->
-    <ProgressDialog ref="progressDialogRef" :show="showProgress" title="AI 正在处理" />
   </div>
 </template>
 
@@ -1563,7 +1562,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'v
 import { detectApiProvider, filterApiParams, normalizeApiEndpoint, useSettingsStore } from '../settings';
 import { useTaskStore } from '../taskStore';
 import { getChatIdSafe, getScriptIdSafe } from '../utils';
-import ProgressDialog from './ProgressDialog.vue';
+
 
 interface ProjectFile {
   path: string;
@@ -1629,8 +1628,8 @@ const quickSuggestions = [
 ];
 
 // 进度对话框
-const showProgress = ref(false);
-const progressDialogRef = ref<InstanceType<typeof ProgressDialog> | null>(null);
+
+
 
 // 任务管理
 const taskStore = useTaskStore();
@@ -3798,7 +3797,6 @@ async function fixBugWithAI() {
   }
 
   aiGenerating.value = true;
-  showProgress.value = true;
   let normalizedEndpoint = '';
 
   // 创建任务
@@ -4378,15 +4376,10 @@ ${bugFile.value}
 4. 保持代码风格一致
 
 请严格按 system 中的格式输出，不要添加解释！`;
-
-    progressDialogRef.value?.setProgress(25);
-    progressDialogRef.value?.setMessage('正在发送请求到 AI 服务器...');
     taskStore.updateTaskProgress(taskId, 25, '正在发送请求到 AI 服务器...');
     await new Promise(r => setTimeout(r, 100));
 
     // 发送请求
-    progressDialogRef.value?.setProgress(30);
-    progressDialogRef.value?.setMessage('等待 AI 分析 bug...');
     taskStore.updateTaskProgress(taskId, 30, '等待 AI 分析 bug...');
     await new Promise(r => setTimeout(r, 100));
 
@@ -4413,12 +4406,8 @@ ${bugFile.value}
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
+      await handleApiError(response);
     }
-
-    progressDialogRef.value?.setProgress(60);
-    progressDialogRef.value?.setMessage('正在接收 AI 修复方案...');
     taskStore.updateTaskProgress(taskId, 60, '正在接收 AI 修复方案...');
     await new Promise(r => setTimeout(r, 100));
 
@@ -4428,9 +4417,6 @@ ${bugFile.value}
     if (!resultText) {
       throw new Error('AI 未返回修复方案');
     }
-
-    progressDialogRef.value?.setProgress(75);
-    progressDialogRef.value?.setMessage('正在解析修复方案...');
     taskStore.updateTaskProgress(taskId, 75, '正在解析修复方案...');
     await new Promise(r => setTimeout(r, 100));
 
@@ -4456,9 +4442,6 @@ ${bugFile.value}
     if (changes.length === 0) {
       throw new Error('AI 未返回有效的修复方案');
     }
-
-    progressDialogRef.value?.setProgress(85);
-    progressDialogRef.value?.setMessage('正在准备对比预览...');
     taskStore.updateTaskProgress(taskId, 85, '正在准备对比预览...');
     await new Promise(r => setTimeout(r, 100));
 
@@ -4476,19 +4459,13 @@ ${bugFile.value}
     aiChanges.value = changes;
     showComparison.value = true;
     previewMode.value = 'after';
-
-    progressDialogRef.value?.setProgress(95);
-    progressDialogRef.value?.setMessage(`Bug 修复方案已生成 (${changes.length} 个文件)`);
     taskStore.updateTaskProgress(taskId, 95, `Bug 修复方案已生成 (${changes.length} 个文件)`);
     await new Promise(r => setTimeout(r, 100));
 
     // 完成
-    progressDialogRef.value?.setProgress(100);
-    progressDialogRef.value?.setMessage('Bug 修复方案已生成！');
     taskStore.updateTaskProgress(taskId, 100, 'Bug 修复方案已生成！');
     taskStore.completeTask(taskId, { changedFiles: changes.length });
     setTimeout(() => {
-      showProgress.value = false;
       showBugFix.value = false;
       window.toastr.success(`AI 已生成修复方案，请在对比窗口中查看`);
     }, 800);
@@ -4497,7 +4474,6 @@ ${bugFile.value}
     const errorMsg = error?.message || String(error);
     window.toastr.error(`Bug 修复失败: ${errorMsg}`);
     taskStore.failTask(taskId, errorMsg);
-    showProgress.value = false;
   } finally {
     aiGenerating.value = false;
   }
@@ -4534,7 +4510,6 @@ async function generateWithAI() {
   }
 
   aiGenerating.value = true;
-  showProgress.value = true;
   let normalizedEndpoint = ''; // 提到外层作用域
 
   // 创建任务
@@ -4542,8 +4517,6 @@ async function generateWithAI() {
 
   try {
     // 阶段1: 准备请求
-    progressDialogRef.value?.setProgress(5);
-    progressDialogRef.value?.setMessage('正在准备 AI 请求...');
     taskStore.updateTaskProgress(taskId, 5, '正在准备 AI 请求...');
     await new Promise(r => setTimeout(r, 100)); // 等待 DOM 更新
 
@@ -4551,7 +4524,6 @@ async function generateWithAI() {
     if (!scriptId) {
       toastr.error('无法获取脚本 ID');
       aiGenerating.value = false;
-      showProgress.value = false;
       return;
     }
 
@@ -4566,7 +4538,6 @@ async function generateWithAI() {
     if (!apiEndpoint || !apiKey) {
       toastr.error('请先在"设置"标签页配置 API');
       aiGenerating.value = false;
-      showProgress.value = false;
       return;
     }
 
@@ -4578,7 +4549,6 @@ async function generateWithAI() {
     } catch (e) {
       toastr.error('API 端点格式不正确：' + (e as Error).message);
       aiGenerating.value = false;
-      showProgress.value = false;
       return;
     }
 
@@ -4586,9 +4556,6 @@ async function generateWithAI() {
     if (maxTokens < 2000) {
       toastr.warning(`当前 max_tokens 设置为 ${maxTokens}，可能导致 AI 返回内容被截断。建议设置为 4000 以上。`);
     }
-
-    progressDialogRef.value?.setProgress(15);
-    progressDialogRef.value?.setMessage('正在构建提示词...');
     taskStore.updateTaskProgress(taskId, 15, '正在构建提示词...');
     await new Promise(r => setTimeout(r, 100)); // 等待 DOM 更新
 
@@ -6973,9 +6940,6 @@ ${aiPrompt.value}
     // 流式传输或普通请求
     streamingText.value = ''; // 重置流式文本
     let resultText = '';
-
-    progressDialogRef.value?.setProgress(25);
-    progressDialogRef.value?.setMessage('正在发送请求到 AI 服务器...');
     taskStore.updateTaskProgress(taskId, 25, '正在发送请求到 AI 服务器...');
     await new Promise(r => setTimeout(r, 100)); // 等待 DOM 更新
 
@@ -6987,8 +6951,6 @@ ${aiPrompt.value}
 
     if (useStream) {
       // 流式传输
-      progressDialogRef.value?.setProgress(30);
-      progressDialogRef.value?.setMessage('等待 AI 流式响应...');
       taskStore.updateTaskProgress(taskId, 30, '等待 AI 流式响应...');
       await new Promise(r => setTimeout(r, 100)); // 等待 DOM 更新
 
@@ -7061,11 +7023,9 @@ ${aiPrompt.value}
 
                 // 动态更新进度（30% → 60%）
                 const progress = Math.min(60, 30 + chunkCount / 10);
-                progressDialogRef.value?.setProgress(progress);
 
                 // 每10个chunk更新一次消息
                 if (chunkCount % 10 === 0) {
-                  progressDialogRef.value?.setMessage(`正在接收 AI 响应... (${resultText.length} 字符)`);
                 }
               }
             } catch (e) {
@@ -7076,8 +7036,6 @@ ${aiPrompt.value}
       }
     } else {
       // 普通请求（非流式）
-      progressDialogRef.value?.setProgress(30);
-      progressDialogRef.value?.setMessage('等待 AI 响应...');
       taskStore.updateTaskProgress(taskId, 30, '等待 AI 响应...');
       await new Promise(r => setTimeout(r, 100)); // 等待 DOM 更新
 
@@ -7115,17 +7073,11 @@ ${aiPrompt.value}
         }
         throw new Error(errorMsg);
       }
-
-      progressDialogRef.value?.setProgress(60);
-      progressDialogRef.value?.setMessage('正在接收 AI 响应...');
       taskStore.updateTaskProgress(taskId, 60, '正在接收 AI 响应...');
 
       const data = await response.json();
       resultText = data.choices?.[0]?.message?.content || '';
     }
-
-    progressDialogRef.value?.setProgress(75);
-    progressDialogRef.value?.setMessage('正在解析 AI 生成的代码...');
     taskStore.updateTaskProgress(taskId, 75, '正在解析 AI 生成的代码...');
 
     console.log('AI 原始回复:', resultText);
@@ -7196,9 +7148,6 @@ ${aiPrompt.value}
     }
 
     console.log('解析到的修改:', changes.length, '个文件');
-
-    progressDialogRef.value?.setProgress(85);
-    progressDialogRef.value?.setMessage('正在准备对比预览...');
     taskStore.updateTaskProgress(taskId, 85, '正在准备对比预览...');
 
     // 检测是否可能被截断
@@ -7220,9 +7169,6 @@ ${aiPrompt.value}
 
     // 构建对比数据
     aiChanges.value = result.changes;
-
-    progressDialogRef.value?.setProgress(95);
-    progressDialogRef.value?.setMessage(`正在生成预览... (${changes.length} 个文件)`);
     taskStore.updateTaskProgress(taskId, 95, `正在生成预览... (${changes.length} 个文件)`);
 
     closeAIDialog();
@@ -7230,20 +7176,16 @@ ${aiPrompt.value}
     previewMode.value = 'after';
 
     // 完成
-    progressDialogRef.value?.setProgress(100);
-    progressDialogRef.value?.setMessage('✅ AI 生成完成！');
     taskStore.updateTaskProgress(taskId, 100, '✅ AI 生成完成！');
     taskStore.completeTask(taskId, { changedFiles: changes.length });
 
     setTimeout(() => {
-      showProgress.value = false;
       toastr.success(`✅ AI 生成完成！已更新 ${changes.length} 个文件`);
     }, 800);
   } catch (error: any) {
     console.error('AI 生成失败:', error);
     const errorMessage = error.message || String(error);
     taskStore.failTask(taskId, errorMessage);
-    showProgress.value = false;
 
     // 检测 CORS 错误
     if (

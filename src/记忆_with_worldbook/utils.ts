@@ -141,3 +141,49 @@ export function setGlobalScriptId(id: string): void {
 export function getGlobalScriptId(): string | null {
   return globalScriptId;
 }
+
+/**
+ * 统一处理 API 错误响应
+ * @param response Fetch Response 对象
+ * @returns Promise<never> 抛出格式化的错误
+ */
+export async function handleApiError(response: Response): Promise<never> {
+  let errorMessage = `API 错误: ${response.status}`;
+
+  // 根据状态码提供友好的错误提示
+  if (response.status === 503) {
+    errorMessage = 'AI 服务暂时不可用 (503)，请稍后重试';
+  } else if (response.status === 429) {
+    errorMessage = 'API 请求频率过高 (429)，请稍后重试';
+  } else if (response.status === 401) {
+    errorMessage = 'API 密钥无效 (401)，请检查设置';
+  } else if (response.status === 403) {
+    errorMessage = 'API 访问被拒绝 (403)，请检查权限';
+  } else if (response.status === 400) {
+    errorMessage = 'API 请求参数错误 (400)';
+  } else if (response.status === 500) {
+    errorMessage = 'AI 服务器内部错误 (500)';
+  }
+
+  // 尝试获取详细错误信息
+  try {
+    const errorData = await response.json();
+    if (errorData.error?.message) {
+      errorMessage += `: ${errorData.error.message}`;
+    } else if (errorData.message) {
+      errorMessage += `: ${errorData.message}`;
+    }
+  } catch {
+    // 如果不是 JSON，尝试获取文本
+    try {
+      const errorText = await response.text();
+      if (errorText && errorText.length < 500) {
+        errorMessage += `: ${errorText}`;
+      }
+    } catch {
+      // 忽略错误
+    }
+  }
+
+  throw new Error(errorMessage);
+}

@@ -107,7 +107,7 @@
             "
           />
 
-          <!-- AI 生成/修改按钮 -->
+          <!-- AI 生成/修改/清空按钮 -->
           <div style="display: flex; gap: 12px; margin-top: 15px">
             <button
               :disabled="!triggerKeyword || !interfaceDescription || isGenerating"
@@ -149,6 +149,24 @@
             >
               <i class="fa-solid fa-edit"></i>
               {{ isModifying ? '修改中...' : 'AI 修改界面' }}
+            </button>
+            <button
+              v-if="triggerKeyword || interfaceDescription || generatedCode"
+              style="
+                background: #dc3545;
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                transition: all 0.3s;
+              "
+              @click="clearAll"
+              title="清空所有内容"
+            >
+              <i class="fa-solid fa-trash"></i>
             </button>
           </div>
         </div>
@@ -363,7 +381,6 @@
 
 <script setup lang="ts">
 import { watchDebounced } from '@vueuse/core';
-import { klona } from 'klona';
 import { storeToRefs } from 'pinia';
 import { onMounted, ref } from 'vue';
 import { normalizeApiEndpoint, useSettingsStore } from '../settings';
@@ -540,7 +557,26 @@ ${interfaceDescription.value}
     taskStore.updateTaskProgress(taskId, 40, '等待AI响应...');
 
     if (!response.ok) {
-      throw new Error(`API 请求失败: ${response.status}`);
+      let errorMessage = `API 请求失败: ${response.status}`;
+      if (response.status === 503) {
+        errorMessage = 'AI 服务暂时不可用 (503)，请稍后重试';
+      } else if (response.status === 429) {
+        errorMessage = 'API 请求频率过高 (429)，请稍后重试';
+      } else if (response.status === 401) {
+        errorMessage = 'API 密钥无效 (401)，请检查设置';
+      }
+
+      // 尝试获取详细错误信息
+      try {
+        const errorData = await response.json();
+        if (errorData.error?.message) {
+          errorMessage += `: ${errorData.error.message}`;
+        }
+      } catch {
+        // 忽略 JSON 解析错误
+      }
+
+      throw new Error(errorMessage);
     }
 
     taskStore.updateTaskProgress(taskId, 50, '正在等待 AI 生成代码...');
@@ -738,7 +774,26 @@ ${modifyInstruction.value}
     taskStore.updateTaskProgress(taskId, 40, '等待AI响应...');
 
     if (!response.ok) {
-      throw new Error(`API 请求失败: ${response.status}`);
+      let errorMessage = `API 请求失败: ${response.status}`;
+      if (response.status === 503) {
+        errorMessage = 'AI 服务暂时不可用 (503)，请稍后重试';
+      } else if (response.status === 429) {
+        errorMessage = 'API 请求频率过高 (429)，请稍后重试';
+      } else if (response.status === 401) {
+        errorMessage = 'API 密钥无效 (401)，请检查设置';
+      }
+
+      // 尝试获取详细错误信息
+      try {
+        const errorData = await response.json();
+        if (errorData.error?.message) {
+          errorMessage += `: ${errorData.error.message}`;
+        }
+      } catch {
+        // 忽略 JSON 解析错误
+      }
+
+      throw new Error(errorMessage);
     }
 
     taskStore.updateTaskProgress(taskId, 50, '正在等待 AI 修改代码...');
@@ -880,6 +935,24 @@ const exportRegex = () => {
 // 复制正则代码到剪贴板（备用功能）
 const copyRegex = () => {
   copyToClipboard(generatedRegex.value, '正则代码已复制到剪贴板');
+};
+
+// 清空所有内容
+const clearAll = () => {
+  if (generatedCode.value) {
+    // 如果已经生成了代码，需要确认
+    if (!confirm('确定要清空所有内容吗？这将删除触发词、描述和生成的代码。')) {
+      return;
+    }
+  }
+
+  triggerKeyword.value = '【开场白】';
+  interfaceDescription.value = '';
+  generatedCode.value = '';
+  generatedRegex.value = '';
+  showCode.value = false;
+
+  window.toastr.success('已清空所有内容');
 };
 </script>
 
