@@ -560,6 +560,17 @@ ${interfaceDescription.value}
       .replace(/```\n?/g, '')
       .trim();
 
+    // 移除可能的 TypeScript 语法，转换为 JavaScript
+    result = result
+      // 移除类型断言 (obj as Type) -> obj
+      .replace(/\(\s*([^)]+)\s+as\s+[^)]+\s*\)/g, '($1)')
+      // 移除变量声明中的类型注解 let var: Type = -> let var =
+      .replace(/(\b(?:let|const|var)\s+\w+)\s*:\s*[^=]+(\s*=)/g, '$1$2')
+      // 移除函数参数类型注解 function(param: Type) -> function(param)
+      .replace(/(\w+)\s*:\s*[^,)]+/g, '$1')
+      // 移除其他常见的 TypeScript 语法
+      .replace(/\s+as\s+\w+/g, ''); // 简单的 as 语法
+
     // 尝试提取HTML代码（处理AI推理过程）
     // 1. 先查找 <!DOCTYPE html 开头的完整文档
     const doctypeMatch = result.match(/<!DOCTYPE html>[\s\S]*/i);
@@ -746,6 +757,17 @@ ${modifyInstruction.value}
       .replace(/```html\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();
+
+    // 移除可能的 TypeScript 语法，转换为 JavaScript
+    result = result
+      // 移除类型断言 (obj as Type) -> obj
+      .replace(/\(\s*([^)]+)\s+as\s+[^)]+\s*\)/g, '($1)')
+      // 移除变量声明中的类型注解 let var: Type = -> let var =
+      .replace(/(\b(?:let|const|var)\s+\w+)\s*:\s*[^=]+(\s*=)/g, '$1$2')
+      // 移除函数参数类型注解 function(param: Type) -> function(param)
+      .replace(/(\w+)\s*:\s*[^,)]+/g, '$1')
+      // 移除其他常见的 TypeScript 语法
+      .replace(/\s+as\s+\w+/g, ''); // 简单的 as 语法
 
     // 尝试提取HTML代码（处理AI推理过程）
     // 1. 先查找 <!DOCTYPE html 开头的完整文档

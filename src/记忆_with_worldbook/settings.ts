@@ -6,6 +6,84 @@ import { getChatIdSafe, getScriptIdSafe } from './utils';
 // 这样确保 zod 在全局作用域中可用，避免与其他插件冲突
 import { z } from 'zod';
 
+// 读取 SillyTavern 主界面的 API 配置
+export function getTavernApiConfig() {
+  try {
+    // 尝试获取 SillyTavern 的 API 配置
+    const apiServer = window.api_server;
+    const mainApi = window.main_api;
+    
+    // 从localStorage中读取配置
+    const tavernConfig = JSON.parse(localStorage.getItem('TavernAI_Settings') || '{}');
+    const powerUserConfig = JSON.parse(localStorage.getItem('power_user') || '{}');
+    
+    console.log('🔍 检测到的 SillyTavern API 配置:');
+    console.log('- api_server:', apiServer);
+    console.log('- main_api:', mainApi);
+    console.log('- TavernAI_Settings:', Object.keys(tavernConfig));
+    console.log('- power_user:', Object.keys(powerUserConfig));
+    
+    // 构建API配置对象
+    const config: any = {
+      api_provider: 'openai', // 默认值
+      api_endpoint: '',
+      api_key: '',
+      model: '',
+      max_tokens: 4000,
+      temperature: 0.7,
+      top_p: 1.0,
+      presence_penalty: 0.0,
+      frequency_penalty: 0.0,
+    };
+    
+    // 根据主 API 类型设置配置
+    if (mainApi === 'openai') {
+      config.api_provider = 'openai';
+      config.api_endpoint = tavernConfig.api_url_scale || tavernConfig.api_url || 'https://api.openai.com/v1';
+      config.api_key = tavernConfig.api_key_scale || tavernConfig.api_key || '';
+      config.model = tavernConfig.openai_model || tavernConfig.model || 'gpt-4o-mini';
+      config.max_tokens = tavernConfig.openai_max_tokens || 4000;
+      config.temperature = tavernConfig.temp_openai || 0.7;
+      config.top_p = tavernConfig.top_p_openai || 1.0;
+      config.presence_penalty = tavernConfig.presence_penalty_openai || 0.0;
+      config.frequency_penalty = tavernConfig.frequency_penalty_openai || 0.0;
+    } else if (mainApi === 'claude') {
+      config.api_provider = 'openai'; // Claude 通常使用 OpenAI 兼容格式
+      config.api_endpoint = tavernConfig.claude_api_url || 'https://api.anthropic.com';
+      config.api_key = tavernConfig.claude_api_key || '';
+      config.model = tavernConfig.claude_model || 'claude-3-haiku-20240307';
+      config.max_tokens = tavernConfig.claude_max_tokens || 4000;
+      config.temperature = tavernConfig.temp_claude || 0.7;
+    } else if (mainApi === 'google') {
+      config.api_provider = 'gemini';
+      config.api_endpoint = tavernConfig.google_api_url || 'https://generativelanguage.googleapis.com/v1beta/openai';
+      config.api_key = tavernConfig.google_api_key || '';
+      config.model = tavernConfig.google_model || 'models/gemini-1.5-flash';
+      config.max_tokens = tavernConfig.google_max_tokens || 4000;
+      config.temperature = tavernConfig.temp_google || 0.7;
+      config.top_p = tavernConfig.top_p_google || 1.0;
+    }
+    
+    // 如果没有检测到有效配置，返回null
+    if (!config.api_key || config.api_key.trim() === '') {
+      console.log('⚠️ 未检测到有效的 API 密钥配置');
+      return null;
+    }
+    
+    console.log('✅ 成功读取 SillyTavern API 配置:', {
+      provider: config.api_provider,
+      endpoint: config.api_endpoint,
+      model: config.model,
+      hasApiKey: !!config.api_key
+    });
+    
+    return config;
+  } catch (error) {
+    console.error('❌ 读取 SillyTavern API 配置失败:', error);
+    return null;
+  }
+}
+
 const Settings = z
   .object({
     api_provider: z.string().default('openai'), // 'openai' | 'gemini'
@@ -32,8 +110,7 @@ const Settings = z
         }),
       )
       .default([]),
-  })
-  .default({});
+  });
 
 /**
  * 将 API 端点规范化为完整的 URL
@@ -104,7 +181,7 @@ export function filterApiParams(params: any, endpoint: string): any {
     }
     if (params.max_tokens !== undefined) {
       const safeMax = Math.min(params.max_tokens, 4000);
-      filtered.max_output_tokens = safeMax;
+      filtered.max_tokens = safeMax;
     }
 
     // 清理流式参数，Gemini 当前不支持 OpenAI 风格的 stream
@@ -133,9 +210,42 @@ export const useSettingsStore = defineStore('settings', () => {
     return true; // 插件环境强制使用 localStorage
   };
 
-  // 初始化设置（插件环境 - 始终使用 localStorage）
+  // 初始化设置（插件环境 - 优先读取ST配置，再使用 localStorage）
   const initSettings = () => {
-    console.log('🔧 插件环境：使用 localStorage 存储设置');
+    console.log('🔧 插件环境：优先读取 SillyTavern API 配置，然后使用 localStorage');
+    
+    // 首先尝试从 SillyTavern 读取 API 配置
+    const tavernConfig = getTavernApiConfig();
+    if (tavernConfig) {
+      console.log('✅ 使用 SillyTavern 主界面的 API 配置');
+      // 合并 SillyTavern 配置和本地设置
+      try {
+        const saved = localStorage.getItem('tavern_helper_settings');
+        const localSettings = saved ? JSON.parse(saved) : {};
+        
+        // 用 SillyTavern 的 API 配置覆盖本地配置
+        const mergedSettings = {
+          ...localSettings,
+          api_provider: tavernConfig.api_provider,
+          api_endpoint: tavernConfig.api_endpoint,
+          api_key: tavernConfig.api_key,
+          model: tavernConfig.model,
+          max_tokens: tavernConfig.max_tokens,
+          temperature: tavernConfig.temperature,
+          top_p: tavernConfig.top_p,
+          presence_penalty: tavernConfig.presence_penalty,
+          frequency_penalty: tavernConfig.frequency_penalty,
+        };
+        
+        return ref(Settings.parse(mergedSettings));
+      } catch (e) {
+        console.warn('合并设置失败，使用 SillyTavern 配置:', e);
+        return ref(Settings.parse(tavernConfig));
+      }
+    }
+    
+    // 如果没有 SillyTavern 配置，使用本地存储
+    console.log('⚠️ 未找到 SillyTavern API 配置，使用本地存储');
     try {
       const saved = localStorage.getItem('tavern_helper_settings');
       if (saved) {
@@ -144,6 +254,7 @@ export const useSettingsStore = defineStore('settings', () => {
     } catch (e) {
       console.warn('从 localStorage 读取设置失败:', e);
     }
+    
     return ref(Settings.parse({}));
   };
 
@@ -216,10 +327,47 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   };
 
+  // 刷新 SillyTavern API 配置
+  const refreshTavernConfig = () => {
+    try {
+      const tavernConfig = getTavernApiConfig();
+      if (tavernConfig) {
+        console.log('✅ 刷新 SillyTavern API 配置成功');
+        // 保留本地的非API设置，只更新API相关设置
+        const currentSettings = settings.value;
+        const updatedSettings = {
+          ...currentSettings,
+          api_provider: tavernConfig.api_provider,
+          api_endpoint: tavernConfig.api_endpoint,
+          api_key: tavernConfig.api_key,
+          model: tavernConfig.model,
+          max_tokens: tavernConfig.max_tokens,
+          temperature: tavernConfig.temperature,
+          top_p: tavernConfig.top_p,
+          presence_penalty: tavernConfig.presence_penalty,
+          frequency_penalty: tavernConfig.frequency_penalty,
+        };
+        
+        settings.value = Settings.parse(updatedSettings);
+        window.toastr?.success('已刷新 SillyTavern API 配置');
+        return true;
+      } else {
+        console.warn('⚠️ 未找到 SillyTavern API 配置');
+        window.toastr?.warning('未找到 SillyTavern API 配置，请先在主界面配置 API');
+        return false;
+      }
+    } catch (e) {
+      console.error('❌ 刷新 SillyTavern API 配置失败:', e);
+      window.toastr?.error('刷新 API 配置失败: ' + (e as Error).message);
+      return false;
+    }
+  };
+
   return {
     settings,
     saveSettings,
     reloadSettings,
+    refreshTavernConfig,
   };
 });
 

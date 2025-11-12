@@ -35,6 +35,19 @@ async function fetchWithProxy(url: string, options: RequestInit = {}) {
 export function normalizeApiEndpoint(endpoint: string, path: string = ''): string {
   try {
     const url = new URL(endpoint);
+    
+    // 特殊处理 Gemini OpenAI 兼容端点
+    if (endpoint.includes('generativelanguage.googleapis.com')) {
+      // 确保正确的路径格式: /v1beta/openai/chat/completions
+      if (path === '/chat/completions' && !endpoint.endsWith('/chat/completions')) {
+        // 清理可能的重复路径
+        const cleanPath = url.pathname.replace(/\/v1beta\/openai.*$/, '/v1beta/openai');
+        url.pathname = cleanPath + '/chat/completions';
+      }
+      return url.toString();
+    }
+    
+    // 标准处理
     if (path && !url.pathname.endsWith('/')) {
       url.pathname += '/';
     }
