@@ -36,13 +36,17 @@
       @mouseenter="
         (e: MouseEvent) => {
           const target = e.currentTarget as HTMLElement;
-          if (target) target.style.background = 'linear-gradient(135deg, rgba(74, 158, 255, 0.25) 0%, rgba(118, 75, 162, 0.25) 100%)';
+          if (target)
+            target.style.background =
+              'linear-gradient(135deg, rgba(74, 158, 255, 0.25) 0%, rgba(118, 75, 162, 0.25) 100%)';
         }
       "
       @mouseleave="
         (e: MouseEvent) => {
           const target = e.currentTarget as HTMLElement;
-          if (target) target.style.background = 'linear-gradient(135deg, rgba(74, 158, 255, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)';
+          if (target)
+            target.style.background =
+              'linear-gradient(135deg, rgba(74, 158, 255, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)';
         }
       "
     >
@@ -566,7 +570,6 @@ const formatTaskTime = (task: any) => {
     return `进行中 ${duration}s`;
   }
 };
-
 
 // 获取表格数据
 const getTableData = (task: any) => {
