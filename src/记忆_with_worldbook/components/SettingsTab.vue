@@ -1963,9 +1963,46 @@ const handle_test_connection = async () => {
 
       window.toastr.success(`✅ 连接成功！\n` + `📦 模型: ${modelUsed}\n` + `💬 回复: ${reply.substring(0, 50)}...`);
     } else {
-      const errorText = await response.text();
+      let errorText = '';
+      let errorMessage = '';
+      try {
+        errorText = await response.text();
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error?.message || errorJson.message || errorText.substring(0, 100);
+      } catch (e) {
+        errorText = await response.text();
+        errorMessage = errorText.substring(0, 100);
+      }
+      
       console.error('API 错误响应:', errorText);
-      window.toastr.error(`❌ 连接失败 (${response.status})\n` + `详情: ${errorText.substring(0, 100)}`);
+      
+      // 针对 403 错误提供更详细的提示
+      if (response.status === 403) {
+        const lowerError = errorMessage.toLowerCase();
+        if (lowerError.includes('leaked') || lowerError.includes('reported')) {
+          window.toastr.error(
+            `❌ API Key 已被标记为泄露 (403)\n\n${errorMessage}\n\n💡 解决方案：\n1. 访问 https://aistudio.google.com/apikey\n2. 删除当前 API Key\n3. 创建新的 API Key\n4. 在设置中更新新的 API Key`,
+            '',
+            {
+              timeOut: 0,
+              extendedTimeOut: 0,
+              closeButton: true,
+            },
+          );
+        } else {
+          window.toastr.error(
+            `❌ 连接失败 (403)\n\n${errorMessage}\n\n请检查 API Key 权限和配置`,
+            '',
+            {
+              timeOut: 0,
+              extendedTimeOut: 0,
+              closeButton: true,
+            },
+          );
+        }
+      } else {
+        window.toastr.error(`❌ 连接失败 (${response.status})\n` + `详情: ${errorMessage}`);
+      }
     }
   } catch (error) {
     console.error('连接测试失败:', error);

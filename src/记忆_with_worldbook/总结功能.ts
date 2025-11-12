@@ -353,6 +353,14 @@ ${messages.map(msg => `[${msg.role}]: ${msg.message}`).join('\n\n')}
       userFriendlyMessage = `API 请求频率限制 (429)：请求过于频繁，请稍后再试。`;
     } else if (response.status === 401) {
       userFriendlyMessage = `API 认证失败 (401)：请检查 API 密钥是否正确。`;
+    } else if (response.status === 403) {
+      // 检查是否是 API Key 泄露的问题
+      const lowerErrorMessage = errorMessage.toLowerCase();
+      if (lowerErrorMessage.includes('leaked') || lowerErrorMessage.includes('reported')) {
+        userFriendlyMessage = `❌ API Key 已被标记为泄露 (403)\n\n${errorMessage}\n\n💡 解决方案：\n1. 访问 https://aistudio.google.com/apikey 或 Google Cloud Console\n2. 删除当前 API Key（如果已泄露）\n3. 创建新的 API Key\n4. 在插件设置中更新新的 API Key\n\n⚠️ 注意：请妥善保管新的 API Key，不要分享给他人或提交到公开仓库`;
+      } else {
+        userFriendlyMessage = `API 权限被拒绝 (403)：${errorMessage}\n\n请检查：\n1. API Key 是否有效\n2. API Key 是否有足够的权限\n3. 是否已启用 Generative Language API（如果是 Gemini）`;
+      }
     } else if (response.status === 400) {
       // 检查是否是 Gemini API，提供更具体的提示
       const provider = detectApiProvider(settings.api_endpoint);
