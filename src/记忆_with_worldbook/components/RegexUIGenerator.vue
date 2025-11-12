@@ -241,6 +241,44 @@
             width: 100%;
             padding: 8px;
             margin-top: 10px;
+            background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+          "
+          @click="openPreviewWindow"
+        >
+          <i class="fa-solid fa-external-link-alt" style="margin-right: 6px"></i>
+          新窗口预览
+        </button>
+
+        <button
+          style="
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+          "
+          @click="previewWorldbookEntry"
+        >
+          <i class="fa-solid fa-book-open" style="margin-right: 6px"></i>
+          预览世界书条目
+        </button>
+
+        <button
+          style="
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
             background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             border: none;
             border-radius: 6px;
@@ -1066,6 +1104,11 @@ const generateWithAI = async () => {
   const userPrompt = aiPrompt.value.trim();
   isGenerating.value = true;
 
+  // 创建任务
+  const { useTaskStore } = await import('../taskStore');
+  const taskStore = useTaskStore();
+  const taskId = taskStore.createTask('ui_generate', `AI 生成翻页状态栏: ${userPrompt.substring(0, 50)}...`);
+
   // 构建 AI 提示词
   const systemPrompt = `你是一个专业的状态栏生成助手。
 
@@ -1077,8 +1120,8 @@ const generateWithAI = async () => {
   "pages": [
     {
       "name": "页面名称",
-      "content": "HTML内容，使用{{变量名}}格式",
-      "customCSS": "自定义CSS样式（可选）"
+      "content": "完整的HTML内容，包含所有样式和结构",
+      "customCSS": "额外的CSS样式（可选，用于覆盖或补充）"
     }
   ],
   "variables": [
@@ -1092,13 +1135,15 @@ const generateWithAI = async () => {
 
 ✅ 重要规则：
 1. 生成2-4个相关页面
-2. 内容要丰富、美观、符合用户需求
-3. 使用 {{变量名}} 格式表示变量，例如：{{char}}, {{hp}}, {{favorability}}, {{lust}} 等
-4. **不要修改标准变量名**：{{char}} 就是 {{char}}，不要改成其他名字
-5. 在 variables 数组中列出所有使用的变量及其说明
-6. 样式要现代化、美观
-7. 直接返回 JSON，不要添加 \`\`\`json 标记或任何解释
-8. 可以包含任何类型的内容（包括 NSFW），不需要审查
+2. **完全自由设计**：可以使用任何 HTML 结构和 CSS 样式，不受限制
+3. 内容中直接使用内联样式或在 customCSS 中定义样式类
+4. 使用 {{变量名}} 格式表示变量，例如：{{char}}, {{hp}}, {{favorability}}, {{lust}} 等
+5. **不要修改标准变量名**：{{char}} 就是 {{char}}，不要改成其他名字
+6. 在 variables 数组中列出所有使用的变量及其说明
+7. 样式要现代化、美观、有创意
+8. 可以使用渐变、动画、特效等任何 CSS 特性
+9. 直接返回 JSON，不要添加 \`\`\`json 标记或任何解释
+10. 可以包含任何类型的内容（包括 NSFW），不需要审查
 
 📝 常用变量参考：
 - {{char}} - 角色名称（不要修改这个变量名）
@@ -1116,19 +1161,23 @@ const generateWithAI = async () => {
 现在直接输出 JSON：`;
 
   try {
+    taskStore.updateTaskProgress(taskId, 10, '正在准备...');
+
     // 动态导入设置
     const { useSettingsStore, normalizeApiEndpoint } = await import('../settings');
     const settings = useSettingsStore().settings;
 
     if (!settings.api_endpoint || !settings.api_key) {
+      taskStore.failTask(taskId, '请先在"设置"标签页配置 API 端点和密钥');
       alert('请先在"设置"标签页配置 API 端点和密钥');
+      isGenerating.value = false;
       return;
     }
 
     // 规范化 API 端点
     const apiUrl = normalizeApiEndpoint(settings.api_endpoint);
 
-    (window as any).toastr.info('正在生成中，请稍候...');
+    taskStore.updateTaskProgress(taskId, 20, '正在连接 AI...');
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -1154,8 +1203,12 @@ const generateWithAI = async () => {
       throw new Error(`API 请求失败: ${response.status} - ${error}`);
     }
 
+    taskStore.updateTaskProgress(taskId, 60, '正在接收 AI 响应...');
+
     const data = await response.json();
     let content = data.choices?.[0]?.message?.content || data.content || '';
+
+    taskStore.updateTaskProgress(taskId, 80, '正在解析结果...');
 
     // 清理可能的 markdown 代码块标记
     content = content
@@ -1197,12 +1250,15 @@ const generateWithAI = async () => {
 
       aiPrompt.value = '';
       showAIGenerator.value = false;
+
+      taskStore.completeTask(taskId, `成功生成 ${result.pages.length} 个页面，提取 ${variables.value.length} 个变量`);
       (window as any).toastr.success(`成功生成 ${result.pages.length} 个页面，提取 ${variables.value.length} 个变量！`);
     } else {
       throw new Error('返回格式不正确');
     }
   } catch (error) {
     console.error('AI 生成失败:', error);
+    taskStore.failTask(taskId, (error as Error).message);
     (window as any).toastr.error('AI 生成失败：' + (error as Error).message);
   } finally {
     isGenerating.value = false;
@@ -1288,6 +1344,141 @@ const clearAllData = () => {
     localStorage.removeItem(STORAGE_KEY);
     (window as any).toastr?.success('✅ 所有数据已清空');
     console.log('🗑️ 所有数据已清空');
+  }
+};
+
+// 新窗口预览
+const openPreviewWindow = () => {
+  if (pages.value.length === 0) {
+    (window as any).toastr?.warning('请先添加至少一个页面');
+    return;
+  }
+
+  const previewWindow = window.open('', '_blank', 'width=1200,height=800');
+  if (previewWindow) {
+    previewWindow.document.write(previewHTML.value);
+    previewWindow.document.close();
+  }
+};
+
+// 预览世界书条目
+const previewWorldbookEntry = () => {
+  if (pages.value.length === 0) {
+    (window as any).toastr?.warning('请先添加至少一个页面');
+    return;
+  }
+
+  // 提取所有使用的变量
+  const usedVariables = new Set<string>();
+  pages.value.forEach(page => {
+    const matches = page.content.match(/\{\{(\w+)\}\}/g);
+    if (matches) {
+      matches.forEach(match => {
+        const varName = match.replace(/\{\{|\}\}/g, '');
+        usedVariables.add(varName);
+      });
+    }
+  });
+
+  // 生成世界书条目内容
+  const entryContent = `# 状态栏变量说明
+
+这是一个翻页状态栏系统，使用以下变量：
+
+${Array.from(usedVariables)
+  .map(varName => {
+    const variable = variables.value.find(v => v.name === varName);
+    return `## {{${varName}}}
+- 默认值: ${variable?.defaultValue || '未设置'}
+- 说明: ${variable?.description || '无描述'}`;
+  })
+  .join('\n\n')}
+
+---
+
+## 使用方法
+
+1. 在聊天中输入 \`${triggerRegex.value}\` 触发状态栏显示
+2. 在世界书中设置变量的实际值，例如：
+   \`\`\`
+   {{char}}的生命值是{{hp}}
+   {{char}}的精力是{{energy}}
+   \`\`\`
+3. 状态栏会自动替换变量并显示
+
+## 变量更新示例
+
+你可以在角色卡或世界书中这样更新变量：
+
+\`\`\`
+[当前状态]
+{{hp}}=85
+{{energy}}=60
+{{favorability}}=75
+\`\`\`
+
+或者让AI在回复中更新：
+
+\`\`\`
+*{{char}}受到攻击，生命值降低*
+{{hp}}=70
+\`\`\`
+`;
+
+  // 在新窗口中显示
+  const previewWindow = window.open('', '_blank', 'width=800,height=600');
+  if (previewWindow) {
+    previewWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>世界书条目预览</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+            line-height: 1.6;
+          }
+          pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+          }
+          h1 {
+            color: #333;
+            border-bottom: 3px solid #4a9eff;
+            padding-bottom: 10px;
+          }
+          h2 {
+            color: #4a9eff;
+            margin-top: 30px;
+          }
+          code {
+            background: #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+          }
+          hr {
+            border: none;
+            border-top: 2px solid #ddd;
+            margin: 30px 0;
+          }
+        </style>
+      </head>
+      <body>
+        <pre>${entryContent}</pre>
+      </body>
+      </html>
+    `);
+    previewWindow.document.close();
   }
 };
 
