@@ -365,6 +365,146 @@
           {{ task.error }}
         </div>
 
+        <!-- 表格结果预览 -->
+        <div
+          v-if="task.status === 'completed' && task.type === 'table' && task.result"
+          :style="{
+            marginTop: '8px',
+            padding: '10px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '6px',
+          }"
+        >
+          <div :style="{ color: '#51cf66', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }">
+            表格生成结果
+          </div>
+          <div :style="{ color: '#888', fontSize: '11px', marginBottom: '8px' }">
+            共 {{ task.result.rowCount }} 行数据，{{ task.result.headers?.length }} 列
+          </div>
+          <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
+            <button
+              @click="previewTable(task)"
+              :style="{
+                background: '#4a9eff',
+                border: 'none',
+                color: 'white',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }"
+              @mouseenter="e => e.target.style.background = '#3a8edf'"
+              @mouseleave="e => e.target.style.background = '#4a9eff'"
+            >
+              <i class="fa-solid fa-eye" style="margin-right: 4px"></i>预览
+            </button>
+            <button
+              @click="copyTable(task)"
+              :style="{
+                background: '#51cf66',
+                border: 'none',
+                color: 'white',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }"
+              @mouseenter="e => e.target.style.background = '#40c057'"
+              @mouseleave="e => e.target.style.background = '#51cf66'"
+            >
+              <i class="fa-solid fa-copy" style="margin-right: 4px"></i>复制
+            </button>
+            <button
+              @click="downloadTable(task)"
+              :style="{
+                background: '#ffa500',
+                border: 'none',
+                color: 'white',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }"
+              @mouseenter="e => e.target.style.background = '#ff8c00'"
+              @mouseleave="e => e.target.style.background = '#ffa500'"
+            >
+              <i class="fa-solid fa-download" style="margin-right: 4px"></i>CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- 总结结果预览 -->
+        <div
+          v-if="task.status === 'completed' && task.type === 'summary' && task.result"
+          :style="{
+            marginTop: '8px',
+            padding: '10px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '6px',
+          }"
+        >
+          <div :style="{ color: '#51cf66', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }">
+            总结生成结果
+          </div>
+          <div :style="{ color: '#888', fontSize: '11px', marginBottom: '8px' }">
+            楼层 {{ task.result.startId }}-{{ task.result.endId }}，{{ task.result.summaryLength }} 字
+          </div>
+          <div :style="{
+            color: '#ccc',
+            fontSize: '12px',
+            marginBottom: '8px',
+            maxHeight: '100px',
+            overflowY: 'auto',
+            padding: '6px',
+            background: 'rgba(0, 0, 0, 0.3)',
+            borderRadius: '4px',
+            lineHeight: '1.4'
+          }">
+            {{ getSummaryPreview(task) }}
+          </div>
+          <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
+            <button
+              @click="viewSummary(task)"
+              :style="{
+                background: '#4a9eff',
+                border: 'none',
+                color: 'white',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }"
+              @mouseenter="e => e.target.style.background = '#3a8edf'"
+              @mouseleave="e => e.target.style.background = '#4a9eff'"
+            >
+              <i class="fa-solid fa-eye" style="margin-right: 4px"></i>查看全文
+            </button>
+            <button
+              @click="copySummary(task)"
+              :style="{
+                background: '#51cf66',
+                border: 'none',
+                color: 'white',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }"
+              @mouseenter="e => e.target.style.background = '#40c057'"
+              @mouseleave="e => e.target.style.background = '#51cf66'"
+            >
+              <i class="fa-solid fa-copy" style="margin-right: 4px"></i>复制
+            </button>
+          </div>
+        </div>
+
         <!-- 耗时 -->
         <div :style="{ marginTop: '8px', color: '#666', fontSize: '11px', textAlign: 'right' }">
           {{ formatTaskTime(task) }}
@@ -420,6 +560,241 @@ const formatTaskTime = (task: any) => {
   } else {
     const duration = ((Date.now() - task.startTime) / 1000).toFixed(0);
     return `进行中 ${duration}s`;
+  }
+};
+
+// 获取表格数据
+const getTableData = (task: any) => {
+  const scriptId = window.getScriptId?.();
+  if (!scriptId || !task.result?.chatId) return null;
+
+  const storageKey = `${scriptId}_table_${task.result.chatId}`;
+  const tableHistory = JSON.parse(localStorage.getItem(storageKey) || '[]');
+  const lastTable = tableHistory[tableHistory.length - 1];
+  return lastTable;
+};
+
+// 预览表格
+const previewTable = (task: any) => {
+  const tableData = getTableData(task);
+  if (!tableData) {
+    window.toastr.error('无法获取表格数据');
+    return;
+  }
+
+  // 创建预览窗口
+  const preview = window.open('', '_blank', 'width=800,height=600');
+  if (!preview) return;
+
+  let html = `
+    <html>
+      <head>
+        <title>表格预览</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+          table { border-collapse: collapse; width: 100%; background: white; }
+          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+          th { background: #4a9eff; color: white; }
+          tr:nth-child(even) { background: #f9f9f9; }
+        </style>
+      </head>
+      <body>
+        <h2>表格预览</h2>
+        <table>
+          <thead>
+            <tr>
+  `;
+
+  tableData.headers.forEach((header: string) => {
+    html += `<th>${header}</th>`;
+  });
+
+  html += `</tr></thead><tbody>`;
+
+  tableData.data.forEach((row: string[]) => {
+    html += '<tr>';
+    row.forEach(cell => {
+      html += `<td>${cell}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></body></html>';
+  preview.document.write(html);
+  preview.document.close();
+};
+
+// 复制表格
+const copyTable = async (task: any) => {
+  const tableData = getTableData(task);
+  if (!tableData) {
+    window.toastr.error('无法获取表格数据');
+    return;
+  }
+
+  // 转换为制表符分隔的文本
+  let text = tableData.headers.join('\t') + '\n';
+  tableData.data.forEach((row: string[]) => {
+    text += row.join('\t') + '\n';
+  });
+
+  try {
+    await navigator.clipboard.writeText(text);
+    window.toastr.success('表格已复制到剪贴板');
+  } catch (err) {
+    window.toastr.error('复制失败');
+  }
+};
+
+// 下载表格为CSV
+const downloadTable = (task: any) => {
+  const tableData = getTableData(task);
+  if (!tableData) {
+    window.toastr.error('无法获取表格数据');
+    return;
+  }
+
+  // 创建CSV内容
+  let csv = tableData.headers.join(',') + '\n';
+  tableData.data.forEach((row: string[]) => {
+    // 处理包含逗号的字段
+    const escapedRow = row.map(cell => {
+      if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+        return '"' + cell.replace(/"/g, '""') + '"';
+      }
+      return cell;
+    });
+    csv += escapedRow.join(',') + '\n';
+  });
+
+  // 创建下载链接
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `table_${task.result.chatId}_${Date.now()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  window.toastr.success('CSV文件已开始下载');
+};
+
+// 获取总结预览
+const getSummaryPreview = (task: any) => {
+  const scriptId = window.getScriptId?.();
+  if (!scriptId || !task.result?.startId) return '无法获取总结内容';
+
+  const summaryHistoryStore = (window as any).summaryHistoryStore;
+  if (!summaryHistoryStore) return '无法获取总结内容';
+
+  const summaries = summaryHistoryStore.summaries || [];
+  const summary = summaries.find(s =>
+    s.start_id === task.result.startId && s.end_id === task.result.endId
+  );
+
+  if (!summary) return '无法获取总结内容';
+
+  // 返回前200个字符作为预览
+  return summary.summary.length > 200
+    ? summary.summary.substring(0, 200) + '...'
+    : summary.summary;
+};
+
+// 查看完整总结
+const viewSummary = (task: any) => {
+  const scriptId = window.getScriptId?.();
+  if (!scriptId || !task.result?.startId) return;
+
+  const summaryHistoryStore = (window as any).summaryHistoryStore;
+  if (!summaryHistoryStore) return;
+
+  const summaries = summaryHistoryStore.summaries || [];
+  const summary = summaries.find(s =>
+    s.start_id === task.result.startId && s.end_id === task.result.endId
+  );
+
+  if (!summary) {
+    window.toastr.error('无法获取总结内容');
+    return;
+  }
+
+  // 创建查看窗口
+  const view = window.open('', '_blank', 'width=800,height=600');
+  if (!view) return;
+
+  const html = `
+    <html>
+      <head>
+        <title>总结内容</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 30px;
+            background: #f5f5f5;
+            line-height: 1.8;
+            color: #333;
+          }
+          .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .meta {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+          }
+          h1 { color: #4a9eff; margin-bottom: 20px; }
+          .content { white-space: pre-wrap; font-size: 15px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>剧情总结</h1>
+          <div class="meta">
+            楼层范围: ${summary.start_id} - ${summary.end_id}<br>
+            生成时间: ${new Date(summary.timestamp).toLocaleString()}
+          </div>
+          <div class="content">${summary.summary}</div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  view.document.write(html);
+  view.document.close();
+};
+
+// 复制总结
+const copySummary = async (task: any) => {
+  const scriptId = window.getScriptId?.();
+  if (!scriptId || !task.result?.startId) return;
+
+  const summaryHistoryStore = (window as any).summaryHistoryStore;
+  if (!summaryHistoryStore) return;
+
+  const summaries = summaryHistoryStore.summaries || [];
+  const summary = summaries.find(s =>
+    s.start_id === task.result.startId && s.end_id === task.result.endId
+  );
+
+  if (!summary) {
+    window.toastr.error('无法获取总结内容');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(summary.summary);
+    window.toastr.success('总结已复制到剪贴板');
+  } catch (err) {
+    window.toastr.error('复制失败');
   }
 };
 </script>
