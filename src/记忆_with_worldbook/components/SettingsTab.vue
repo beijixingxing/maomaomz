@@ -2510,26 +2510,77 @@ const handle_generate_table = async () => {
       const messageRange = `${settings.value.table_start_message_id}-${settings.value.table_end_message_id}`;
       console.log('获取消息范围:', messageRange);
 
-      // 使用 TavernHelper.getChatMessages()
+      // 尝试多种方式获取消息
+      let messagesRetrieved = false;
+
+      // 方式1: 使用 TavernHelper.getChatMessages()
       if (
         typeof (window as any).TavernHelper !== 'undefined' &&
         typeof (window as any).TavernHelper.getChatMessages === 'function'
       ) {
-        chatMessages = (window as any).TavernHelper.getChatMessages(messageRange);
-        console.log('✅ 通过 TavernHelper.getChatMessages() 获取到的消息数量:', chatMessages.length);
+        try {
+          chatMessages = (window as any).TavernHelper.getChatMessages(messageRange);
+          console.log('✅ 通过 TavernHelper.getChatMessages() 获取到的消息数量:', chatMessages?.length || 0);
+          messagesRetrieved = true;
 
-        // 如果从0开始获取不到消息，尝试从1开始
-        if (
-          settings.value.table_start_message_id === 0 &&
-          (!Array.isArray(chatMessages) || chatMessages.length === 0)
-        ) {
-          console.log('⚠️ 从0开始未获取到消息，尝试从1开始...');
-          const newRange = `1-${settings.value.table_end_message_id}`;
-          chatMessages = (window as any).TavernHelper.getChatMessages(newRange);
-          console.log(`✅ 修改范围后(${newRange})获取到的消息数量:`, chatMessages?.length || 0);
+          // 如果从0开始获取不到消息，尝试从1开始
+          if (
+            settings.value.table_start_message_id === 0 &&
+            (!Array.isArray(chatMessages) || chatMessages.length === 0)
+          ) {
+            console.log('⚠️ 从0开始未获取到消息，尝试从1开始...');
+            const newRange = `1-${settings.value.table_end_message_id}`;
+            chatMessages = (window as any).TavernHelper.getChatMessages(newRange);
+            console.log(`✅ 修改范围后(${newRange})获取到的消息数量:`, chatMessages?.length || 0);
+          }
+        } catch (e) {
+          console.warn('⚠️ TavernHelper.getChatMessages() 调用失败:', e);
+          messagesRetrieved = false;
         }
-      } else {
-        throw new Error('TavernHelper.getChatMessages 不可用');
+      }
+
+      // 方式2: 降级到 SillyTavern.chat（如果可用）
+      if (!messagesRetrieved && typeof (window as any).SillyTavern !== 'undefined' && Array.isArray((window as any).SillyTavern.chat)) {
+        console.log('📝 尝试从 SillyTavern.chat 获取消息...');
+        const chat = (window as any).SillyTavern.chat;
+        const startIdx = Math.max(0, settings.value.table_start_message_id);
+        const endIdx = Math.min(chat.length - 1, settings.value.table_end_message_id);
+
+        chatMessages = [];
+        for (let i = startIdx; i <= endIdx; i++) {
+          if (chat[i] && chat[i].mes) {
+            chatMessages.push({
+              role: chat[i].is_user ? 'user' : 'assistant',
+              message: chat[i].mes
+            });
+          }
+        }
+        console.log(`✅ 通过 SillyTavern.chat 获取到 ${chatMessages.length} 条消息`);
+        messagesRetrieved = true;
+      }
+
+      // 方式3: 使用全局 chat 变量（如果可用）
+      if (!messagesRetrieved && typeof (window as any).chat !== 'undefined' && Array.isArray((window as any).chat)) {
+        console.log('📝 尝试从全局 chat 变量获取消息...');
+        const chat = (window as any).chat;
+        const startIdx = Math.max(0, settings.value.table_start_message_id);
+        const endIdx = Math.min(chat.length - 1, settings.value.table_end_message_id);
+
+        chatMessages = [];
+        for (let i = startIdx; i <= endIdx; i++) {
+          if (chat[i] && chat[i].mes) {
+            chatMessages.push({
+              role: chat[i].is_user ? 'user' : 'assistant',
+              message: chat[i].mes
+            });
+          }
+        }
+        console.log(`✅ 通过全局 chat 获取到 ${chatMessages.length} 条消息`);
+        messagesRetrieved = true;
+      }
+
+      if (!messagesRetrieved) {
+        throw new Error('无法获取聊天消息：请确保在支持的聊天环境中使用（如 SillyTavern）');
       }
 
       progressDialogRef.value?.addDetail(`获取到 ${chatMessages.length} 条消息`);

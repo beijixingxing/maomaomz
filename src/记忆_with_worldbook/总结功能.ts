@@ -221,43 +221,81 @@ export async function summarizeMessages(start_id: number, end_id: number): Promi
   const messages: Array<{ role: string; message: string }> = [];
 
   try {
-    // 尝试使用 TavernHelper.getChatMessages()
+    // 尝试多种方式获取消息
+    let messagesRetrieved = false;
+
+    // 方式1: 使用 TavernHelper.getChatMessages()
     if (
       typeof (window as any).TavernHelper !== 'undefined' &&
       typeof (window as any).TavernHelper.getChatMessages === 'function'
     ) {
-      const range = `${start_id}-${end_id}`;
-      console.log('📋 获取消息范围:', range);
-      const msgs = (window as any).TavernHelper.getChatMessages(range);
-      if (Array.isArray(msgs) && msgs.length > 0) {
-        messages.push(...msgs);
-        console.log('✅ 获取到消息数量:', msgs.length);
-      }
-
-      // 如果从0开始获取不到消息，尝试从1开始
-      if (start_id === 0 && (!Array.isArray(msgs) || msgs.length === 0)) {
-        console.log('⚠️ 从0开始未获取到消息，尝试从1开始...');
-        const newRange = `1-${end_id}`;
-        const newMsgs = (window as any).TavernHelper.getChatMessages(newRange);
-        if (Array.isArray(newMsgs) && newMsgs.length > 0) {
-          messages.push(...newMsgs);
-          console.log(`✅ 修改范围后(${newRange})获取到消息数量:`, newMsgs.length);
+      try {
+        const range = `${start_id}-${end_id}`;
+        console.log('📋 获取消息范围:', range);
+        const msgs = (window as any).TavernHelper.getChatMessages(range);
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          messages.push(...msgs);
+          console.log('✅ 获取到消息数量:', msgs.length);
+          messagesRetrieved = true;
         }
-      }
-    } else {
-      // 降级方案：遍历每个楼层（如果可用）
-      for (let i = start_id; i <= end_id; i++) {
-        // 尝试从 SillyTavern.chat 获取
-        if (typeof SillyTavern !== 'undefined' && Array.isArray(SillyTavern.chat) && SillyTavern.chat[i]) {
-          const msg = SillyTavern.chat[i];
-          if (msg) {
-            messages.push({
-              role: msg.is_user ? 'user' : 'assistant',
-              message: msg.mes || '',
-            });
+
+        // 如果从0开始获取不到消息，尝试从1开始
+        if (start_id === 0 && (!Array.isArray(msgs) || msgs.length === 0)) {
+          console.log('⚠️ 从0开始未获取到消息，尝试从1开始...');
+          const newRange = `1-${end_id}`;
+          const newMsgs = (window as any).TavernHelper.getChatMessages(newRange);
+          if (Array.isArray(newMsgs) && newMsgs.length > 0) {
+            messages.push(...newMsgs);
+            console.log(`✅ 修改范围后(${newRange})获取到消息数量:`, newMsgs.length);
+            messagesRetrieved = true;
           }
         }
+      } catch (e) {
+        console.warn('⚠️ TavernHelper.getChatMessages() 调用失败:', e);
+        messagesRetrieved = false;
       }
+    }
+
+    // 方式2: 降级到 SillyTavern.chat（如果可用）
+    if (!messagesRetrieved && typeof (window as any).SillyTavern !== 'undefined' && Array.isArray((window as any).SillyTavern.chat)) {
+      console.log('📝 尝试从 SillyTavern.chat 获取消息...');
+      const chat = (window as any).SillyTavern.chat;
+      const startIdx = Math.max(0, start_id);
+      const endIdx = Math.min(chat.length - 1, end_id);
+
+      for (let i = startIdx; i <= endIdx; i++) {
+        if (chat[i] && chat[i].mes) {
+          messages.push({
+            role: chat[i].is_user ? 'user' : 'assistant',
+            message: chat[i].mes || '',
+          });
+        }
+      }
+      console.log(`✅ 通过 SillyTavern.chat 获取到 ${messages.length} 条消息`);
+      messagesRetrieved = true;
+    }
+
+    // 方式3: 使用全局 chat 变量（如果可用）
+    if (!messagesRetrieved && typeof (window as any).chat !== 'undefined' && Array.isArray((window as any).chat)) {
+      console.log('📝 尝试从全局 chat 变量获取消息...');
+      const chat = (window as any).chat;
+      const startIdx = Math.max(0, start_id);
+      const endIdx = Math.min(chat.length - 1, end_id);
+
+      for (let i = startIdx; i <= endIdx; i++) {
+        if (chat[i] && chat[i].mes) {
+          messages.push({
+            role: chat[i].is_user ? 'user' : 'assistant',
+            message: chat[i].mes || '',
+          });
+        }
+      }
+      console.log(`✅ 通过全局 chat 获取到 ${messages.length} 条消息`);
+      messagesRetrieved = true;
+    }
+
+    if (!messagesRetrieved) {
+      throw new Error('无法获取聊天消息：请确保在支持的聊天环境中使用（如 SillyTavern）');
     }
   } catch (error) {
     console.error('❌ 获取消息失败:', error);
