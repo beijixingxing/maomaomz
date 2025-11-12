@@ -2540,7 +2540,11 @@ const handle_generate_table = async () => {
       }
 
       // 方式2: 降级到 SillyTavern.chat（如果可用）
-      if (!messagesRetrieved && typeof (window as any).SillyTavern !== 'undefined' && Array.isArray((window as any).SillyTavern.chat)) {
+      if (
+        !messagesRetrieved &&
+        typeof (window as any).SillyTavern !== 'undefined' &&
+        Array.isArray((window as any).SillyTavern.chat)
+      ) {
         console.log('📝 尝试从 SillyTavern.chat 获取消息...');
         const chat = (window as any).SillyTavern.chat;
         const startIdx = Math.max(0, settings.value.table_start_message_id);
@@ -2551,7 +2555,7 @@ const handle_generate_table = async () => {
           if (chat[i] && chat[i].mes) {
             chatMessages.push({
               role: chat[i].is_user ? 'user' : 'assistant',
-              message: chat[i].mes
+              message: chat[i].mes,
             });
           }
         }
@@ -2571,7 +2575,7 @@ const handle_generate_table = async () => {
           if (chat[i] && chat[i].mes) {
             chatMessages.push({
               role: chat[i].is_user ? 'user' : 'assistant',
-              message: chat[i].mes
+              message: chat[i].mes,
             });
           }
         }
