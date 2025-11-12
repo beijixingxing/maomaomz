@@ -15,8 +15,8 @@ const STORAGE_KEY = 'maomaomz_auth_code';
 const STORAGE_VERIFIED_KEY = 'maomaomz_auth_verified';
 const STORAGE_VERIFY_TIME_KEY = 'maomaomz_auth_verify_time'; // 上次验证时间
 
-// 缓存时长（毫秒）- 6 小时
-const CACHE_DURATION = 6 * 60 * 60 * 1000;
+// 缓存时长（毫秒）- 1 小时
+const CACHE_DURATION = 1 * 60 * 60 * 1000;
 
 /**
  * 获取当前使用的 API 端点（用于追踪商业化倒卖）
