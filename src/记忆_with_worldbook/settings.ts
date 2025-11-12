@@ -12,17 +12,17 @@ export function getTavernApiConfig() {
     // 尝试获取 SillyTavern 的 API 配置
     const apiServer = window.api_server;
     const mainApi = window.main_api;
-    
+
     // 从localStorage中读取配置
     const tavernConfig = JSON.parse(localStorage.getItem('TavernAI_Settings') || '{}');
     const powerUserConfig = JSON.parse(localStorage.getItem('power_user') || '{}');
-    
+
     console.log('🔍 检测到的 SillyTavern API 配置:');
     console.log('- api_server:', apiServer);
     console.log('- main_api:', mainApi);
     console.log('- TavernAI_Settings:', Object.keys(tavernConfig));
     console.log('- power_user:', Object.keys(powerUserConfig));
-    
+
     // 构建API配置对象
     const config: any = {
       api_provider: 'openai', // 默认值
@@ -35,7 +35,7 @@ export function getTavernApiConfig() {
       presence_penalty: 0.0,
       frequency_penalty: 0.0,
     };
-    
+
     // 根据主 API 类型设置配置
     if (mainApi === 'openai') {
       config.api_provider = 'openai';
@@ -63,20 +63,20 @@ export function getTavernApiConfig() {
       config.temperature = tavernConfig.temp_google || 0.7;
       config.top_p = tavernConfig.top_p_google || 1.0;
     }
-    
+
     // 如果没有检测到有效配置，返回null
     if (!config.api_key || config.api_key.trim() === '') {
       console.log('⚠️ 未检测到有效的 API 密钥配置');
       return null;
     }
-    
+
     console.log('✅ 成功读取 SillyTavern API 配置:', {
       provider: config.api_provider,
       endpoint: config.api_endpoint,
       model: config.model,
-      hasApiKey: !!config.api_key
+      hasApiKey: !!config.api_key,
     });
-    
+
     return config;
   } catch (error) {
     console.error('❌ 读取 SillyTavern API 配置失败:', error);
@@ -84,33 +84,32 @@ export function getTavernApiConfig() {
   }
 }
 
-const Settings = z
-  .object({
-    api_provider: z.string().default('openai'), // 'openai' | 'gemini'
-    api_endpoint: z.string().default('https://api.openai.com/v1'), // 兼容酒馆格式：base URL
-    api_key: z.string().default(''),
-    model: z.string().default('gpt-4o-mini'),
-    max_tokens: z.number().default(4000),
-    temperature: z.number().default(0.7),
-    top_p: z.number().default(1.0), // 核采样参数 (0-1)
-    presence_penalty: z.number().default(0.0), // 存在惩罚 (-2.0 to 2.0)
-    frequency_penalty: z.number().default(0.0), // 频率惩罚 (-2.0 to 2.0)
-    auto_summarize_enabled: z.boolean().default(false),
-    summarize_interval: z.number().default(50), // 每多少楼层自动总结一次
-    start_message_id: z.number().default(0), // 开始总结的楼层
-    end_message_id: z.number().default(0), // 结束总结的楼层
-    table_start_message_id: z.number().default(0), // 开始生成表格的楼层
-    table_end_message_id: z.number().default(0), // 结束生成表格的楼层
-    summary_history: z
-      .array(
-        z.object({
-          start_id: z.number(),
-          end_id: z.number(),
-          content: z.string(),
-        }),
-      )
-      .default([]),
-  });
+const Settings = z.object({
+  api_provider: z.string().default('openai'), // 'openai' | 'gemini'
+  api_endpoint: z.string().default('https://api.openai.com/v1'), // 兼容酒馆格式：base URL
+  api_key: z.string().default(''),
+  model: z.string().default('gpt-4o-mini'),
+  max_tokens: z.number().default(4000),
+  temperature: z.number().default(0.7),
+  top_p: z.number().default(1.0), // 核采样参数 (0-1)
+  presence_penalty: z.number().default(0.0), // 存在惩罚 (-2.0 to 2.0)
+  frequency_penalty: z.number().default(0.0), // 频率惩罚 (-2.0 to 2.0)
+  auto_summarize_enabled: z.boolean().default(false),
+  summarize_interval: z.number().default(50), // 每多少楼层自动总结一次
+  start_message_id: z.number().default(0), // 开始总结的楼层
+  end_message_id: z.number().default(0), // 结束总结的楼层
+  table_start_message_id: z.number().default(0), // 开始生成表格的楼层
+  table_end_message_id: z.number().default(0), // 结束生成表格的楼层
+  summary_history: z
+    .array(
+      z.object({
+        start_id: z.number(),
+        end_id: z.number(),
+        content: z.string(),
+      }),
+    )
+    .default([]),
+});
 
 /**
  * 将 API 端点规范化为完整的 URL
@@ -213,7 +212,7 @@ export const useSettingsStore = defineStore('settings', () => {
   // 初始化设置（插件环境 - 优先读取ST配置，再使用 localStorage）
   const initSettings = () => {
     console.log('🔧 插件环境：优先读取 SillyTavern API 配置，然后使用 localStorage');
-    
+
     // 首先尝试从 SillyTavern 读取 API 配置
     const tavernConfig = getTavernApiConfig();
     if (tavernConfig) {
@@ -222,7 +221,7 @@ export const useSettingsStore = defineStore('settings', () => {
       try {
         const saved = localStorage.getItem('tavern_helper_settings');
         const localSettings = saved ? JSON.parse(saved) : {};
-        
+
         // 用 SillyTavern 的 API 配置覆盖本地配置
         const mergedSettings = {
           ...localSettings,
@@ -236,14 +235,14 @@ export const useSettingsStore = defineStore('settings', () => {
           presence_penalty: tavernConfig.presence_penalty,
           frequency_penalty: tavernConfig.frequency_penalty,
         };
-        
+
         return ref(Settings.parse(mergedSettings));
       } catch (e) {
         console.warn('合并设置失败，使用 SillyTavern 配置:', e);
         return ref(Settings.parse(tavernConfig));
       }
     }
-    
+
     // 如果没有 SillyTavern 配置，使用本地存储
     console.log('⚠️ 未找到 SillyTavern API 配置，使用本地存储');
     try {
@@ -254,7 +253,7 @@ export const useSettingsStore = defineStore('settings', () => {
     } catch (e) {
       console.warn('从 localStorage 读取设置失败:', e);
     }
-    
+
     return ref(Settings.parse({}));
   };
 
@@ -347,7 +346,7 @@ export const useSettingsStore = defineStore('settings', () => {
           presence_penalty: tavernConfig.presence_penalty,
           frequency_penalty: tavernConfig.frequency_penalty,
         };
-        
+
         settings.value = Settings.parse(updatedSettings);
         window.toastr?.success('已刷新 SillyTavern API 配置');
         return true;
