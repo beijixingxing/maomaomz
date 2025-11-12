@@ -465,8 +465,8 @@ export async function checkAuthorization(): Promise<boolean> {
       localStorage.setItem(STORAGE_KEY, code);
       localStorage.setItem(STORAGE_VERIFIED_KEY, 'true');
       localStorage.setItem(STORAGE_VERIFY_TIME_KEY, Date.now().toString()); // 🔥 记录验证时间
-      console.log('✅ 授权验证成功！（24小时内有效）');
-      (window as any).toastr?.success(result.message + '\n\n💾 授权已缓存 24 小时', '授权成功', {
+      console.log('✅ 授权验证成功！（6小时内有效）');
+      (window as any).toastr?.success(result.message + '\n\n💾 授权已缓存 6 小时', '授权成功', {
         timeOut: 3000,
       });
       return true;

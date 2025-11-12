@@ -166,7 +166,7 @@ const tabs = [
   { key: 'summary', label: '历史总结', icon: 'fa-solid fa-list' },
   { key: 'table', label: '表格', icon: 'fa-solid fa-table' },
   { key: 'greetings', label: '开场白', icon: 'fa-solid fa-comments' },
-  { key: 'regex', label: '界面生成器', icon: 'fa-solid fa-code' },
+  { key: 'regex', label: '翻页状态栏', icon: 'fa-solid fa-book-open' },
   { key: 'status', label: '状态栏生成', icon: 'fa-solid fa-chart-bar' },
   { key: 'project', label: '前端项目', icon: 'fa-solid fa-laptop-code' },
   { key: 'tools', label: '工具模板', icon: 'fa-solid fa-tools' },

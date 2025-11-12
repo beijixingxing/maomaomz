@@ -146,14 +146,14 @@ async function handleVerify(request, env, corsHeaders) {
     // ⚡ 性能优化：只在失败时记录详细日志，减少 KV 写入
     if (!isValid) {
       // 记录失败的详细日志
-    await logVerification(env, {
-      code,
+      await logVerification(env, {
+        code,
         isValid: false,
         apiEndpoint: cleanApiEndpoint,
-      ip,
-      country,
+        ip,
+        country,
         timestamp: timestamp || new Date().toISOString(),
-    });
+      });
 
       // 记录失败统计
       await incrementStats(env, 'failed');
@@ -180,28 +180,28 @@ async function handleVerify(request, env, corsHeaders) {
     } catch (logError) {
       // 日志失败不影响验证结果
       console.warn('记录日志失败（可能超过 KV 限制）:', logError);
-      }
+    }
 
-      return jsonResponse(
-        {
-          valid: true,
-          message: '✅ 授权验证通过！猫猫欢迎你！🐱',
-          code: currentCode,
-        },
-        200,
-        corsHeaders,
-      );
+    return jsonResponse(
+      {
+        valid: true,
+        message: '✅ 授权验证通过！猫猫欢迎你！🐱',
+        code: currentCode,
+      },
+      200,
+      corsHeaders,
+    );
   } catch (error) {
     console.error('❌ handleVerify 错误:', error);
     console.error('错误堆栈:', error.stack);
-      return jsonResponse(
-        {
-          valid: false,
+    return jsonResponse(
+      {
+        valid: false,
         message: '❌ 请求格式错误: ' + error.message,
-        },
+      },
       400,
-        corsHeaders,
-      );
+      corsHeaders,
+    );
   }
 }
 
