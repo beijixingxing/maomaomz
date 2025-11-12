@@ -233,7 +233,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useSummaryHistoryStore } from '../settings';
-import { getChatIdSafe } from '../utils';
+import { getChatIdSafe, getScriptIdSafe } from '../utils';
 
 const historyStore = useSummaryHistoryStore();
 

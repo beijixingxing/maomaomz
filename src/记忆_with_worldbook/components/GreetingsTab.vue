@@ -800,9 +800,9 @@ import { storeToRefs } from 'pinia';
 import toastr from 'toastr';
 import { computed, onMounted, ref } from 'vue';
 import { z } from 'zod';
-import { useSettingsStore, normalizeApiEndpoint } from '../settings';
-import { copyToClipboard, getScriptIdSafe } from '../utils';
+import { normalizeApiEndpoint, useSettingsStore } from '../settings';
 import { useTaskStore } from '../taskStore';
+import { copyToClipboard, getScriptIdSafe } from '../utils';
 import AIGenerateDialog from './AIGenerateDialog.vue';
 import AIModifyDialog from './AIModifyDialog.vue';
 
@@ -868,7 +868,7 @@ const aiProgress = ref<AIProgress>({
 });
 
 // 计算耗时的定时器
-let elapsedTimer: NodeJS.Timeout | null = null;
+let elapsedTimer: ReturnType<typeof setInterval> | null = null;
 
 // 更新进度
 function updateProgress(step: number, stepName: string, message: string) {
@@ -1560,7 +1560,7 @@ async function generateStyleWithAI(styleDescription: string) {
 
         // 使用 TavernHelper 获取消息
         let messages;
-        if (typeof (window as any).TavernHelper !== 'undefined' && 
+        if (typeof (window as any).TavernHelper !== 'undefined' &&
             typeof (window as any).TavernHelper.getChatMessages === 'function') {
           messages = (window as any).TavernHelper.getChatMessages('0');
         } else {
@@ -1569,7 +1569,7 @@ async function generateStyleWithAI(styleDescription: string) {
           if (mainContainer) mainContainer.style.display = "block";
           return;
         }
-        
+
         if (!messages || messages.length === 0) {
           alert("未找到消息");
           if (loading) loading.classList.remove("active");
@@ -1762,6 +1762,24 @@ async function copyCode() {
   }
 }
 
+// 清理HTML中的ES6语法（避免iframe中的语法错误）
+function sanitizeHtmlForIframe(html: string): string {
+  try {
+    // 移除 import/export 语句（ES6模块语法在iframe中不支持）
+    html = html.replace(/import\s+.*?from\s+['"].*?['"];?/g, '');
+    html = html.replace(/export\s+(default\s+)?.*?;?/g, '');
+
+    // 移除 import ... as ... 语法
+    html = html.replace(/import\s+\*\s+as\s+\w+\s+from\s+['"].*?['"];?/g, '');
+    html = html.replace(/import\s+\{[^}]*\}\s+from\s+['"].*?['"];?/g, '');
+
+    return html;
+  } catch (error) {
+    console.warn('⚠️ HTML清理失败，使用原始HTML:', error);
+    return html;
+  }
+}
+
 // 更新预览
 function updatePreview() {
   if (greetings.value.length === 0) {
@@ -1799,6 +1817,9 @@ function updatePreview() {
         /<div class="scenes-grid">[\s\S]*?<\/div>/,
         `<div class="scenes-grid">\n          ${cardsHtml}\n        </div>`,
       );
+
+      // 清理HTML中的ES6语法
+      html = sanitizeHtmlForIframe(html);
 
       previewHtml.value = html;
       console.log('✅ 预览更新成功');

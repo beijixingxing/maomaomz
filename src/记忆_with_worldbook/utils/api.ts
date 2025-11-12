@@ -1,5 +1,39 @@
 import { APISettings, ChatMessage } from '../types';
 
+// 带重试的 fetch 函数（处理 503 等临时错误）
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit = {},
+  maxRetries: number = 3,
+  retryDelay: number = 2000,
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+
+      // 如果是 503 错误（服务过载），进行重试
+      if (response.status === 503 && attempt < maxRetries) {
+        console.warn(`⚠️ API 服务过载 (503)，${retryDelay / 1000}秒后进行第 ${attempt + 1}/${maxRetries} 次重试...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt)); // 指数退避
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < maxRetries) {
+        console.warn(`⚠️ 请求失败，${retryDelay / 1000}秒后进行第 ${attempt + 1}/${maxRetries} 次重试...`, error);
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+        continue;
+      }
+    }
+  }
+
+  throw lastError || new Error('请求失败');
+}
+
 // API请求代理函数
 async function fetchWithProxy(url: string, options: RequestInit = {}) {
   try {
@@ -101,13 +135,18 @@ export async function fetchAvailableModels(settings: APISettings): Promise<strin
     try {
       console.log(`📡 正在请求: ${endpoint}`);
 
-      const response = await fetchWithProxy(endpoint, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${settings.api_key}`,
+      const response = await fetchWithRetry(
+        endpoint,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${settings.api_key}`,
+          },
         },
-      });
+        2,
+        1500,
+      );
 
       console.log(`📊 响应状态: ${response.status} ${response.statusText}`);
 
@@ -281,14 +320,19 @@ ${messages.map(msg => `[${msg.role}]: ${msg.message}`).join('\n\n')}
   const filteredParams = filterApiParams(requestParams, settings.api_endpoint);
 
   try {
-    response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${settings.api_key}`,
+    response = await fetchWithRetry(
+      apiUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${settings.api_key}`,
+        },
+        body: JSON.stringify(filteredParams),
       },
-      body: JSON.stringify(filteredParams),
-    });
+      3,
+      2000,
+    );
   } catch (error) {
     console.error('fetch 调用失败:', error);
     throw new Error(`无法连接到 API: ${(error as Error).message}`);
@@ -312,7 +356,9 @@ ${messages.map(msg => `[${msg.role}]: ${msg.message}`).join('\n\n')}
 
     let userFriendlyMessage = errorMessage;
 
-    if (response.status === 500) {
+    if (response.status === 503) {
+      userFriendlyMessage = `API 服务过载 (503)：${errorMessage}\n\nGemini API 当前负载过高，已自动重试但仍然失败。建议：\n• 等待几分钟后再试\n• 切换到其他模型（如 gemini-2.0-flash）\n• 检查 API 配额是否充足`;
+    } else if (response.status === 500) {
       userFriendlyMessage = `API 服务器内部错误 (500)：${errorMessage}\n\n这通常是暂时性问题，请稍后重试。如果问题持续，请检查：\n• API 服务状态\n• 账户配额是否充足\n• 请求内容是否过长`;
     } else if (response.status === 429) {
       userFriendlyMessage = 'API 请求频率限制 (429)：请求过于频繁，请稍后再试。';
