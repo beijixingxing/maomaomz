@@ -376,64 +376,89 @@
             borderRadius: '6px',
           }"
         >
-          <div :style="{ color: '#51cf66', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }">
-            表格生成结果
+          <div :style="{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }">
+            <div>
+              <div :style="{ color: '#51cf66', fontSize: '12px', fontWeight: 'bold' }">
+                表格生成结果
+              </div>
+              <div :style="{ color: '#888', fontSize: '11px' }">
+                共 {{ task.result.rowCount }} 行数据，{{ task.result.headers?.length }} 列
+              </div>
+            </div>
+            <button
+              @click="toggleTableExpand(task.id)"
+              :style="{
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                color: '#4a9eff',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }"
+              @mouseenter="e => e.target.style.background = 'rgba(74, 158, 255, 0.2)'"
+              @mouseleave="e => e.target.style.background = 'rgba(255, 255, 255, 0.1)'"
+            >
+              <i :class="expandedTasks[task.id] ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
+            </button>
           </div>
-          <div :style="{ color: '#888', fontSize: '11px', marginBottom: '8px' }">
-            共 {{ task.result.rowCount }} 行数据，{{ task.result.headers?.length }} 列
-          </div>
-          <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
-            <button
-              @click="previewTable(task)"
-              :style="{
-                background: '#4a9eff',
-                border: 'none',
-                color: 'white',
-                padding: '4px 10px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }"
-              @mouseenter="e => e.target.style.background = '#3a8edf'"
-              @mouseleave="e => e.target.style.background = '#4a9eff'"
-            >
-              <i class="fa-solid fa-eye" style="margin-right: 4px"></i>预览
-            </button>
-            <button
-              @click="copyTable(task)"
-              :style="{
-                background: '#51cf66',
-                border: 'none',
-                color: 'white',
-                padding: '4px 10px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }"
-              @mouseenter="e => e.target.style.background = '#40c057'"
-              @mouseleave="e => e.target.style.background = '#51cf66'"
-            >
-              <i class="fa-solid fa-copy" style="margin-right: 4px"></i>复制
-            </button>
-            <button
-              @click="downloadTable(task)"
-              :style="{
-                background: '#ffa500',
-                border: 'none',
-                color: 'white',
-                padding: '4px 10px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }"
-              @mouseenter="e => e.target.style.background = '#ff8c00'"
-              @mouseleave="e => e.target.style.background = '#ffa500'"
-            >
-              <i class="fa-solid fa-download" style="margin-right: 4px"></i>CSV
-            </button>
+
+          <!-- 展开的表格预览 -->
+          <div
+            v-if="expandedTasks[task.id]"
+            :style="{
+              marginTop: '10px',
+              padding: '10px',
+              background: 'rgba(0, 0, 0, 0.3)',
+              borderRadius: '4px',
+            }"
+          >
+            <div :style="{ display: 'flex', gap: '8px', marginBottom: '10px', justifyContent: 'flex-end' }">
+              <button
+                @click="copyTable(task)"
+                :style="{
+                  background: '#51cf66',
+                  border: 'none',
+                  color: 'white',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }"
+                @mouseenter="e => e.target.style.background = '#40c057'"
+                @mouseleave="e => e.target.style.background = '#51cf66'"
+              >
+                <i class="fa-solid fa-copy" style="margin-right: 4px"></i>复制
+              </button>
+              <button
+                @click="downloadTable(task)"
+                :style="{
+                  background: '#ffa500',
+                  border: 'none',
+                  color: 'white',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }"
+                @mouseenter="e => e.target.style.background = '#ff8c00'"
+                @mouseleave="e => e.target.style.background = '#ffa500'"
+              >
+                <i class="fa-solid fa-download" style="margin-right: 4px"></i>CSV
+              </button>
+            </div>
+            <div :style="{
+              fontSize: '11px',
+              color: '#aaa',
+              lineHeight: '1.4',
+              maxHeight: '200px',
+              overflowY: 'auto',
+            }">
+              {{ getTablePreview(task) }}
+            </div>
           </div>
         </div>
 
@@ -448,60 +473,73 @@
             borderRadius: '6px',
           }"
         >
-          <div :style="{ color: '#51cf66', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }">
-            总结生成结果
-          </div>
-          <div :style="{ color: '#888', fontSize: '11px', marginBottom: '8px' }">
-            楼层 {{ task.result.startId }}-{{ task.result.endId }}，{{ task.result.summaryLength }} 字
-          </div>
-          <div :style="{
-            color: '#ccc',
-            fontSize: '12px',
-            marginBottom: '8px',
-            maxHeight: '100px',
-            overflowY: 'auto',
-            padding: '6px',
-            background: 'rgba(0, 0, 0, 0.3)',
-            borderRadius: '4px',
-            lineHeight: '1.4'
-          }">
-            {{ getSummaryPreview(task) }}
-          </div>
-          <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
+          <div :style="{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }">
+            <div>
+              <div :style="{ color: '#51cf66', fontSize: '12px', fontWeight: 'bold' }">
+                总结生成结果
+              </div>
+              <div :style="{ color: '#888', fontSize: '11px' }">
+                楼层 {{ task.result.startId }}-{{ task.result.endId }}，{{ task.result.summaryLength }} 字
+              </div>
+            </div>
             <button
-              @click="viewSummary(task)"
+              @click="toggleSummaryExpand(task.id)"
               :style="{
-                background: '#4a9eff',
+                background: 'rgba(255, 255, 255, 0.1)',
                 border: 'none',
-                color: 'white',
-                padding: '4px 10px',
+                color: '#4a9eff',
+                padding: '4px 8px',
                 borderRadius: '4px',
                 fontSize: '11px',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }"
-              @mouseenter="e => e.target.style.background = '#3a8edf'"
-              @mouseleave="e => e.target.style.background = '#4a9eff'"
+              @mouseenter="e => e.target.style.background = 'rgba(74, 158, 255, 0.2)'"
+              @mouseleave="e => e.target.style.background = 'rgba(255, 255, 255, 0.1)'"
             >
-              <i class="fa-solid fa-eye" style="margin-right: 4px"></i>查看全文
+              <i :class="expandedSummaries[task.id] ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
             </button>
-            <button
-              @click="copySummary(task)"
-              :style="{
-                background: '#51cf66',
-                border: 'none',
-                color: 'white',
-                padding: '4px 10px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }"
-              @mouseenter="e => e.target.style.background = '#40c057'"
-              @mouseleave="e => e.target.style.background = '#51cf66'"
-            >
-              <i class="fa-solid fa-copy" style="margin-right: 4px"></i>复制
-            </button>
+          </div>
+
+          <!-- 展开的总结内容 -->
+          <div
+            v-if="expandedSummaries[task.id]"
+            :style="{
+              marginTop: '10px',
+              padding: '10px',
+              background: 'rgba(0, 0, 0, 0.3)',
+              borderRadius: '4px',
+            }"
+          >
+            <div :style="{ display: 'flex', gap: '8px', marginBottom: '10px', justifyContent: 'flex-end' }">
+              <button
+                @click="copySummary(task)"
+                :style="{
+                  background: '#51cf66',
+                  border: 'none',
+                  color: 'white',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }"
+                @mouseenter="e => e.target.style.background = '#40c057'"
+                @mouseleave="e => e.target.style.background = '#51cf66'"
+              >
+                <i class="fa-solid fa-copy" style="margin-right: 4px"></i>复制
+              </button>
+            </div>
+            <div :style="{
+              color: '#ccc',
+              fontSize: '12px',
+              lineHeight: '1.6',
+              maxHeight: '300px',
+              overflowY: 'auto',
+              whiteSpace: 'pre-wrap',
+            }">
+              {{ getFullSummary(task) }}
+            </div>
           </div>
         </div>
 
@@ -522,6 +560,10 @@ const taskStore = useTaskStore();
 const isCollapsed = ref(false); // 默认展开
 // 初始时就显示任务中心（如果有任务或等待任务加载）
 const isVisible = ref(true);
+
+// 展开状态管理
+const expandedTasks = ref<Record<string, boolean>>({});
+const expandedSummaries = ref<Record<string, boolean>>({});
 
 const runningCount = computed(() => taskStore.runningTaskCount());
 
@@ -574,54 +616,30 @@ const getTableData = (task: any) => {
   return lastTable;
 };
 
-// 预览表格
-const previewTable = (task: any) => {
+// 切换表格展开状态
+const toggleTableExpand = (taskId: string) => {
+  expandedTasks.value[taskId] = !expandedTasks.value[taskId];
+};
+
+// 切换总结展开状态
+const toggleSummaryExpand = (taskId: string) => {
+  expandedSummaries.value[taskId] = !expandedSummaries.value[taskId];
+};
+
+// 获取表格预览文本
+const getTablePreview = (task: any) => {
   const tableData = getTableData(task);
-  if (!tableData) {
-    window.toastr.error('无法获取表格数据');
-    return;
+  if (!tableData || !tableData.data || !tableData.headers) return '无法获取表格数据';
+
+  let preview = tableData.headers.join('\t') + '\n';
+  const maxRows = Math.min(5, tableData.data.length);
+  for (let i = 0; i < maxRows; i++) {
+    preview += tableData.data[i].join('\t') + '\n';
   }
-
-  // 创建预览窗口
-  const preview = window.open('', '_blank', 'width=800,height=600');
-  if (!preview) return;
-
-  let html = `
-    <html>
-      <head>
-        <title>表格预览</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-          table { border-collapse: collapse; width: 100%; background: white; }
-          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-          th { background: #4a9eff; color: white; }
-          tr:nth-child(even) { background: #f9f9f9; }
-        </style>
-      </head>
-      <body>
-        <h2>表格预览</h2>
-        <table>
-          <thead>
-            <tr>
-  `;
-
-  tableData.headers.forEach((header: string) => {
-    html += `<th>${header}</th>`;
-  });
-
-  html += `</tr></thead><tbody>`;
-
-  tableData.data.forEach((row: string[]) => {
-    html += '<tr>';
-    row.forEach(cell => {
-      html += `<td>${cell}</td>`;
-    });
-    html += '</tr>';
-  });
-
-  html += '</tbody></table></body></html>';
-  preview.document.write(html);
-  preview.document.close();
+  if (tableData.data.length > 5) {
+    preview += `... 还有 ${tableData.data.length - 5} 行`;
+  }
+  return preview;
 };
 
 // 复制表格
@@ -702,74 +720,21 @@ const getSummaryPreview = (task: any) => {
     : summary.summary;
 };
 
-// 查看完整总结
-const viewSummary = (task: any) => {
+// 获取完整总结内容
+const getFullSummary = (task: any) => {
   const scriptId = window.getScriptId?.();
-  if (!scriptId || !task.result?.startId) return;
+  if (!scriptId || !task.result?.startId) return '无法获取总结内容';
 
   const summaryHistoryStore = (window as any).summaryHistoryStore;
-  if (!summaryHistoryStore) return;
+  if (!summaryHistoryStore) return '无法获取总结内容';
 
   const summaries = summaryHistoryStore.summaries || [];
   const summary = summaries.find(s =>
     s.start_id === task.result.startId && s.end_id === task.result.endId
   );
 
-  if (!summary) {
-    window.toastr.error('无法获取总结内容');
-    return;
-  }
-
-  // 创建查看窗口
-  const view = window.open('', '_blank', 'width=800,height=600');
-  if (!view) return;
-
-  const html = `
-    <html>
-      <head>
-        <title>总结内容</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            padding: 30px;
-            background: #f5f5f5;
-            line-height: 1.8;
-            color: #333;
-          }
-          .container {
-            background: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            max-width: 800px;
-            margin: 0 auto;
-          }
-          .meta {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 20px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #eee;
-          }
-          h1 { color: #4a9eff; margin-bottom: 20px; }
-          .content { white-space: pre-wrap; font-size: 15px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>剧情总结</h1>
-          <div class="meta">
-            楼层范围: ${summary.start_id} - ${summary.end_id}<br>
-            生成时间: ${new Date(summary.timestamp).toLocaleString()}
-          </div>
-          <div class="content">${summary.summary}</div>
-        </div>
-      </body>
-    </html>
-  `;
-
-  view.document.write(html);
-  view.document.close();
+  if (!summary) return '无法获取总结内容';
+  return summary.summary;
 };
 
 // 复制总结
