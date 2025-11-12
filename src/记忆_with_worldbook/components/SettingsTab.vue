@@ -1973,9 +1973,9 @@ const handle_test_connection = async () => {
         errorText = await response.text();
         errorMessage = errorText.substring(0, 100);
       }
-      
+
       console.error('API 错误响应:', errorText);
-      
+
       // 针对 403 错误提供更详细的提示
       if (response.status === 403) {
         const lowerError = errorMessage.toLowerCase();
@@ -1990,15 +1990,11 @@ const handle_test_connection = async () => {
             },
           );
         } else {
-          window.toastr.error(
-            `❌ 连接失败 (403)\n\n${errorMessage}\n\n请检查 API Key 权限和配置`,
-            '',
-            {
-              timeOut: 0,
-              extendedTimeOut: 0,
-              closeButton: true,
-            },
-          );
+          window.toastr.error(`❌ 连接失败 (403)\n\n${errorMessage}\n\n请检查 API Key 权限和配置`, '', {
+            timeOut: 0,
+            extendedTimeOut: 0,
+            closeButton: true,
+          });
         }
       } else {
         window.toastr.error(`❌ 连接失败 (${response.status})\n` + `详情: ${errorMessage}`);
