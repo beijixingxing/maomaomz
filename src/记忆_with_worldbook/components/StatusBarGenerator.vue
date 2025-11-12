@@ -1118,6 +1118,21 @@
       @close="showFieldModifyDialog = false"
       @confirm="modifyFieldWithAI"
     />
+
+    <!-- AI 生成对比对话框 -->
+    <CodeCompareDialog
+      :show="showComparison"
+      :changes="pendingChanges"
+      :show-preview="true"
+      title="AI 生成结果对比"
+      @accept="acceptChanges"
+      @reject="rejectChanges"
+    >
+      <template #preview>
+        <!-- eslint-disable-next-line vue/no-v-html -->
+        <div v-html="previewHtml"></div>
+      </template>
+    </CodeCompareDialog>
   </div>
 </template>
 
@@ -1259,6 +1274,10 @@ const isParsingXml = ref(false);
 const showAiFieldDialog = ref(false);
 const aiFieldDescription = ref('');
 const isGeneratingFields = ref(false);
+
+// AI 生成对比相关
+const showComparison = ref(false);
+const pendingChanges = ref<Array<{ path: string; oldContent: string; newContent: string }>>([]);
 
 // Font Awesome 图标列表（仅使用最常用确定存在的图标）
 const iconList = [
@@ -2569,6 +2588,8 @@ ${currentFiles}
       throw new Error('AI 未返回任何文件修改');
     }
 
+    // 准备对比数据
+    const changes: Array<{ path: string; oldContent: string; newContent: string }> = [];
     for (const match of matches) {
       const rawPath = match[1].trim();
       const normalizedPath = rawPath.replace(/^\.\//, '');
@@ -2580,40 +2601,24 @@ ${currentFiles}
       }
 
       const file = files.value.find(f => f.path === normalizedPath);
-      if (file) {
-        file.content = content;
-      } else if (normalizedPath === 'index.html' || normalizedPath === 'style.css' || normalizedPath === 'script.js') {
-        // 如果是这三个文件之一，添加到列表
-        files.value.push({ path: normalizedPath, content: content });
-      }
+      changes.push({
+        path: normalizedPath,
+        oldContent: file?.content || '',
+        newContent: content,
+      });
     }
 
-    // 统一文件路径，移除可能存在的 './'
-    files.value.forEach(file => {
-      file.path = file.path.replace(/^\.\//, '');
-    });
+    // 保存待应用的更改
+    pendingChanges.value = changes;
 
-    // 同一文件可能因返回 './index.html' 被重复追加，这里做一次去重，以最后一次返回为准
-    const uniqueFiles = new Map<string, CodeFile>();
-    files.value.forEach(file => {
-      uniqueFiles.set(file.path, file);
-    });
-    files.value = Array.from(uniqueFiles.values());
-
-    // 阶段5: 更新界面
-    taskStore.updateTaskProgress(taskId, 90, '更新预览界面');
-
-    const htmlFile = files.value.find(f => f.path === 'index.html') || files.value[0];
-    currentFile.value = htmlFile;
-    updatePreview();
-
-    // 完成
+    // 阶段5: 显示对比
+    taskStore.updateTaskProgress(taskId, 90, '准备显示对比');
     taskStore.completeTask(taskId, { fileCount: matches.length });
 
-    setTimeout(() => {
-      showAI.value = false;
-      window.toastr.success('✅ AI 生成完成！');
-    }, 800);
+    // 显示对比对话框
+    showAI.value = false;
+    showComparison.value = true;
+    window.toastr.success('✅ AI 生成完成！请查看对比并决定是否应用');
   } catch (error: any) {
     console.error('AI 生成失败:', error);
     const errorMsg = error?.message || String(error) || '未知错误';
@@ -2880,6 +2885,48 @@ ${jsFile?.content || ''}
   URL.revokeObjectURL(url);
 
   window.toastr.success('✅ 正则 JSON 已导出成功！');
+}
+
+// 应用 AI 生成的更改
+function acceptChanges() {
+  for (const change of pendingChanges.value) {
+    const file = files.value.find(f => f.path === change.path);
+    if (file) {
+      file.content = change.newContent;
+    } else if (change.path === 'index.html' || change.path === 'style.css' || change.path === 'script.js') {
+      files.value.push({ path: change.path, content: change.newContent });
+    }
+  }
+
+  // 统一文件路径，移除可能存在的 './'
+  files.value.forEach(file => {
+    file.path = file.path.replace(/^\.\//, '');
+  });
+
+  // 去重
+  const uniqueFiles = new Map<string, CodeFile>();
+  files.value.forEach(file => {
+    uniqueFiles.set(file.path, file);
+  });
+  files.value = Array.from(uniqueFiles.values());
+
+  // 更新预览
+  const htmlFile = files.value.find(f => f.path === 'index.html') || files.value[0];
+  currentFile.value = htmlFile;
+  updatePreview();
+
+  // 关闭对比对话框
+  showComparison.value = false;
+  pendingChanges.value = [];
+
+  window.toastr.success('✅ 已应用 AI 生成的代码');
+}
+
+// 拒绝 AI 生成的更改
+function rejectChanges() {
+  showComparison.value = false;
+  pendingChanges.value = [];
+  window.toastr.info('已取消应用更改');
 }
 
 // 清空所有配置和代码
