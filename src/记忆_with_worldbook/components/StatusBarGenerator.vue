@@ -1101,7 +1101,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { computed, onMounted, ref, watch } from 'vue';
-import { filterApiParams, normalizeApiEndpoint, useSettingsStore } from '../settings';
+import { detectApiProvider, filterApiParams, normalizeApiEndpoint, useSettingsStore } from '../settings';
 import { useTaskStore } from '../taskStore';
 import { copyToClipboard, getScriptIdSafe } from '../utils';
 import AIModifyDialog from './AIModifyDialog.vue';
@@ -1627,7 +1627,7 @@ ${xmlInput.value.trim()}
           content: userPrompt,
         },
       ],
-      max_tokens: 2000,
+      max_tokens: getSafeMaxTokens(2000),
       temperature: 0.7,
     };
 
@@ -1789,7 +1789,7 @@ ${modifyInstruction}
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      max_tokens: 2000,
+      max_tokens: getSafeMaxTokens(2000),
       temperature: 0.7,
     };
 
@@ -1969,7 +1969,7 @@ ${aiFieldDescription.value.trim()}
           content: userPrompt,
         },
       ],
-      max_tokens: 3000,
+      max_tokens: getSafeMaxTokens(3000),
       temperature: 0.8,
     };
 
@@ -2145,7 +2145,7 @@ ${modifyInstruction}
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      max_tokens: 2000,
+      max_tokens: getSafeMaxTokens(2000),
       temperature: 0.7,
     };
 
@@ -2570,7 +2570,7 @@ ${currentFiles}
         { role: 'user', content: userPrompt },
       ],
       temperature: settings.value.temperature || 0.7,
-      max_tokens: settings.value.max_tokens || 65500,
+      max_tokens: getSafeMaxTokens(settings.value.max_tokens || 65500),
     };
 
     // 根据 API 提供商过滤参数（避免 Gemini 等 API 的 400 错误）
@@ -2751,7 +2751,7 @@ FILE_END
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 65500,
+      max_tokens: getSafeMaxTokens(65500),
     };
 
     // 根据 API 提供商过滤参数（避免 Gemini 等 API 的 400 错误）
@@ -3018,6 +3018,14 @@ watch(
   },
   { deep: true },
 );
+
+function getSafeMaxTokens(requested: number): number {
+  const provider = detectApiProvider(settings.value.api_endpoint);
+  if (provider === 'gemini') {
+    return Math.min(requested, 4000);
+  }
+  return requested;
+}
 </script>
 
 <style scoped>

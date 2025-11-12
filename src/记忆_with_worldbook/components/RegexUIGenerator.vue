@@ -696,6 +696,24 @@ ${modifyInstruction.value}
     taskStore.addTaskDetail(taskId, `修改建议: ${modifyInstruction.value}`);
 
     const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
+    const requestPayload = {
+      model: settings.value.model,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: settings.value.temperature || 0.7,
+      max_tokens: settings.value.max_tokens || 16000,
+      top_p: settings.value.top_p,
+      presence_penalty: settings.value.presence_penalty,
+      frequency_penalty: settings.value.frequency_penalty,
+    };
+
+    const { filterApiParams } = await import('../settings');
+    const filteredPayload = filterApiParams(requestPayload, settings.value.api_endpoint);
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -703,21 +721,7 @@ ${modifyInstruction.value}
         'Content-Type': 'application/json',
         Authorization: `Bearer ${settings.value.api_key}`,
       },
-      body: JSON.stringify({
-        model: settings.value.model,
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: settings.value.temperature || 0.7,
-        max_tokens: settings.value.max_tokens || 16000,
-        top_p: settings.value.top_p,
-        presence_penalty: settings.value.presence_penalty,
-        frequency_penalty: settings.value.frequency_penalty,
-      }),
+      body: JSON.stringify(filteredPayload),
     });
 
     taskStore.updateTaskProgress(taskId, 40, '等待AI响应...');
