@@ -4403,7 +4403,8 @@ ${bugFile.value}
     });
 
     if (!response.ok) {
-      await handleApiError(response);
+      const errorText = await response.text();
+      throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
     }
     taskStore.updateTaskProgress(taskId, 60, '正在接收 AI 修复方案...');
     await new Promise(r => setTimeout(r, 100));

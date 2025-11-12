@@ -200,6 +200,63 @@
             width: 100%;
             padding: 8px;
             margin-top: 10px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+          "
+          @click="showLayoutEditor = !showLayoutEditor"
+        >
+          <i class="fa-solid fa-palette" style="margin-right: 6px"></i>
+          {{ showLayoutEditor ? '隐藏' : '显示' }}布局编辑器
+        </button>
+
+        <button
+          style="
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+          "
+          @click="showVariableManager = !showVariableManager"
+        >
+          <i class="fa-solid fa-code" style="margin-right: 6px"></i>
+          {{ showVariableManager ? '隐藏' : '显示' }}变量管理
+        </button>
+
+        <button
+          style="
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+          "
+          @click="exportWorldbookEntry"
+        >
+          <i class="fa-solid fa-book" style="margin-right: 6px"></i>
+          导出世界书条目
+        </button>
+
+        <button
+          style="
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
             background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
             border: none;
             border-radius: 6px;
@@ -213,6 +270,225 @@
           <i class="fa-solid fa-trash-alt" style="margin-right: 6px"></i>
           清空所有数据
         </button>
+
+        <!-- 变量管理器 -->
+        <div
+          v-if="showVariableManager"
+          style="
+            margin-top: 15px;
+            padding: 15px;
+            background: #1e1e1e;
+            border-radius: 8px;
+            border: 1px solid #3a3a3a;
+            max-height: 400px;
+            overflow-y: auto;
+          "
+        >
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px">
+            <h5 style="color: #fff; font-size: 13px">📝 变量管理</h5>
+            <button
+              style="
+                padding: 4px 8px;
+                background: #4a9eff;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                font-size: 10px;
+                cursor: pointer;
+              "
+              @click="addVariable"
+            >
+              + 添加变量
+            </button>
+          </div>
+
+          <div
+            v-for="(variable, index) in variables"
+            :key="index"
+            style="
+              margin-bottom: 10px;
+              padding: 10px;
+              background: #2a2a2a;
+              border-radius: 6px;
+              border: 1px solid #3a3a3a;
+            "
+          >
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+              <input
+                v-model="variable.name"
+                placeholder="变量名 (如: hp)"
+                style="
+                  flex: 1;
+                  padding: 4px 8px;
+                  background: #1e1e1e;
+                  border: 1px solid #3a3a3a;
+                  border-radius: 4px;
+                  color: #e0e0e0;
+                  font-size: 11px;
+                  margin-right: 8px;
+                "
+              />
+              <button
+                style="
+                  padding: 4px 8px;
+                  background: #ef4444;
+                  border: none;
+                  border-radius: 4px;
+                  color: white;
+                  font-size: 10px;
+                  cursor: pointer;
+                "
+                @click="deleteVariable(index)"
+              >
+                删除
+              </button>
+            </div>
+            <input
+              v-model="variable.defaultValue"
+              placeholder="默认值 (如: 100)"
+              style="
+                width: 100%;
+                padding: 4px 8px;
+                background: #1e1e1e;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #e0e0e0;
+                font-size: 11px;
+                margin-bottom: 6px;
+              "
+            />
+            <input
+              v-model="variable.description"
+              placeholder="描述 (如: 角色生命值)"
+              style="
+                width: 100%;
+                padding: 4px 8px;
+                background: #1e1e1e;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #e0e0e0;
+                font-size: 11px;
+              "
+            />
+          </div>
+
+          <div v-if="variables.length === 0" style="text-align: center; color: #666; padding: 20px; font-size: 12px">
+            暂无变量，点击上方按钮添加
+          </div>
+        </div>
+
+        <!-- 布局编辑器 -->
+        <div
+          v-if="showLayoutEditor"
+          style="margin-top: 15px; padding: 15px; background: #1e1e1e; border-radius: 8px; border: 1px solid #3a3a3a"
+        >
+          <h5 style="color: #fff; margin-bottom: 10px; font-size: 13px">🎨 布局配置</h5>
+
+          <div style="margin-bottom: 10px">
+            <label style="display: block; margin-bottom: 5px; color: #c0c0c0; font-size: 11px">翻页按钮位置</label>
+            <select
+              v-model="layoutConfig.tabPosition"
+              style="
+                width: 100%;
+                padding: 6px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #e0e0e0;
+                font-size: 11px;
+              "
+            >
+              <option value="top">顶部</option>
+              <option value="bottom">底部</option>
+              <option value="left">左侧</option>
+              <option value="right">右侧</option>
+              <option value="custom">自定义HTML</option>
+            </select>
+          </div>
+
+          <div style="margin-bottom: 10px">
+            <label style="display: block; margin-bottom: 5px; color: #c0c0c0; font-size: 11px">按钮样式</label>
+            <select
+              v-model="layoutConfig.tabStyle"
+              style="
+                width: 100%;
+                padding: 6px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #e0e0e0;
+                font-size: 11px;
+              "
+            >
+              <option value="default">默认</option>
+              <option value="pills">药丸</option>
+              <option value="minimal">极简</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+
+          <div v-if="layoutConfig.tabPosition === 'custom'" style="margin-bottom: 10px">
+            <label style="display: block; margin-bottom: 5px; color: #c0c0c0; font-size: 11px">自定义翻页HTML</label>
+            <textarea
+              v-model="layoutConfig.customTabHTML"
+              placeholder="使用 {{pages}} 和 {{switchPage}} 变量"
+              style="
+                width: 100%;
+                min-height: 80px;
+                padding: 8px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #e0e0e0;
+                font-size: 10px;
+                font-family: 'Courier New', monospace;
+                resize: vertical;
+              "
+            ></textarea>
+          </div>
+
+          <div style="margin-bottom: 10px">
+            <label style="display: block; margin-bottom: 5px; color: #c0c0c0; font-size: 11px">容器自定义样式</label>
+            <textarea
+              v-model="layoutConfig.containerStyle"
+              placeholder="例如: background: linear-gradient(...); border-radius: 20px;"
+              style="
+                width: 100%;
+                min-height: 60px;
+                padding: 8px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #e0e0e0;
+                font-size: 10px;
+                font-family: 'Courier New', monospace;
+                resize: vertical;
+              "
+            ></textarea>
+          </div>
+
+          <div>
+            <label style="display: block; margin-bottom: 5px; color: #c0c0c0; font-size: 11px"
+              >翻页区域自定义样式</label
+            >
+            <textarea
+              v-model="layoutConfig.tabContainerStyle"
+              placeholder="例如: position: absolute; right: 0; top: 50%;"
+              style="
+                width: 100%;
+                min-height: 60px;
+                padding: 8px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #e0e0e0;
+                font-size: 10px;
+                font-family: 'Courier New', monospace;
+                resize: vertical;
+              "
+            ></textarea>
+          </div>
+        </div>
       </div>
 
       <!-- 中间：页面编辑器 -->
@@ -349,6 +625,22 @@ interface Page {
   customCSS?: string;
 }
 
+// 布局配置
+interface LayoutConfig {
+  tabPosition: 'top' | 'bottom' | 'left' | 'right' | 'custom';
+  tabStyle: 'default' | 'pills' | 'minimal' | 'custom';
+  containerStyle: string;
+  tabContainerStyle: string;
+  customTabHTML?: string;
+}
+
+// 变量定义
+interface Variable {
+  name: string;
+  defaultValue: string;
+  description: string;
+}
+
 // localStorage 键名
 const STORAGE_KEY = 'regex_ui_generator_data';
 
@@ -361,12 +653,23 @@ const loadFromStorage = () => {
       triggerRegex.value = data.triggerRegex || '<-STATUS->';
       pages.value = data.pages || [];
       selectedPageIndex.value = data.selectedPageIndex ?? null;
+      layoutConfig.value = data.layoutConfig || getDefaultLayout();
+      variables.value = data.variables || [];
       console.log('✅ 已从本地存储加载数据');
     }
   } catch (error) {
     console.error('❌ 加载本地数据失败:', error);
   }
 };
+
+// 默认布局配置
+const getDefaultLayout = (): LayoutConfig => ({
+  tabPosition: 'top',
+  tabStyle: 'default',
+  containerStyle: '',
+  tabContainerStyle: '',
+  customTabHTML: '',
+});
 
 // 保存到 localStorage
 const saveToStorage = () => {
@@ -375,6 +678,8 @@ const saveToStorage = () => {
       triggerRegex: triggerRegex.value,
       pages: pages.value,
       selectedPageIndex: selectedPageIndex.value,
+      layoutConfig: layoutConfig.value,
+      variables: variables.value,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     console.log('💾 数据已保存到本地存储');
@@ -388,6 +693,10 @@ const triggerRegex = ref('<-STATUS->');
 const pages = ref<Page[]>([]);
 const selectedPageIndex = ref<number | null>(null);
 const previewFrame = ref<HTMLIFrameElement | null>(null);
+const layoutConfig = ref<LayoutConfig>(getDefaultLayout());
+const showLayoutEditor = ref(false);
+const variables = ref<Variable[]>([]);
+const showVariableManager = ref(false);
 
 // 组件挂载时加载数据
 onMounted(() => {
@@ -396,7 +705,7 @@ onMounted(() => {
 
 // 监听数据变化，自动保存
 watch(
-  [triggerRegex, pages, selectedPageIndex],
+  [triggerRegex, pages, selectedPageIndex, layoutConfig, variables],
   () => {
     saveToStorage();
   },
@@ -446,6 +755,153 @@ const previewHTML = computed(() => {
   }
 
   const customCSS = pages.value.map(p => p.customCSS || '').join('\n');
+  const config = layoutConfig.value;
+
+  // 生成翻页按钮HTML
+  const generateTabsHTML = () => {
+    if (config.tabPosition === 'custom' && config.customTabHTML) {
+      return config.customTabHTML;
+    }
+
+    const tabsHTML = pages.value
+      .map(
+        (page, index) => `
+      <button class="tab ${index === 0 ? 'active' : ''}" onclick="switchPage(${index})">
+        ${page.name}
+      </button>
+    `,
+      )
+      .join('');
+
+    return `<div class="tabs" style="${config.tabContainerStyle}">${tabsHTML}</div>`;
+  };
+
+  // 根据位置生成不同的布局
+  const getLayoutHTML = () => {
+    const tabsHTML = generateTabsHTML();
+    const contentHTML = pages.value
+      .map(
+        (page, index) => `
+      <div class="page ${index === 0 ? 'active' : ''}" id="page-${index}">
+        ${page.content}
+      </div>
+    `,
+      )
+      .join('');
+
+    switch (config.tabPosition) {
+      case 'top':
+        return `${tabsHTML}<div class="page-content">${contentHTML}</div>`;
+      case 'bottom':
+        return `<div class="page-content">${contentHTML}</div>${tabsHTML}`;
+      case 'left':
+        return `<div style="display: flex;">${tabsHTML}<div class="page-content" style="flex: 1;">${contentHTML}</div></div>`;
+      case 'right':
+        return `<div style="display: flex;"><div class="page-content" style="flex: 1;">${contentHTML}</div>${tabsHTML}</div>`;
+      case 'custom':
+        return `${tabsHTML}<div class="page-content">${contentHTML}</div>`;
+      default:
+        return `${tabsHTML}<div class="page-content">${contentHTML}</div>`;
+    }
+  };
+
+  // 生成按钮样式
+  const getTabStyles = () => {
+    const baseStyles = `
+      .tabs {
+        display: flex;
+        gap: 8px;
+        background: #f8f9fa;
+        padding: 12px;
+        flex-wrap: wrap;
+      }
+    `;
+
+    switch (config.tabStyle) {
+      case 'pills':
+        return (
+          baseStyles +
+          `
+        .tab {
+          padding: 8px 16px;
+          cursor: pointer;
+          background: #e9ecef;
+          border: none;
+          border-radius: 20px;
+          font-size: 13px;
+          font-weight: 500;
+          color: #495057;
+          transition: all 0.3s;
+        }
+        .tab:hover {
+          background: #dee2e6;
+          transform: scale(1.05);
+        }
+        .tab.active {
+          background: linear-gradient(135deg, #4a9eff 0%, #5ab0ff 100%);
+          color: white;
+          box-shadow: 0 2px 8px rgba(74, 158, 255, 0.3);
+        }
+      `
+        );
+      case 'minimal':
+        return (
+          baseStyles +
+          `
+        .tab {
+          padding: 8px 16px;
+          cursor: pointer;
+          background: transparent;
+          border: none;
+          border-bottom: 2px solid transparent;
+          font-size: 14px;
+          font-weight: 500;
+          color: #6c757d;
+          transition: all 0.3s;
+        }
+        .tab:hover {
+          color: #4a9eff;
+          border-bottom-color: #4a9eff;
+        }
+        .tab.active {
+          color: #4a9eff;
+          border-bottom-color: #4a9eff;
+          font-weight: 600;
+        }
+      `
+        );
+      default:
+        return (
+          baseStyles +
+          `
+        .tab {
+          padding: 10px 20px;
+          cursor: pointer;
+          background: white;
+          border: 2px solid #e9ecef;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          color: #6c757d;
+          transition: all 0.3s;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .tab:hover {
+          background: #f8f9ff;
+          border-color: #4a9eff;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(74, 158, 255, 0.2);
+        }
+        .tab.active {
+          background: linear-gradient(135deg, #4a9eff 0%, #5ab0ff 100%);
+          color: white;
+          border-color: #4a9eff;
+          box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
+        }
+      `
+        );
+    }
+  };
 
   return (
     `
@@ -471,40 +927,9 @@ const previewHTML = computed(() => {
           border-radius: 12px;
           box-shadow: 0 4px 12px rgba(0,0,0,0.1);
           overflow: hidden;
+          ${config.containerStyle}
         }
-        .tabs {
-          display: flex;
-          gap: 8px;
-          background: #f8f9fa;
-          padding: 12px;
-          border-radius: 12px 12px 0 0;
-          flex-wrap: wrap;
-        }
-        .tab {
-          padding: 10px 20px;
-          text-align: center;
-          cursor: pointer;
-          background: white;
-          border: 2px solid #e9ecef;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          color: #6c757d;
-          transition: all 0.3s;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .tab:hover {
-          background: #f8f9ff;
-          border-color: #4a9eff;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 8px rgba(74, 158, 255, 0.2);
-        }
-        .tab.active {
-          background: linear-gradient(135deg, #4a9eff 0%, #5ab0ff 100%);
-          color: white;
-          border-color: #4a9eff;
-          box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
-        }
+        ${getTabStyles()}
         .page-content {
           padding: 20px;
           min-height: 200px;
@@ -525,28 +950,7 @@ const previewHTML = computed(() => {
     </head>
     <body>
       <div class="statusbar-container">
-        <div class="tabs">
-          ${pages.value
-            .map(
-              (page, index) => `
-            <button class="tab ${index === 0 ? 'active' : ''}" onclick="switchPage(${index})">
-              ${page.name}
-            </button>
-          `,
-            )
-            .join('')}
-        </div>
-        <div class="page-content">
-          ${pages.value
-            .map(
-              (page, index) => `
-            <div class="page ${index === 0 ? 'active' : ''}" id="page-${index}">
-              ${page.content}
-            </div>
-          `,
-            )
-            .join('')}
-        </div>
+        ${getLayoutHTML()}
       </div>
       <script type="text/javascript">
         function switchPage(index) {
@@ -776,9 +1180,136 @@ const clearAllData = () => {
     triggerRegex.value = '<-STATUS->';
     pages.value = [];
     selectedPageIndex.value = null;
+    variables.value = [];
     localStorage.removeItem(STORAGE_KEY);
     (window as any).toastr?.success('✅ 所有数据已清空');
     console.log('🗑️ 所有数据已清空');
   }
+};
+
+// 添加变量
+const addVariable = () => {
+  variables.value.push({
+    name: '',
+    defaultValue: '',
+    description: '',
+  });
+};
+
+// 删除变量
+const deleteVariable = (index: number) => {
+  variables.value.splice(index, 1);
+};
+
+// 导出世界书条目
+const exportWorldbookEntry = () => {
+  if (pages.value.length === 0) {
+    alert('请先添加至少一个页面');
+    return;
+  }
+
+  // 提取所有使用的变量
+  const usedVariables = new Set<string>();
+  pages.value.forEach(page => {
+    const matches = page.content.match(/\{\{(\w+)\}\}/g);
+    if (matches) {
+      matches.forEach(match => {
+        const varName = match.replace(/\{\{|\}\}/g, '');
+        usedVariables.add(varName);
+      });
+    }
+  });
+
+  // 生成世界书条目内容
+  const entryContent = `# 状态栏变量说明
+
+这是一个翻页状态栏系统，使用以下变量：
+
+${Array.from(usedVariables)
+  .map(varName => {
+    const variable = variables.value.find(v => v.name === varName);
+    return `## {{${varName}}}
+- 默认值: ${variable?.defaultValue || '未设置'}
+- 说明: ${variable?.description || '无描述'}`;
+  })
+  .join('\n\n')}
+
+---
+
+## 使用方法
+
+1. 在聊天中输入 \`${triggerRegex.value}\` 触发状态栏显示
+2. 在世界书中设置变量的实际值，例如：
+   \`\`\`
+   {{char}}的生命值是{{hp}}
+   {{char}}的精力是{{energy}}
+   \`\`\`
+3. 状态栏会自动替换变量并显示
+
+## 变量更新示例
+
+你可以在角色卡或世界书中这样更新变量：
+
+\`\`\`
+[当前状态]
+{{hp}}=85
+{{energy}}=60
+{{favorability}}=75
+\`\`\`
+
+或者让AI在回复中更新：
+
+\`\`\`
+*{{char}}受到攻击，生命值降低*
+{{hp}}=70
+\`\`\`
+`;
+
+  // 生成世界书条目JSON
+  const worldbookEntry = {
+    uid: Date.now(),
+    key: [triggerRegex.value],
+    keysecondary: [],
+    comment: '翻页状态栏 - 变量定义',
+    content: entryContent,
+    constant: true,
+    selective: false,
+    selectiveLogic: 0,
+    addMemo: true,
+    order: 100,
+    position: 0,
+    disable: false,
+    excludeRecursion: false,
+    preventRecursion: false,
+    delayUntilRecursion: false,
+    probability: 100,
+    useProbability: false,
+    depth: 4,
+    group: '',
+    groupOverride: false,
+    groupWeight: 100,
+    scanDepth: null,
+    caseSensitive: false,
+    matchWholeWords: false,
+    useGroupScoring: false,
+    automationId: '',
+    role: 0,
+    vectorized: false,
+    sticky: 0,
+    cooldown: 0,
+    delay: 0,
+  };
+
+  // 下载JSON文件
+  const jsonStr = JSON.stringify([worldbookEntry], null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'statusbar-worldbook-entry.json';
+  a.click();
+  URL.revokeObjectURL(url);
+
+  (window as any).toastr?.success('✅ 世界书条目已导出！\n\n请在酒馆中导入此文件到世界书');
 };
 </script>

@@ -2865,7 +2865,8 @@ const handleAntiClicheProcess = async () => {
       });
 
       if (!response.ok) {
-        await handleApiError(response);
+        const errorText = await response.text();
+        throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
@@ -2951,7 +2952,8 @@ const handleModifyAntiCliche = async () => {
       });
 
       if (!response.ok) {
-        await handleApiError(response);
+        const errorText = await response.text();
+        throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
@@ -3154,7 +3156,8 @@ const handleGenerateCharacterCard = async () => {
       });
 
       if (!response.ok) {
-        await handleApiError(response);
+        const errorText = await response.text();
+        throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
@@ -3278,7 +3281,8 @@ ${modifyRequest.value}`,
       });
 
       if (!response.ok) {
-        await handleApiError(response);
+        const errorText = await response.text();
+        throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
@@ -3362,7 +3366,8 @@ const generateWithStreaming = async (
     });
 
     if (!response.ok) {
-      await handleApiError(response);
+      const errorText = await response.text();
+        throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();
@@ -3693,7 +3698,8 @@ const handleGenerateWorldbookEntry = async () => {
       });
 
       if (!response.ok) {
-        await handleApiError(response);
+        const errorText = await response.text();
+        throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
@@ -3859,7 +3865,8 @@ ${worldbookModifyRequest.value}`,
       });
 
       if (!response.ok) {
-        await handleApiError(response);
+        const errorText = await response.text();
+        throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
