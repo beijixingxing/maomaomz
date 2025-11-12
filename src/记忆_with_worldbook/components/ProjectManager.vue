@@ -1560,7 +1560,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
-import { normalizeApiEndpoint, useSettingsStore, filterApiParams, detectApiProvider } from '../settings';
+import { detectApiProvider, filterApiParams, normalizeApiEndpoint, useSettingsStore } from '../settings';
 import { useTaskStore } from '../taskStore';
 import { getChatIdSafe, getScriptIdSafe } from '../utils';
 import ProgressDialog from './ProgressDialog.vue';
@@ -2377,8 +2377,11 @@ h1 {
   color: #667eea;
   margin-bottom: 20px;
 }
-```
-</script>
+\`\`\`
+</style>
+
+</${'script'}>
+
 <style scoped>
 .project-manager {
   display: flex;
@@ -3900,9 +3903,11 @@ ${bugFile.value}
 `
     : ''
 }
-```
-</script>
- 
+\`\`\`
+</style>
+
+</${'script'}>
+
 <style scoped>
 .project-manager {
   display: flex;
@@ -5160,8 +5165,10 @@ function applyRegexFilters(text: string): string {
   return text;
 }
 \`\`\`
-```
-</script>
+\`\`\`
+
+</${'script'}>
+
 **使用方式（完整示例）：**
 \`\`\`typescript
 // 全局变量

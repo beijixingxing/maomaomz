@@ -103,7 +103,13 @@ export function filterApiParams(params: any, endpoint: string): any {
       filtered.temperature = params.temperature;
     }
     if (params.max_tokens !== undefined) {
-      filtered.max_tokens = params.max_tokens;
+      const safeMax = Math.min(params.max_tokens, 4000);
+      filtered.max_output_tokens = safeMax;
+    }
+
+    // 清理流式参数，Gemini 当前不支持 OpenAI 风格的 stream
+    if (filtered.stream !== undefined) {
+      delete filtered.stream;
     }
 
     console.log('🔍 检测到 Gemini API，已过滤不支持的参数');

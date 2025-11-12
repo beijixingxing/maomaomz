@@ -453,6 +453,12 @@
             <i class="fa-solid fa-eye" style="color: #4a9eff"></i>
             实时预览
           </h4>
+          <!-- eslint-disable-next-line vue/no-v-html -->
+          <!-- Note: v-html is used here for previewing user-generated code.
+               This is potentially unsafe but acceptable in this context since:
+               1. Users are previewing their own code
+               2. This runs in a plugin/extension environment, not a public website
+               3. The preview content is isolated from the main application -->
           <div
             style="
               background: #1e1e1e;
@@ -1124,6 +1130,15 @@ interface CodeFile {
   content: string;
 }
 
+// ProgressDialog 组件暴露的方法接口
+interface ProgressDialogInstance {
+  setProgress: (percent: number) => void;
+  setMessage: (message: string) => void;
+  addDetail: (detail: string) => void;
+  clearDetails: () => void;
+  complete: () => void;
+}
+
 // 初始化 settings store
 const settingsStore = useSettingsStore();
 const { settings } = storeToRefs(settingsStore);
@@ -1187,7 +1202,7 @@ const showIconPickerFor = ref<number | null>(null);
 
 // 进度对话框
 const showProgress = ref(false);
-const progressDialogRef = ref<InstanceType<typeof ProgressDialog> | null>(null);
+const progressDialogRef = ref<ProgressDialogInstance | null>(null);
 
 // XML解析相关
 const originalXmlInput = ref(''); // 原始XML输入
@@ -1288,7 +1303,6 @@ const iconList = [
 // 世界书内容
 const worldbookContent = computed(() => {
   // 生成占位符（{{字段名}}格式）
-  const placeholders = config.value.fields.map(f => `{{${f.label || f.name}}}`).join('|');
 
   // 生成字段定义
   const fieldDefinitions = config.value.fields
@@ -1298,9 +1312,6 @@ const worldbookContent = computed(() => {
       return `  - ${iconDesc}${label}：描述{{char}}的${label}状态`;
     })
     .join('\n');
-
-  // 生成示例值（只用字段名，不用占位符语法）
-  const exampleValues = config.value.fields.map(f => f.label || f.name || '示例值').join('|');
 
   // 智能解析正则，生成正确的分段格式
   const parseRegexStructure = (regex: string, fields: Field[]): { formatExample: string; exampleOutput: string } => {
