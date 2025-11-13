@@ -1516,11 +1516,14 @@ const exportRegex = () => {
   // 生成完整的HTML片段（包含翻页按钮、样式和脚本）
   const customCSS = pages.value.map(p => p.customCSS || '').join('\n');
 
+  // 生成唯一ID
+  const uuid = `regex-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
   // 生成翻页按钮HTML
   const tabsHTML = pages.value
     .map(
       (page, index) => `
-    <button class="statusbar-tab ${index === 0 ? 'active' : ''}" onclick="switchStatusbarPage(${index})" style="padding: 8px 16px; cursor: pointer; background: ${index === 0 ? 'linear-gradient(135deg, #4a9eff 0%, #5ab0ff 100%)' : 'white'}; border: 2px solid ${index === 0 ? '#4a9eff' : '#e9ecef'}; border-radius: 8px; font-size: 14px; font-weight: 500; color: ${index === 0 ? 'white' : '#6c757d'}; transition: all 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin: 4px;">
+    <button class="statusbar-tab ${index === 0 ? 'active' : ''}" data-page-index="${index}" style="padding: 8px 16px; cursor: pointer; background: ${index === 0 ? 'linear-gradient(135deg, #4a9eff 0%, #5ab0ff 100%)' : 'white'}; border: 2px solid ${index === 0 ? '#4a9eff' : '#e9ecef'}; border-radius: 8px; font-size: 14px; font-weight: 500; color: ${index === 0 ? 'white' : '#6c757d'}; transition: all 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin: 4px;">
       ${page.name}
     </button>
   `,
@@ -1538,9 +1541,12 @@ const exportRegex = () => {
     )
     .join('');
 
-  // 完整的HTML片段
+  // 完整的HTML文档（参考大佬的格式，用 ```html 包裹）
   const scriptTag = 'script';
-  const htmlFragment = `<style>
+  const htmlFragment = `\`\`\`html
+<html>
+<head>
+  <style>
   .statusbar-container {
     max-width: 800px;
     margin: 20px auto;
@@ -1573,18 +1579,19 @@ const exportRegex = () => {
     to { opacity: 1; transform: translateY(0); }
   }
   ${customCSS}
-</style>
-
-<div class="statusbar-container">
+  </style>
+</head>
+<body>
+  <div class="statusbar-container">
   <div class="statusbar-tabs">
     ${tabsHTML}
   </div>
   <div class="statusbar-page-content">
     ${pagesHTML}
   </div>
-</div>
+  </div>
 
-<${scriptTag}>
+  <${scriptTag}>
   function switchStatusbarPage(index) {
     document.querySelectorAll('.statusbar-tab').forEach((tab, i) => {
       if (i === index) {
@@ -1609,21 +1616,30 @@ const exportRegex = () => {
       }
     });
   }
-</${scriptTag}>
-`;
 
-  // 生成唯一ID
-  const uuid = `regex-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  // 使用事件委托监听按钮点击
+  document.addEventListener('click', function(e) {
+    const button = e.target.closest('.statusbar-tab');
+    if (button) {
+      const index = parseInt(button.getAttribute('data-page-index'));
+      switchStatusbarPage(index);
+    }
+  });
+  </${scriptTag}>
+</body>
+</html>
+\`\`\``;
 
-  // 构建符合SillyTavern格式的正则对象
+  // 更新正则配置，添加 markdownOnly
   const regexData = {
     id: uuid,
     scriptName: '翻页状态栏',
     findRegex: triggerRegex.value,
     replaceString: htmlFragment,
     trimStrings: [],
-    placement: [2], // 2 = AI回复前
+    placement: [1, 2], // 1 = AI回复后, 2 = AI回复前
     disabled: false,
+    markdownOnly: true, // 重要：启用markdown渲染
     runOnEdit: true,
   };
 
