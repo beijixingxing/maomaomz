@@ -1529,14 +1529,15 @@ async function generateStyleWithAI(styleDescription: string) {
 7. 确保响应式设计，在不同屏幕尺寸下都好看
 8. 直接输出完整的HTML代码，不要添加任何解释文字或markdown标记
 
-【重要】样式要求：
-- body 必须使用 "min-height: 100vh; height: auto;" 而不是固定高度
+【重要】响应式布局要求：
+- body 必须使用 "min-height: 100vh; height: auto; width: 100%;" 而不是固定高度和宽度
 - body 必须使用 "display: flex; align-items: center; justify-content: center;" 来居中内容
-- .container 不要设置固定高度，使用 "height: auto;" 让内容自适应
-- .scene-card 卡片必须使用 "min-height" 而不是固定 "height"，让卡片自适应内容
-- .card-desc 描述文字要完整显示，可以使用 line-clamp 限制行数但要显示省略号
-- 不要在卡片上使用 "overflow: hidden" 除非配合 line-clamp 使用
-- 确保所有内容都能完整显示，不会被截断
+- .container 必须使用 "width: 90%; max-width: 1200px; height: auto; min-height: auto;" 让容器自适应
+- .scene-grid 必须使用 "display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;" 实现响应式网格
+- .scene-card 卡片必须使用 "min-height: 200px; height: auto;" 让卡片自适应内容
+- .card-desc 描述文字要完整显示，使用 "display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;" 限制3行并显示省略号
+- 所有固定宽度改用百分比或max-width，所有固定高度改用min-height或auto
+- 确保在不同屏幕尺寸（手机、平板、桌面）下都能正常显示和交互
 
 【重要】HTML结构必须严格遵守：
 - 必须有一个 class="scene-grid" 的div作为卡片容器

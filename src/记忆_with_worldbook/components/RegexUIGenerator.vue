@@ -1360,10 +1360,19 @@ const exportRegex = () => {
     return;
   }
 
+  // 生成唯一ID
+  const uuid = `regex-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+  // 构建符合SillyTavern格式的正则对象
   const regexData = {
-    find: triggerRegex.value,
-    replace: previewHTML.value,
-    trimStrings: true,
+    id: uuid,
+    scriptName: '翻页状态栏',
+    findRegex: triggerRegex.value,
+    replaceString: previewHTML.value,
+    trimStrings: [],
+    placement: [2], // 2 = AI回复前
+    disabled: false,
+    runOnEdit: true,
   };
 
   const jsonStr = JSON.stringify(regexData, null, 2);
@@ -1374,6 +1383,8 @@ const exportRegex = () => {
   a.download = 'statusbar-regex.json';
   a.click();
   URL.revokeObjectURL(url);
+
+  (window as any).toastr?.success('✅ 正则已导出');
 };
 
 const loadTemplate = () => {
