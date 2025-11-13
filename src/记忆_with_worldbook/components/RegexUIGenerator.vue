@@ -939,40 +939,11 @@ const selectedPage = computed(() => {
   return null;
 });
 
-// 替换内容中的变量为默认值（用于预览）
+// 预览时不替换变量，直接显示变量名
 const replaceVariablesWithTestData = (content: string): string => {
-  let result = content;
-
-  // 遍历所有变量，自动使用默认值或生成示例值
-  variables.value.forEach(variable => {
-    const varName = variable.name;
-    let displayValue = variable.defaultValue;
-
-    // 如果没有默认值，根据类型生成示例值
-    if (!displayValue) {
-      switch (variable.type) {
-        case 'number':
-          displayValue = '100';
-          break;
-        case 'progress':
-          displayValue = '75';
-          break;
-        case 'icon':
-          displayValue = '❤️';
-          break;
-        case 'image':
-          displayValue = 'https://via.placeholder.com/150';
-          break;
-        default:
-          displayValue = `示例${varName}`;
-      }
-    }
-
-    const regex = new RegExp(`\\{\\{${varName}\\}\\}`, 'g');
-    result = result.replace(regex, displayValue);
-  });
-
-  return result;
+  // 直接返回原内容，不做任何替换
+  // 这样预览中会显示 {{char}}、{{age}} 等变量名
+  return content;
 };
 
 // 生成预览 HTML
