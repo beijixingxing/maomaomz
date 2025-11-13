@@ -1138,47 +1138,59 @@ const generateWithAI = async () => {
   const cssExample = '.status-container { } .page { display: none; } .page.active { display: block; }';
   const jsExample = '(function() { /* 翻页逻辑 */ })();';
 
-  const systemPrompt = `你是一个富有创意的前端设计师，专门为 SillyTavern 翻页状态栏生成各种风格的代码。
-
-🎨 【核心理念】完全自由！不受任何限制！
-- 可以是任意形状：圆形、椭圆、六边形、不规则形状、卡片、面板
-- 可以是任意风格：卡片、可爱、科技、游戏、简约、复古
-- 可以是任意布局：上下、左右、环形、网格、自由排列
-- 翻页按钮可以是任意样式：圆形、方形、标签、图标、侧边栏
-
-🎯 任务：
-根据用户描述，生成可翻页的状态栏代码（三个独立文件）。
-
-⚠️ 【格式要求 - 必须严格遵守】
-1. 必须输出 3 个文件：index.html, style.css, script.js
-2. 每个文件必须用 FILE_START 和 FILE_END 包裹
-3. 不要添加任何说明文字、代码块标记或其他内容
-4. 直接从 FILE_START 开始输出
-
-✅ 核心规则：
-1. HTML 必须以 details 标签包裹，包含翻页按钮和页面内容
-2. FILE_START 和 FILE_END 之间直接写代码，禁止添加代码块标记
-3. 使用 $1, $2, $3 等占位符表示字段值
-4. CSS 样式要富有创意，根据用户需求设计独特效果
-5. JS 使用立即执行函数，实现翻页交互
-6. 生成2-4个页面，每个页面显示不同的字段
-
-📋 输出格式：
-FILE_START: index.html
-${htmlExample}
-FILE_END
-
-FILE_START: style.css
-${cssExample}
-FILE_END
-
-FILE_START: script.js
-${jsExample}
-FILE_END
+  const systemPrompt = `你必须生成3个完整的文件。每个文件用 FILE_START 和 FILE_END 包裹。
 
 用户需求：${userPrompt}
 
-现在直接输出三个文件的内容：`;
+严格按照以下格式输出，不要有任何其他内容：
+
+FILE_START: index.html
+<details>
+<summary>状态栏</summary>
+<div class="status-container">
+  <div class="page-tabs">
+    <button class="page-tab active" data-page="0">页面1</button>
+    <button class="page-tab" data-page="1">页面2</button>
+  </div>
+  <div class="page-content">
+    <div class="page active" data-page-id="0">
+      <div>字段1: $1</div>
+      <div>字段2: $2</div>
+    </div>
+    <div class="page" data-page-id="1">
+      <div>字段3: $3</div>
+      <div>字段4: $4</div>
+    </div>
+  </div>
+</div>
+</details>
+FILE_END
+
+FILE_START: style.css
+.status-container { display: flex; }
+.page-tabs { display: flex; flex-direction: column; }
+.page-tab { padding: 10px; cursor: pointer; }
+.page-tab.active { background: #4a9eff; }
+.page-content { flex: 1; }
+.page { display: none; }
+.page.active { display: block; }
+FILE_END
+
+FILE_START: script.js
+(function() {
+  document.querySelectorAll('.page-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      const pageIndex = this.getAttribute('data-page');
+      document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelector('.page[data-page-id="' + pageIndex + '"]').classList.add('active');
+    });
+  });
+})();
+FILE_END
+
+现在根据用户需求生成3个文件，必须包含完整的 HTML、CSS 和 JS：`;
 
   try {
     taskStore.updateTaskProgress(taskId, 10, '正在准备...');
@@ -1192,6 +1204,14 @@ FILE_END
       alert('请先在"设置"标签页配置 API 端点和密钥');
       isGenerating.value = false;
       return;
+    }
+
+    // 检查 max_tokens 是否足够
+    const minRequiredTokens = 2000;
+    if (settings.max_tokens < minRequiredTokens) {
+      const warning = `⚠️ 当前 max_tokens 设置为 ${settings.max_tokens}，可能不足以生成完整代码。建议在"设置"标签页将 max_tokens 设置为 ${minRequiredTokens} 或更高。`;
+      console.warn(warning);
+      (window as any).toastr?.warning(warning, '提示', { timeOut: 6000 });
     }
 
     // 规范化 API 端点
