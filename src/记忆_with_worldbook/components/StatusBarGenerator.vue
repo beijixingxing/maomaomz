@@ -792,18 +792,19 @@
 
         <textarea
           v-model="aiPrompt"
-          placeholder="描述您想要的样式和效果，例如：&#10;• 保持现有样式，美化状态栏界面&#10;• 把背景色改成深蓝色渐变&#10;• 添加动画效果，让字段淡入显示&#10;• 使用卡片布局，每个字段独立显示&#10;&#10;⚠️ 注意：&#10;• AI 会基于上方配置的字段生成代码，不会改变字段数量和顺序&#10;• 代码会使用通用格式，可迁移到任何角色"
+          placeholder="🎨 自由描述你想要的状态栏样式，AI 会为你创造独特的设计！&#10;&#10;💡 创意示例：&#10;• 便签本风格：纸张纹理、手写字体、图钉装饰&#10;• 圆形卡片：环形布局、旋转动画、渐变边框&#10;• 赛博朋克：霓虹边框、扫描线、故障艺术效果&#10;• 游戏RPG：血条样式、技能图标、等级徽章&#10;• 科幻面板：全息投影、数据流动画、六边形网格&#10;• 可爱风格：圆润边角、柔和配色、弹跳动画&#10;• 极简风格：大量留白、细线条、优雅排版&#10;• 不规则形状：六边形、菱形、波浪边框&#10;&#10;✨ 你也可以：&#10;• 指定颜色主题（深色/浅色/渐变/霓虹）&#10;• 要求特定动画（淡入/滑动/旋转/脉动）&#10;• 设计独特布局（网格/卡片堆叠/环形/自由排列）&#10;• 添加装饰元素（图标/边框/阴影/发光效果）&#10;&#10;⚠️ 注意：&#10;• AI 会基于上方配置的字段生成代码&#10;• 完全自由发挥，创造独一无二的设计！"
           style="
             width: 100%;
-            padding: 12px;
-            background: #1e1e1e;
-            border: 1px solid #3a3a3a;
-            border-radius: 6px;
+            padding: 14px;
+            background: linear-gradient(135deg, #1e1e1e 0%, #252525 100%);
+            border: 2px solid #8b5cf6;
+            border-radius: 8px;
             color: #e0e0e0;
             font-size: 13px;
-            min-height: 120px;
+            min-height: 180px;
             margin-bottom: 16px;
             resize: vertical;
+            line-height: 1.6;
           "
         ></textarea>
         <div style="display: flex; gap: 10px; justify-content: flex-end">
@@ -2494,16 +2495,23 @@ async function generateWithAI() {
     const currentFiles = files.value.map(f => `=== ${f.path} ===\n${f.content}`).join('\n\n');
 
     // 构建系统提示词
-    const systemPrompt = `你是一个专业的前端开发助手，专门为 SillyTavern 状态栏生成 HTML/CSS/JS 代码片段。
+    const systemPrompt = `你是一个富有创意的前端设计师和开发者，专门为 SillyTavern 状态栏生成各种风格的 HTML/CSS/JS 代码。
+
+【核心理念】：自由创作，不受限制！
+- 用户可以要求任何样式：便签本、圆形卡片、赛博朋克、可爱风、游戏UI、科幻面板、手绘风格、3D效果等
+- 布局可以是任意形状：方形、圆形、六边形、不规则形状、卡片堆叠、网格布局等
+- 动画效果：淡入淡出、滑动、旋转、脉动、粒子效果、悬停特效等
+- 颜色主题：深色、浅色、渐变、霓虹、复古、梦幻、极简等
+- **发挥你的创意，让每个状态栏都独一无二！**
 
 【重要】最终代码会被嵌入到 Regex 脚本的 replaceString 字段中，用于替换 AI 输出的纯文本状态栏。
 【重要】这是**{{char}}（角色）的状态栏**，用于显示角色的状态信息，不是{{user}}（用户）的状态。
 
 可用环境：
-- Font Awesome 图标库（已加载）
+- Font Awesome 图标库（已加载）- 可以使用各种图标
 - jQuery ($) - 已全局可用
 - toastr（消息提示）- 已全局可用
-- gsap（动画库）- 已全局可用
+- gsap（动画库）- 已全局可用，可以创建复杂动画
 - lodash (_) - 已全局可用
 
 字段占位符规则：
@@ -2516,23 +2524,39 @@ async function generateWithAI() {
 FILE_START: index.html
 <details>
 <summary> 状态栏标题 </summary>
-<div class="status-card">
+<div class="status-container">
+  <!-- 🎨 这里可以是任何创意布局！ -->
+  <!-- 便签本样式、圆形卡片、游戏UI、科幻面板... -->
   <!-- 使用 $1, $2, $3 等占位符，必须与用户提供的字段一一对应 -->
-  <div class="field-value">$1</div>
+  <div class="field-item">
+    <span class="field-label">字段名</span>
+    <span class="field-value">$1</span>
+  </div>
 </div>
 </details>
 FILE_END
 
 FILE_START: style.css
-.status-card {
-  /* 完整样式 */
+/* 🎨 自由发挥！可以使用：
+   - 渐变、阴影、边框、圆角
+   - transform、animation、transition
+   - flexbox、grid 布局
+   - 伪元素装饰效果
+   - 任何你能想到的 CSS 特效！
+*/
+.status-container {
+  /* 你的创意样式 */
 }
 FILE_END
 
 FILE_START: script.js
 (function() {
+  // 🎨 可以添加交互效果：
+  // - 悬停动画
+  // - 点击特效
+  // - GSAP 动画
+  // - 动态样式变化
   // 立即执行函数，避免全局污染
-  // 可以直接使用 $ 和 document
 })();
 FILE_END
 
@@ -2540,10 +2564,19 @@ FILE_END
 1. index.html 必须以 <details> 开头，以 </details> 结尾，不要 <!DOCTYPE> 和 <html> 标签
 2. FILE_START 和 FILE_END 之间直接写纯代码，**绝对禁止**添加代码块标记（\\\`\\\`\\\`html、"""html 等）
 3. HTML 中使用的占位符（$1, $2, $3...）必须与用户提供的字段配置完全一致
-4. CSS 样式要完整、美观，使用现代设计
-5. JS 使用立即执行函数 (function() { ... })()，不需要 $(function() { ... })
+4. CSS 样式要**富有创意**，根据用户需求设计独特的视觉效果
+5. JS 使用立即执行函数 (function() { ... })()，可以添加动画和交互效果
 6. 代码会直接嵌入到聊天消息中，不需要考虑 DOM 加载时机
-7. **最重要**：如果用户提供的字段配置与当前代码文件中的字段不同，必须使用用户配置的字段，删除代码中不在用户配置列表里的字段`;
+7. **最重要**：如果用户提供的字段配置与当前代码文件中的字段不同，必须使用用户配置的字段，删除代码中不在用户配置列表里的字段
+
+【设计灵感示例】：
+- 便签本风格：纸张纹理、手写字体、图钉装饰、阴影效果
+- 圆形卡片：圆形容器、环形进度条、旋转动画
+- 赛博朋克：霓虹边框、扫描线效果、故障艺术、发光文字
+- 游戏RPG：血条样式、技能图标、等级徽章、装备槽
+- 科幻面板：全息投影效果、数据流动画、六边形网格
+- 可爱风格：圆润边角、柔和配色、小图标装饰、弹跳动画
+- 极简风格：大量留白、细线条、单色调、优雅排版`;
 
     const userPrompt = `# 【强制要求】字段配置（这是唯一的字段来源，禁止自行添加或删除字段）：
 ${config.value.fields.map((f, i) => `字段${i + 1}：${f.label} (变量名: ${f.name}) - 占位符: $${i + 1}${f.icon ? ` - 图标: ${f.icon}` : ''}`).join('\n')}
