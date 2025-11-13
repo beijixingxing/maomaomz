@@ -6,6 +6,7 @@ import { getScriptIdSafe } from './utils';
 export type TaskType =
   | 'ui_generate'
   | 'ui_modify'
+  | 'css_generate'
   | 'character_generate'
   | 'worldbook_generate'
   | 'anti_cliche'

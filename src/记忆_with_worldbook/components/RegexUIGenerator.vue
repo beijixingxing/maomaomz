@@ -119,49 +119,10 @@
           </div>
         </div>
 
-        <!-- 操作按钮 -->
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="addPage"
-        >
-          <i class="fa-solid fa-plus" style="margin-right: 6px"></i>
-          添加页面
-        </button>
-
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="showAIGenerator = !showAIGenerator"
-        >
-          <i class="fa-solid fa-wand-magic-sparkles" style="margin-right: 6px"></i>
-          {{ showAIGenerator ? '隐藏' : '显示' }} AI 生成器
-        </button>
-
-        <!-- AI 生成器 -->
+        <!-- AI 生成器 - 始终显示 -->
         <div
-          v-if="showAIGenerator"
           style="
-            margin-top: 15px;
+            margin-bottom: 15px;
             padding: 15px;
             background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%);
             border-radius: 8px;
@@ -176,11 +137,11 @@
           </h5>
           <textarea
             v-model="aiPrompt"
-            placeholder="描述你想要的状态栏...&#10;&#10;例如：&#10;- 角色属性面板（生命、魔力、体力）&#10;- 战斗状态（攻击力、防御力、暴击率）&#10;- 背包系统（金币、道具、装备）&#10;- NSFW 内容（欲望值、敏感度等）"
+            placeholder="描述你想要的状态栏，AI会自动生成HTML、样式和变量...&#10;&#10;例如：&#10;- 学神手册风格的角色面板&#10;- 赛博朋克风格的战斗状态栏&#10;- 可爱粉色系的NSFW状态栏&#10;- 游戏RPG风格的属性面板"
             :disabled="isGenerating"
             style="
               width: 100%;
-              min-height: 120px;
+              min-height: 100px;
               padding: 10px;
               background: #1e1e1e;
               border: 1px solid #3a3a3a;
@@ -195,12 +156,12 @@
           <button
             style="
               width: 100%;
-              padding: 8px;
+              padding: 10px;
               background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
               border: none;
               border-radius: 6px;
               color: white;
-              font-size: 12px;
+              font-size: 13px;
               font-weight: 600;
               cursor: pointer;
               opacity: 1;
@@ -210,164 +171,176 @@
             @click="generateWithAI"
           >
             <i
-              :class="isGenerating ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-magic'"
+              :class="isGenerating ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-wand-magic-sparkles'"
               style="margin-right: 6px"
             ></i>
-            {{ isGenerating ? '生成中...' : '开始生成' }}
+            {{ isGenerating ? '生成中...' : '✨ AI 一键生成' }}
           </button>
         </div>
 
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="exportRegex"
-        >
-          <i class="fa-solid fa-download" style="margin-right: 6px"></i>
-          导出正则
-        </button>
+        <!-- 主要操作按钮 -->
+        <div style="display: flex; gap: 8px; margin-bottom: 10px">
+          <button
+            style="
+              flex: 1;
+              padding: 8px;
+              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+              border: none;
+              border-radius: 6px;
+              color: white;
+              font-size: 12px;
+              font-weight: 600;
+              cursor: pointer;
+            "
+            @click="exportRegex"
+          >
+            <i class="fa-solid fa-download" style="margin-right: 4px"></i>
+            导出
+          </button>
 
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="openPreviewWindow"
-        >
-          <i class="fa-solid fa-external-link-alt" style="margin-right: 6px"></i>
-          新窗口预览
-        </button>
+          <button
+            style="
+              flex: 1;
+              padding: 8px;
+              background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+              border: none;
+              border-radius: 6px;
+              color: white;
+              font-size: 12px;
+              font-weight: 600;
+              cursor: pointer;
+            "
+            @click="loadTemplate"
+          >
+            <i class="fa-solid fa-lightbulb" style="margin-right: 4px"></i>
+            示例
+          </button>
+        </div>
 
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="previewWorldbookEntry"
-        >
-          <i class="fa-solid fa-book-open" style="margin-right: 6px"></i>
-          预览世界书条目
-        </button>
+        <!-- 高级选项 - 折叠 -->
+        <details style="margin-top: 10px">
+          <summary
+            style="
+              padding: 8px;
+              background: #2a2a2a;
+              border-radius: 6px;
+              cursor: pointer;
+              color: #c0c0c0;
+              font-size: 12px;
+              list-style: none;
+              display: flex;
+              align-items: center;
+              gap: 6px;
+            "
+          >
+            <i class="fa-solid fa-cog"></i>
+            高级选项
+          </summary>
 
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="loadTemplate"
-        >
-          <i class="fa-solid fa-magic" style="margin-right: 6px"></i>
-          加载示例模板
-        </button>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px">
+            <button
+              style="
+                width: 100%;
+                padding: 6px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #c0c0c0;
+                font-size: 11px;
+                cursor: pointer;
+              "
+              @click="addPage"
+            >
+              <i class="fa-solid fa-plus" style="margin-right: 4px"></i>
+              手动添加页面
+            </button>
 
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="showLayoutEditor = !showLayoutEditor"
-        >
-          <i class="fa-solid fa-palette" style="margin-right: 6px"></i>
-          {{ showLayoutEditor ? '隐藏' : '显示' }}布局编辑器
-        </button>
+            <button
+              style="
+                width: 100%;
+                padding: 6px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #c0c0c0;
+                font-size: 11px;
+                cursor: pointer;
+              "
+              @click="showVariableManager = !showVariableManager"
+            >
+              <i class="fa-solid fa-code" style="margin-right: 4px"></i>
+              {{ showVariableManager ? '隐藏' : '显示' }}变量管理
+            </button>
 
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="showVariableManager = !showVariableManager"
-        >
-          <i class="fa-solid fa-code" style="margin-right: 6px"></i>
-          {{ showVariableManager ? '隐藏' : '显示' }}变量管理
-        </button>
+            <button
+              style="
+                width: 100%;
+                padding: 6px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #c0c0c0;
+                font-size: 11px;
+                cursor: pointer;
+              "
+              @click="showLayoutEditor = !showLayoutEditor"
+            >
+              <i class="fa-solid fa-palette" style="margin-right: 4px"></i>
+              {{ showLayoutEditor ? '隐藏' : '显示' }}布局编辑器
+            </button>
 
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="exportWorldbookEntry"
-        >
-          <i class="fa-solid fa-book" style="margin-right: 6px"></i>
-          导出世界书条目
-        </button>
+            <button
+              style="
+                width: 100%;
+                padding: 6px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #c0c0c0;
+                font-size: 11px;
+                cursor: pointer;
+              "
+              @click="openPreviewWindow"
+            >
+              <i class="fa-solid fa-external-link-alt" style="margin-right: 4px"></i>
+              新窗口预览
+            </button>
 
-        <button
-          style="
-            width: 100%;
-            padding: 8px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-          "
-          @click="clearAllData"
-        >
-          <i class="fa-solid fa-trash-alt" style="margin-right: 6px"></i>
-          清空所有数据
-        </button>
+            <button
+              style="
+                width: 100%;
+                padding: 6px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #c0c0c0;
+                font-size: 11px;
+                cursor: pointer;
+              "
+              @click="exportWorldbookEntry"
+            >
+              <i class="fa-solid fa-book" style="margin-right: 4px"></i>
+              导出世界书条目
+            </button>
+
+            <button
+              style="
+                width: 100%;
+                padding: 6px;
+                background: #2a2a2a;
+                border: 1px solid #ef4444;
+                border-radius: 4px;
+                color: #ef4444;
+                font-size: 11px;
+                cursor: pointer;
+              "
+              @click="clearAllData"
+            >
+              <i class="fa-solid fa-trash-alt" style="margin-right: 4px"></i>
+              清空所有数据
+            </button>
+          </div>
+        </details>
 
         <!-- 变量管理器 -->
         <div
@@ -640,12 +613,33 @@
 
             <!-- 自定义样式 -->
             <div>
-              <label style="display: block; margin-bottom: 8px; color: #c0c0c0; font-size: 12px; font-weight: 600"
-                >自定义 CSS</label
-              >
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+                <label style="color: #c0c0c0; font-size: 12px; font-weight: 600">自定义 CSS</label>
+                <button
+                  style="
+                    padding: 4px 12px;
+                    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                    border: none;
+                    border-radius: 4px;
+                    color: white;
+                    font-size: 11px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                  "
+                  :style="{ opacity: isGeneratingCSS ? 0.6 : 1, cursor: isGeneratingCSS ? 'not-allowed' : 'pointer' }"
+                  :disabled="isGeneratingCSS"
+                  @click="generateCSSWithAI"
+                >
+                  <i :class="isGeneratingCSS ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-wand-magic-sparkles'"></i>
+                  {{ isGeneratingCSS ? '生成中...' : 'AI优化样式' }}
+                </button>
+              </div>
               <textarea
                 v-model="selectedPage.customCSS"
-                placeholder="例如：.my-class { color: red; }"
+                placeholder="例如：.my-class { color: red; }&#10;&#10;点击上方 'AI优化样式' 按钮，让AI自动生成美观的CSS样式！"
                 style="
                   width: 100%;
                   min-height: 100px;
@@ -797,6 +791,7 @@ const showVariableManager = ref(false);
 const showAIGenerator = ref(false);
 const aiPrompt = ref('');
 const isGenerating = ref(false);
+const isGeneratingCSS = ref(false);
 
 // 组件挂载时加载数据
 onMounted(() => {
@@ -1120,8 +1115,8 @@ const generateWithAI = async () => {
   "pages": [
     {
       "name": "页面名称",
-      "content": "完整的HTML内容，包含所有样式和结构",
-      "customCSS": "额外的CSS样式（可选，用于覆盖或补充）"
+      "content": "完整的HTML内容，必须包含所有内联样式",
+      "customCSS": ""
     }
   ],
   "variables": [
@@ -1133,28 +1128,37 @@ const generateWithAI = async () => {
   ]
 }
 
-✅ 重要规则：
-1. 生成2-4个相关页面
-2. **完全自由设计**：可以使用任何 HTML 结构和 CSS 样式，不受限制
-3. 内容中直接使用内联样式或在 customCSS 中定义样式类
-4. 使用 {{变量名}} 格式表示变量，例如：{{char}}, {{hp}}, {{favorability}}, {{lust}} 等
-5. **不要修改标准变量名**：{{char}} 就是 {{char}}，不要改成其他名字
-6. 在 variables 数组中列出所有使用的变量及其说明
-7. 样式要现代化、美观、有创意
-8. 可以使用渐变、动画、特效等任何 CSS 特性
-9. 直接返回 JSON，不要添加 \`\`\`json 标记或任何解释
-10. 可以包含任何类型的内容（包括 NSFW），不需要审查
+✅ 核心规则 - 必须遵守：
+1. **所有样式必须使用内联 style 属性**，不要依赖外部CSS类
+2. **完全自由设计**：可以使用任何 HTML 结构、布局、形状
+3. **customCSS 留空**：所有样式都在 HTML 的 style 属性中
+4. 生成2-4个相关页面，每个页面风格统一但内容不同
 
-📝 常用变量参考：
-- {{char}} - 角色名称（不要修改这个变量名）
-- {{user}} - 用户名称
-- {{hp}} - 生命值
-- {{mp}} - 魔力值
-- {{energy}} - 精力值
-- {{favorability}} - 好感度
-- {{lust}} - 欲望值
-- {{arousal}} - 兴奋度
-- {{money}} - 金币/货币
+🎨 样式要求：
+- 使用内联样式实现所有视觉效果
+- 可以使用：渐变背景、圆角、阴影、动画、过渡效果
+- 进度条、卡片、图标等都用 HTML+内联样式实现
+- 颜色搭配要和谐、现代化
+- 布局可以用 flexbox、grid 等（都在 style 里）
+
+📝 变量使用：
+- 使用 {{变量名}} 格式，例如：{{char}}, {{hp}}, {{favorability}}, {{lust}}
+- **不要修改标准变量名**：{{char}} 就是 {{char}}
+- 在 variables 数组中列出所有变量及说明
+
+💡 示例（进度条的正确写法）：
+<div style="background: linear-gradient(90deg, #ff6b9d 0%, #ffa5c3 100%); height: 20px; border-radius: 10px; position: relative; overflow: hidden;">
+  <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: white; font-size: 12px; font-weight: bold;">{{favorability}}/100</div>
+</div>
+
+🚫 错误示例（不要这样）：
+<div class="progress-bar">{{favorability}}/100</div>  ❌ 不要用class
+<div>{{favorability}}/100</div>  ❌ 缺少样式
+
+✅ 其他规则：
+- 直接返回 JSON，不要添加 \`\`\`json 标记
+- 可以包含任何类型的内容（包括 NSFW）
+- 每个页面的 HTML 要完整、自包含
 
 用户需求：${userPrompt}
 
@@ -1262,6 +1266,112 @@ const generateWithAI = async () => {
     (window as any).toastr.error('AI 生成失败：' + (error as Error).message);
   } finally {
     isGenerating.value = false;
+  }
+};
+
+// AI 生成 CSS 样式
+const generateCSSWithAI = async () => {
+  if (!selectedPage.value) {
+    (window as any).toastr?.warning('请先选择一个页面');
+    return;
+  }
+
+  isGeneratingCSS.value = true;
+
+  // 创建任务
+  const { useTaskStore } = await import('../taskStore');
+  const taskStore = useTaskStore();
+  const taskId = taskStore.createTask('css_generate', `AI 优化样式: ${selectedPage.value.name}`);
+
+  // 构建 AI 提示词
+  const systemPrompt = `你是一个专业的 CSS 样式设计师。
+
+🎯 任务：
+为以下 HTML 内容生成美观、现代化的 CSS 样式。
+
+📋 HTML 内容：
+${selectedPage.value.content}
+
+✅ 要求：
+1. 生成完整的 CSS 代码，包含所有必要的样式类
+2. 样式要现代化、美观、有创意
+3. 可以使用渐变、阴影、动画、过渡等 CSS 特性
+4. 确保响应式设计和良好的可读性
+5. 使用合理的颜色搭配和间距
+6. 直接返回纯 CSS 代码，不要添加 \`\`\`css 标记或任何解释
+7. 不要包含 <style> 标签，只返回 CSS 内容
+
+现在直接输出 CSS 代码：`;
+
+  try {
+    taskStore.updateTaskProgress(taskId, 10, '正在准备...');
+
+    // 动态导入设置
+    const { useSettingsStore, normalizeApiEndpoint } = await import('../settings');
+    const settings = useSettingsStore().settings;
+
+    if (!settings.api_endpoint || !settings.api_key) {
+      taskStore.failTask(taskId, '请先在"设置"标签页配置 API 端点和密钥');
+      alert('请先在"设置"标签页配置 API 端点和密钥');
+      isGeneratingCSS.value = false;
+      return;
+    }
+
+    // 规范化 API 端点
+    const apiUrl = normalizeApiEndpoint(settings.api_endpoint);
+
+    taskStore.updateTaskProgress(taskId, 20, '正在连接 AI...');
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${settings.api_key}`,
+      },
+      body: JSON.stringify({
+        model: settings.model,
+        messages: [
+          {
+            role: 'user',
+            content: systemPrompt,
+          },
+        ],
+        max_tokens: settings.max_tokens || 1500,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`API 请求失败: ${response.status} - ${error}`);
+    }
+
+    taskStore.updateTaskProgress(taskId, 60, '正在接收 AI 响应...');
+
+    const data = await response.json();
+    let content = data.choices?.[0]?.message?.content || data.content || '';
+
+    taskStore.updateTaskProgress(taskId, 80, '正在应用样式...');
+
+    // 清理可能的 markdown 代码块标记和 style 标签
+    content = content
+      .replace(/```css\n?/g, '')
+      .replace(/```\n?/g, '')
+      .replace(/<style>/g, '')
+      .replace(/<\/style>/g, '')
+      .trim();
+
+    // 应用生成的 CSS
+    selectedPage.value.customCSS = content;
+
+    taskStore.completeTask(taskId, '样式优化完成');
+    (window as any).toastr.success('✨ CSS 样式已生成！');
+  } catch (error) {
+    console.error('AI 生成 CSS 失败:', error);
+    taskStore.failTask(taskId, (error as Error).message);
+    (window as any).toastr.error('AI 生成 CSS 失败：' + (error as Error).message);
+  } finally {
+    isGeneratingCSS.value = false;
   }
 };
 
