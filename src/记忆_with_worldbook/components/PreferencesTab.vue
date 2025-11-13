@@ -207,14 +207,24 @@ const savePreferences = () => {
 
 // 应用偏好设置
 const applyPreferences = () => {
-  // 应用任务管理器显示设置
-  const taskManager = document.querySelector('.task-manager-container') as HTMLElement;
-  if (taskManager) {
-    taskManager.style.display = preferences.showTaskManager ? 'block' : 'none';
-  }
+  try {
+    // 保存到全局，供其他模块使用
+    (window as any).maomaomzPreferences = preferences;
 
-  // 保存到全局，供其他模块使用
-  (window as any).maomaomzPreferences = preferences;
+    // 延迟应用DOM设置，避免阻塞渲染
+    setTimeout(() => {
+      try {
+        const taskManager = document.querySelector('.task-manager-container') as HTMLElement;
+        if (taskManager) {
+          taskManager.style.display = preferences.showTaskManager ? 'block' : 'none';
+        }
+      } catch (err) {
+        console.warn('任务管理器DOM未找到:', err);
+      }
+    }, 100);
+  } catch (error) {
+    console.error('❌ 应用偏好设置失败:', error);
+  }
 };
 
 // 重置偏好设置

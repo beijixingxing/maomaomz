@@ -1186,8 +1186,8 @@ const generateWithAI = async () => {
     // 自动重试机制（针对503等临时错误）
     let response;
     let lastError;
-    const maxRetries = 3;
-    const retryDelay = 2000; // 2秒
+    const maxRetries = 5; // 增加到5次
+    const retryDelay = 3000; // 增加到3秒
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -1362,8 +1362,8 @@ ${selectedPage.value.content}
     // 自动重试机制（针对503等临时错误）
     let response;
     let lastError;
-    const maxRetries = 3;
-    const retryDelay = 2000;
+    const maxRetries = 5; // 增加到5次
+    const retryDelay = 3000; // 增加到3秒
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
