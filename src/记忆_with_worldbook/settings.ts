@@ -174,6 +174,35 @@ export function filterApiParams(params: any, endpoint: string): any {
       messages: params.messages,
     };
 
+    // Gemini 不支持 system role，需要将 system 消息合并到第一个 user 消息中
+    if (filtered.messages && Array.isArray(filtered.messages)) {
+      const systemMessages = filtered.messages.filter((m: any) => m.role === 'system');
+      const otherMessages = filtered.messages.filter((m: any) => m.role !== 'system');
+
+      if (systemMessages.length > 0) {
+        // 将所有 system 消息合并
+        const systemContent = systemMessages.map((m: any) => m.content).join('\n\n');
+
+        // 找到第一个 user 消息，将 system 内容添加到前面
+        const firstUserIndex = otherMessages.findIndex((m: any) => m.role === 'user');
+        if (firstUserIndex !== -1) {
+          otherMessages[firstUserIndex] = {
+            ...otherMessages[firstUserIndex],
+            content: systemContent + '\n\n' + otherMessages[firstUserIndex].content,
+          };
+        } else {
+          // 如果没有 user 消息，创建一个
+          otherMessages.unshift({
+            role: 'user',
+            content: systemContent,
+          });
+        }
+
+        filtered.messages = otherMessages;
+        console.log('🔄 Gemini API: 已将 system 消息合并到 user 消息');
+      }
+    }
+
     // 直接使用 OpenAI 标准参数名，不需要 generation_config 包装
     if (params.temperature !== undefined) {
       filtered.temperature = params.temperature;
