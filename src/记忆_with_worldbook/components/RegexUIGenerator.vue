@@ -1152,23 +1152,84 @@ const generateWithAI = async () => {
   const cssExample = '.status-container { } .page { display: none; } .page.active { display: block; }';
   const jsExample = '(function() { /* 翻页逻辑 */ })();';
 
-  const systemPrompt = `生成翻页状态栏代码。用户需求：${userPrompt}
+  const systemPrompt = `你是一个富有创意的前端设计师，专门为 SillyTavern 生成可翻页的状态栏代码。
 
-必须输出3个文件，格式如下：
+【核心理念】：自由创作，不受限制！
+- 可以是任意形状：圆形、椭圆、六边形、不规则形状、卡片、面板
+- 可以是任意风格：卡片、可爱、科技、游戏、简约、复古
+- 可以是任意布局：上下、左右、环形、网格、自由排列
+- 翻页按钮可以是任意样式：圆形、方形、标签、图标、侧边栏
 
+可用环境：
+- Font Awesome 图标库（已加载）
+- jQuery ($) - 已全局可用
+- toastr（消息提示）- 已全局可用
+
+输出格式（三个独立文件）：
 FILE_START: index.html
-[HTML代码：details标签包裹，包含翻页按钮和页面内容，使用$1,$2等占位符]
+<details>
+<summary>状态栏标题</summary>
+<div class="status-container">
+  <div class="page-tabs">
+    <button class="page-tab active" data-page="0">页面1</button>
+    <button class="page-tab" data-page="1">页面2</button>
+  </div>
+  <div class="page-content">
+    <div class="page active" data-page-id="0">
+      <!-- 第一页内容，使用 $1, $2 等占位符 -->
+    </div>
+    <div class="page" data-page-id="1">
+      <!-- 第二页内容，使用 $3, $4 等占位符 -->
+    </div>
+  </div>
+</div>
+</details>
 FILE_END
 
 FILE_START: style.css
-[CSS代码：根据用户需求设计样式]
+/* 你的创意样式 */
+.status-container { }
+.page-tabs { }
+.page-tab { }
+.page-tab.active { }
+.page-content { }
+.page { display: none; }
+.page.active { display: block; }
 FILE_END
 
 FILE_START: script.js
-[JS代码：立即执行函数，实现翻页交互]
+(function() {
+  // 翻页逻辑
+  document.querySelectorAll('.page-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      const pageIndex = this.getAttribute('data-page');
+      document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelector('.page[data-page-id="' + pageIndex + '"]').classList.add('active');
+    });
+  });
+})();
 FILE_END
 
-立即开始输出，第一行必须是 FILE_START: index.html`;
+【关键要求】：
+1. index.html 必须以 <details> 开头，以 </details> 结尾
+2. FILE_START 和 FILE_END 之间直接写纯代码，**绝对禁止**添加代码块标记（\\\`\\\`\\\`html、\\\`\\\`\\\`css 等）
+3. 使用 $1, $2, $3 等占位符表示字段值
+4. CSS 样式要富有创意，根据用户需求设计独特效果
+5. JS 使用立即执行函数，实现翻页交互
+6. 生成2-4个页面，每个页面显示不同的字段
+7. 必须同时输出 index.html、style.css、script.js 三个文件`;
+
+  const userMessage = `用户需求：${userPrompt}
+
+【输出要求】：
+1. 根据用户需求设计翻页状态栏的样式和布局
+2. 必须同时输出 index.html、style.css、script.js 三个完整文件
+3. 每个文件用 FILE_START 和 FILE_END 包裹
+4. 不要添加任何说明文字或代码块标记
+
+现在开始输出三个文件：`;
 
   try {
     taskStore.updateTaskProgress(taskId, 10, '正在准备...');
@@ -1215,13 +1276,11 @@ FILE_END
           body: JSON.stringify({
             model: settings.value.model,
             messages: [
-              {
-                role: 'user',
-                content: systemPrompt,
-              },
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userMessage },
             ],
-            max_tokens: getSafeMaxTokens(settings.value.max_tokens), // 使用设置标签页配置的 max_tokens
-            temperature: settings.value.temperature, // 使用设置标签页配置的 temperature
+            max_tokens: getSafeMaxTokens(settings.value.max_tokens),
+            temperature: settings.value.temperature,
           }),
         });
 
