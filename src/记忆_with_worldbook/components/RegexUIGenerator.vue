@@ -1341,9 +1341,10 @@ FILE_END
       .replace(/([{,]\s*)(\w+):/g, '$1"$2":') // 给没有引号的键加上引号
       .replace(/:\s*'([^']*)'/g, ': "$1"'); // 将单引号改为双引号
 
-    // 解析三个文件格式（参考普通状态栏生成器）
+    // 解析三个文件格式（使用和 StatusBarGenerator 相同的正则）
     const files: { path: string; content: string }[] = [];
-    const fileRegex = /FILE_START:\s*(.+?)\s*\n([\s\S]*?)FILE_END/g;
+    // 使用前瞻断言，不强制要求 FILE_END
+    const fileRegex = /FILE_START:\s*([^\n]+)\n([\s\S]*?)(?=FILE_START:|FILE_END:|$)/g;
     let match;
 
     while ((match = fileRegex.exec(content)) !== null) {
