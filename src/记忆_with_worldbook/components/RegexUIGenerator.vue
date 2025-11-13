@@ -674,25 +674,24 @@
             <i class="fa-solid fa-eye" style="color: #10b981; font-size: 18px"></i>
             <span style="color: #fff; font-size: 16px; font-weight: 700">实时预览</span>
 
-            <!-- 预览模式切换 -->
-            <div style="margin-left: auto; display: flex; gap: 6px">
+            <!-- 新窗口预览按钮 -->
+            <div style="margin-left: auto">
               <button
-                v-for="mode in previewModes"
-                :key="mode.name"
-                :style="{
-                  padding: '6px 12px',
-                  background: previewMode === mode.name ? '#10b981' : '#2a2a2a',
-                  border: 'none',
-                  borderRadius: '6px',
-                  color: previewMode === mode.name ? 'white' : '#888',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }"
-                @click="previewMode = mode.name"
+                style="
+                  padding: 8px 16px;
+                  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                  border: none;
+                  border-radius: 6px;
+                  color: white;
+                  font-size: 12px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                "
+                @click="openPreviewWindow"
               >
-                <i :class="mode.icon" style="margin-right: 4px"></i>
-                {{ mode.name }}
+                <i class="fa-solid fa-external-link-alt" style="margin-right: 6px"></i>
+                新窗口预览
               </button>
             </div>
           </div>
@@ -916,14 +915,7 @@ const showCloudTemplates = ref(false);
 const cloudTemplates = ref<any[]>([]);
 const isLoadingTemplates = ref(false);
 
-// 预览增强
-const previewMode = ref('桌面');
-
-const previewModes = [
-  { name: '桌面', icon: 'fa-solid fa-desktop', width: '100%' },
-  { name: '平板', icon: 'fa-solid fa-tablet', width: '768px' },
-  { name: '手机', icon: 'fa-solid fa-mobile', width: '375px' },
-];
+// 预览相关（已简化为新窗口预览）
 
 // 组件挂载时加载数据
 onMounted(() => {
@@ -1057,16 +1049,16 @@ const previewHTML = computed(() => {
         }
         body {
           font-family: Arial, sans-serif;
-          background: #f5f5f5;
-          padding: 20px;
+          background: transparent;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
         }
         .statusbar-container {
-          max-width: 800px;
-          margin: 0 auto;
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          overflow: hidden;
+          width: 100%;
           ${config.containerStyle}
         }
         ${getTabStyles()}
