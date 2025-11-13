@@ -821,8 +821,9 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia';
 import { computed, onMounted, ref, watch } from 'vue';
-import { detectApiProvider, normalizeApiEndpoint, useSettingsStore } from '../settings';
+import { detectApiProvider, filterApiParams, normalizeApiEndpoint, useSettingsStore } from '../settings';
 
 // 页面数据结构
 interface Page {
@@ -1267,21 +1268,27 @@ FILE_END
           await new Promise(resolve => setTimeout(resolve, retryDelay * attempt)); // 递增延迟
         }
 
+        // 准备请求参数
+        const requestParams = {
+          model: settings.value.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage },
+          ],
+          max_tokens: getSafeMaxTokens(settings.value.max_tokens),
+          temperature: settings.value.temperature,
+        };
+
+        // 根据 API 提供商过滤参数（避免 Gemini 等 API 的 400 错误）
+        const filteredParams = filterApiParams(requestParams, settings.value.api_endpoint);
+
         response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${settings.value.api_key}`,
           },
-          body: JSON.stringify({
-            model: settings.value.model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userMessage },
-            ],
-            max_tokens: getSafeMaxTokens(settings.value.max_tokens),
-            temperature: settings.value.temperature,
-          }),
+          body: JSON.stringify(filteredParams),
         });
 
         if (response.ok) {
@@ -1549,23 +1556,29 @@ ${selectedPage.value.content}
           await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
         }
 
+        // 准备请求参数
+        const requestParams = {
+          model: settings.value.model,
+          messages: [
+            {
+              role: 'user',
+              content: systemPrompt,
+            },
+          ],
+          max_tokens: getSafeMaxTokens(settings.value.max_tokens),
+          temperature: settings.value.temperature,
+        };
+
+        // 根据 API 提供商过滤参数
+        const filteredParams = filterApiParams(requestParams, settings.value.api_endpoint);
+
         response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${settings.value.api_key}`,
           },
-          body: JSON.stringify({
-            model: settings.value.model,
-            messages: [
-              {
-                role: 'user',
-                content: systemPrompt,
-              },
-            ],
-            max_tokens: getSafeMaxTokens(settings.value.max_tokens),
-            temperature: settings.value.temperature,
-          }),
+          body: JSON.stringify(filteredParams),
         });
 
         if (response.ok) {
