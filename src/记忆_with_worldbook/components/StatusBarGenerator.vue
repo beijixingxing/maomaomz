@@ -625,18 +625,52 @@
       @click.self="showAI = false"
     >
       <div
+        ref="aiDialogRef"
+        class="ai-dialog-draggable"
         style="
-          background: #2a2a2a;
-          border-radius: 16px;
-          padding: 24px;
-          width: 600px;
+          background: linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 100%);
+          border-radius: 20px;
+          padding: 28px;
+          width: 700px;
           max-width: 90vw;
           max-height: 90vh;
           overflow-y: auto;
-          border: 1px solid #3a3a3a;
+          border: 3px solid #8b5cf6;
+          box-shadow:
+            0 20px 60px rgba(0, 0, 0, 0.7),
+            0 0 40px rgba(139, 92, 246, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+          position: relative;
+          resize: both;
+          min-width: 500px;
+          min-height: 400px;
         "
       >
-        <h3 style="margin: 0 0 16px 0; color: #fff; font-size: 16px; font-weight: 600">AI 智能编辑</h3>
+        <h3
+          style="
+            margin: 0 0 20px 0;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: grab;
+            user-select: none;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(124, 58, 237, 0.2) 100%);
+            border-radius: 12px;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+          "
+        >
+          <i class="fa-solid fa-wand-magic-sparkles" style="color: #a78bfa"></i>
+          AI 智能编辑
+          <span style="margin-left: auto; font-size: 12px; color: #888; font-weight: 400">
+            <i class="fa-solid fa-arrows-up-down-left-right" style="margin-right: 4px"></i>
+            可拖动 · 可调整大小
+          </span>
+        </h3>
 
         <!-- 字段配置区域（可编辑） -->
         <div
@@ -1254,6 +1288,7 @@ const originalAiPrompt = ref(''); // 原始AI提示（用于增量修改）
 const showAiModifyDialog = ref(false); // 显示AI修改对话框
 const isModifyingAi = ref(false); // AI修改中
 const showIconPickerFor = ref<number | null>(null);
+const aiDialogRef = ref<HTMLElement | null>(null); // AI对话框引用
 
 // XML解析相关
 const originalXmlInput = ref(''); // 原始XML输入
@@ -3012,6 +3047,47 @@ function saveConfig() {
 // 组件挂载时加载
 onMounted(() => {
   loadSavedConfig();
+
+  // 使 AI 对话框可拖动
+  setTimeout(() => {
+    if (aiDialogRef.value) {
+      const dialog = aiDialogRef.value;
+      let isDragging = false;
+      let currentX = 0;
+      let currentY = 0;
+      let initialX = 0;
+      let initialY = 0;
+
+      const onMouseDown = (e: MouseEvent) => {
+        // 只在点击标题区域时才能拖动
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'H3' || target.closest('h3')) {
+          isDragging = true;
+          initialX = e.clientX - currentX;
+          initialY = e.clientY - currentY;
+          dialog.style.cursor = 'grabbing';
+        }
+      };
+
+      const onMouseMove = (e: MouseEvent) => {
+        if (isDragging) {
+          e.preventDefault();
+          currentX = e.clientX - initialX;
+          currentY = e.clientY - initialY;
+          dialog.style.transform = `translate(${currentX}px, ${currentY}px)`;
+        }
+      };
+
+      const onMouseUp = () => {
+        isDragging = false;
+        if (dialog) dialog.style.cursor = 'default';
+      };
+
+      dialog.addEventListener('mousedown', onMouseDown);
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    }
+  }, 100);
 });
 
 // 监听配置变化，自动保存
