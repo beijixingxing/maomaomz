@@ -822,6 +822,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { detectApiProvider, normalizeApiEndpoint, useSettingsStore } from '../settings';
 
 // 页面数据结构
 interface Page {
@@ -854,6 +855,10 @@ interface Variable {
 
 // localStorage 键名
 const STORAGE_KEY = 'regex_ui_generator_data';
+
+// 初始化 settings store
+const settingsStore = useSettingsStore();
+const { settings } = storeToRefs(settingsStore);
 
 // 从 localStorage 加载数据
 const loadFromStorage = () => {
@@ -1093,6 +1098,15 @@ const previewHTML = computed(() => {
   );
 });
 
+// 辅助函数：根据 API 提供商限制 max_tokens
+function getSafeMaxTokens(requested: number): number {
+  const provider = detectApiProvider(settings.value.api_endpoint);
+  if (provider === 'gemini') {
+    return Math.min(requested, 8192); // Gemini 最大 8192
+  }
+  return requested;
+}
+
 // 方法
 const selectPage = (index: number) => {
   selectedPageIndex.value = index;
@@ -1195,11 +1209,7 @@ FILE_END
   try {
     taskStore.updateTaskProgress(taskId, 10, '正在准备...');
 
-    // 动态导入设置
-    const { useSettingsStore, normalizeApiEndpoint } = await import('../settings');
-    const settings = useSettingsStore().settings;
-
-    if (!settings.api_endpoint || !settings.api_key) {
+    if (!settings.value.api_endpoint || !settings.value.api_key) {
       taskStore.failTask(taskId, '请先在"设置"标签页配置 API 端点和密钥');
       alert('请先在"设置"标签页配置 API 端点和密钥');
       isGenerating.value = false;
@@ -1208,14 +1218,14 @@ FILE_END
 
     // 检查 max_tokens 是否足够
     const minRequiredTokens = 2000;
-    if (settings.max_tokens < minRequiredTokens) {
-      const warning = `⚠️ 当前 max_tokens 设置为 ${settings.max_tokens}，可能不足以生成完整代码。建议在"设置"标签页将 max_tokens 设置为 ${minRequiredTokens} 或更高。`;
+    if (settings.value.max_tokens < minRequiredTokens) {
+      const warning = `⚠️ 当前 max_tokens 设置为 ${settings.value.max_tokens}，可能不足以生成完整代码。建议在"设置"标签页将 max_tokens 设置为 ${minRequiredTokens} 或更高。`;
       console.warn(warning);
       (window as any).toastr?.warning(warning, '提示', { timeOut: 6000 });
     }
 
     // 规范化 API 端点
-    const apiUrl = normalizeApiEndpoint(settings.api_endpoint);
+    const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
 
     taskStore.updateTaskProgress(taskId, 20, '正在连接 AI...');
 
@@ -1236,18 +1246,18 @@ FILE_END
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${settings.api_key}`,
+            Authorization: `Bearer ${settings.value.api_key}`,
           },
           body: JSON.stringify({
-            model: settings.model,
+            model: settings.value.model,
             messages: [
               {
                 role: 'user',
                 content: systemPrompt,
               },
             ],
-            max_tokens: settings.max_tokens, // 使用设置标签页配置的 max_tokens
-            temperature: settings.temperature, // 使用设置标签页配置的 temperature
+            max_tokens: getSafeMaxTokens(settings.value.max_tokens), // 使用设置标签页配置的 max_tokens
+            temperature: settings.value.temperature, // 使用设置标签页配置的 temperature
           }),
         });
 
@@ -1491,11 +1501,7 @@ ${selectedPage.value.content}
   try {
     taskStore.updateTaskProgress(taskId, 10, '正在准备...');
 
-    // 动态导入设置
-    const { useSettingsStore, normalizeApiEndpoint } = await import('../settings');
-    const settings = useSettingsStore().settings;
-
-    if (!settings.api_endpoint || !settings.api_key) {
+    if (!settings.value.api_endpoint || !settings.value.api_key) {
       taskStore.failTask(taskId, '请先在"设置"标签页配置 API 端点和密钥');
       alert('请先在"设置"标签页配置 API 端点和密钥');
       isGeneratingCSS.value = false;
@@ -1503,7 +1509,7 @@ ${selectedPage.value.content}
     }
 
     // 规范化 API 端点
-    const apiUrl = normalizeApiEndpoint(settings.api_endpoint);
+    const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
 
     taskStore.updateTaskProgress(taskId, 20, '正在连接 AI...');
 
@@ -1524,18 +1530,18 @@ ${selectedPage.value.content}
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${settings.api_key}`,
+            Authorization: `Bearer ${settings.value.api_key}`,
           },
           body: JSON.stringify({
-            model: settings.model,
+            model: settings.value.model,
             messages: [
               {
                 role: 'user',
                 content: systemPrompt,
               },
             ],
-            max_tokens: settings.max_tokens || 1500,
-            temperature: 0.7,
+            max_tokens: getSafeMaxTokens(settings.value.max_tokens),
+            temperature: settings.value.temperature,
           }),
         });
 
