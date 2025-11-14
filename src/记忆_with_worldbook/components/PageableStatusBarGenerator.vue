@@ -263,62 +263,53 @@ const generateWithAI = async () => {
 
   isGenerating.value = true;
 
-  const systemPrompt = `⚠️⚠️⚠️ 极其重要 ⚠️⚠️⚠️
+  const systemPrompt = `🚫🚫🚫 严重警告 🚫🚫🚫
 
-你生成的字段如果是这样的简单文本行，将被直接拒绝：
-❌ <span class="field-label">姓名</span><span>$1</span>
+如果你生成这样的代码，将被拒绝：
+❌ <span class="field-label">姓名</span><span class="field-value">$1</span>
 ❌ <div class="field-row"><span>姓名</span><span>$1</span></div>
+❌ 任何使用 class 的字段
+❌ 任何简单的文本行
 
-每个字段必须是这样的精美卡片（完整 inline style）：
-✅ <div style="background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.08)); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 18px 22px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1); backdrop-filter: blur(10px); transition: all 0.3s cubic-bezier(0.4,0,0.2,1);">
-  <div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">
+你必须生成这样的代码：
+✅ 每个字段必须是独立的 div 卡片
+✅ 所有样式必须 inline（不要用 class）
+✅ 必须有渐变/阴影/圆角
+
+正确示例（强制照做）：
+\`\`\`html
+<div style="background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.08)); border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; padding: 18px 22px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1); transition: all 0.3s ease;">
+  <div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 10px; font-weight: 600;">
     <i class="fa-solid fa-user" style="margin-right: 6px;"></i>姓名
   </div>
-  <div style="font-size: 17px; color: #ffffff; font-weight: 500; line-height: 1.5;">
+  <div style="font-size: 17px; color: #fff; font-weight: 500;">
     $1
   </div>
 </div>
 
-# 你的任务
-为 SillyTavern 生成精美翻页状态栏。
+<div style="background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.08)); border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; padding: 18px 22px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: all 0.3s ease;">
+  <div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 10px; font-weight: 600;">
+    <i class="fa-solid fa-cake-candles" style="margin-right: 6px;"></i>年龄
+  </div>
+  <div style="font-size: 17px; color: #fff; font-weight: 500;">
+    $2
+  </div>
+</div>
+\`\`\`
 
-# 翻页结构
-- 标签页按钮（切换页面）
-- 多个内容页面（只显示一个）
-- 布局：顶部/左侧/右侧标签页
+# 任务
+生成翻页状态栏（2-4个页面）
 
-# 必须的样式要求
+# 要求
+1. 使用 $1, $2, $3 占位符
+2. 容器用渐变背景 + 圆角 + 阴影
+3. 标签页按钮三态明显
+4. **每个字段必须完全按照上面的正确示例格式！**
+5. 所有 style 必须 inline
+6. 在 <details> 标签内
+7. 包含 <style> 和 <script>
 
-1. 容器：
-background: linear-gradient(135deg, 颜色1, 颜色2);
-border-radius: 20px;
-padding: 30px;
-box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3);
-
-2. 标签页按钮（必须 inline style）：
-默认：background: rgba(255,255,255,0.1); border: 1px solid rgba(主色,0.3);
-悬停：background: linear-gradient(135deg, 主色1, 主色2); transform: scale(1.05);
-激活：background: linear-gradient(135deg, 主色1, 主色2); box-shadow: 0 0 20px rgba(主色,0.6); font-weight: 700;
-
-3. 字段卡片（必须 inline style，必须精美）：
-每个字段都必须用完整的 inline style 卡片包裹！
-background: rgba(255,255,255,0.05) 或渐变;
-border: 1px solid rgba(255,255,255,0.15);
-border-radius: 12px;
-padding: 18px 22px;
-margin-bottom: 16px;
-box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-
-# 输出要求
-1. 使用 $1, $2, $3... 占位符
-2. 生成 2-4 个页面
-3. 所有样式必须用 inline style（不要用 class）
-4. 每个字段必须是独立的精美卡片
-5. 直接输出 HTML，不要 \\\`\\\`\\\`html 标记
-6. 确保在 <details> 标签内
-7. 必须包含 <style> 和 <script> 标签
-
-⚠️⚠️⚠️ 如果字段不是卡片式设计，你的输出将被拒绝！⚠️⚠️⚠️`;
+🚫 如果字段不是卡片（有完整 inline style），你的输出无效！🚫`;
 
   try {
     const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
