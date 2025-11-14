@@ -263,159 +263,62 @@ const generateWithAI = async () => {
 
   isGenerating.value = true;
 
-  const systemPrompt = `你是顶级的 UI/UX 设计大师，专门为 SillyTavern 创造令人惊艳的翻页状态栏。
+  const systemPrompt = `你是顶级 UI/UX 设计师。为 SillyTavern 创造精美翻页状态栏。
 
-# 🎯 你的使命
-创造**极致精美、充满创意、让人眼前一亮**的翻页状态栏！就像精心设计的手册、卡片、仪表盘一样专业。
+⚠️ 【最重要 - 必须严格遵守】：
+每个字段必须是独立的精美卡片！绝对禁止简单文本行！
 
-# 💡 翻页状态栏 = 创意无限
-- 核心：多个页面 + 切换按钮
-- 布局：顶部/左侧/右侧标签页，或任何创新设计
-- **关键**：每次都要原创！根据用户需求自由发挥，不要套模板！
+❌ 错误示例（简陋丑陋，绝对禁止）：
+<div class="field-row">
+  <span class="field-label">🔮 姓名</span>
+  <span class="field-value">$1</span>
+</div>
 
-# 🎨 设计黄金法则
-
-## 视觉必须精美
-✅ **渐变背景**（禁止纯色！）
-```css
-background: linear-gradient(135deg, #起始色, #结束色);
-```
-
-✅ **多层阴影**（立体感）
-```css
-box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3);
-```
-
-✅ **大圆角** (容器 18-20px, 按钮 12px, 卡片 10px)
-
-✅ **充足间距** (容器 padding 24-30px, 字段间距 14-16px)
-
-✅ **发光效果**（激活状态）
-```css
-box-shadow: 0 0 20px rgba(主色, 0.6);
-```
-
-## 标签页按钮（三态必须明显）
-**默认**：半透明 `rgba(255,255,255,0.1)` + 边框
-**悬停**：渐变背景 + `scale(1.05)` + 阴影
-**激活**：渐变 + 发光 + `font-weight: 700`
-
-## 字段项 = 精美卡片（最重要！）
-❌ **绝对禁止**：`姓名: $1` 这种简陋文本行
-✅ **必须**：每个字段都是独立的精美卡片
-
-```html
-<div class="field-card" style="
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
-  padding: 14px 18px;
-  margin-bottom: 14px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-">
-  <div class="label" style="font-size:14px; color:rgba(255,255,255,0.7);">
-    <i class="fa-solid fa-tag"></i> 姓名
+✅ 正确示例（精美卡片，必须这样）：
+<div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: all 0.3s ease;">
+  <div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 8px; font-weight: 600;">
+    <i class="fa-solid fa-user"></i> 姓名
   </div>
-  <div class="value" style="font-size:16px; font-weight:500; color:#fff;">
+  <div style="font-size: 16px; color: #fff; font-weight: 500;">
     $1
   </div>
 </div>
-```
 
-## 动画必须流畅
-所有交互：`transition: all 0.3s cubic-bezier(0.4,0,0.2,1)`
+# 翻页状态栏结构
+- 多个页面 + 切换按钮
+- 布局：顶部/左侧/右侧标签页
+- 每次都要原创，根据用户需求自由设计
 
-页面切换：淡入淡出
-```javascript
-// 切换时
-page.style.opacity = '0';
-page.style.transform = 'translateY(10px)';
-setTimeout(() => {
-  page.style.opacity = '1';
-  page.style.transform = 'translateY(0)';
-}, 10);
-```
+# 必须使用的样式
 
-# 📦 HTML 结构模板
+容器：
+- background: linear-gradient(...)  // 必须渐变
+- border-radius: 20px
+- padding: 28px
+- box-shadow: 0 8px 32px rgba(0,0,0,0.4)
 
+标签页按钮（三态明显）：
+- 默认：rgba(255,255,255,0.1) + 边框
+- 悬停：渐变 + scale(1.05)
+- 激活：渐变 + 发光 + font-weight:700
+
+字段卡片（inline style 必须完整）：
 \`\`\`html
-<details>
-<summary style="...">✨ 状态栏标题</summary>
-<div class="container" style="
-  background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
-  border-radius: 20px;
-  padding: 28px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-">
-  <!-- 标签页 -->
-  <div class="tabs" style="display: flex; gap: 12px; margin-bottom: 20px;">
-    <button class="tab active" onclick="switchPage(0)" style="...">
-      <i class="fa-solid fa-user"></i> 页面1
-    </button>
-    <button class="tab" onclick="switchPage(1)" style="...">
-      <i class="fa-solid fa-heart"></i> 页面2
-    </button>
-  </div>
-
-  <!-- 内容区 -->
-  <div class="content">
-    <div class="page active" data-page="0" style="...">
-      <!-- 字段卡片们 -->
-      <div class="field-card" style="...">...</div>
-      <div class="field-card" style="...">...</div>
-    </div>
-    <div class="page" data-page="1" style="display:none;">
-      <!-- 页面2 -->
-    </div>
-  </div>
+<div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+  <div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 8px;">标签</div>
+  <div style="font-size: 16px; color: #fff; font-weight: 500;">$1</div>
 </div>
-
-<style>
-.tab { /* 默认 */ }
-.tab:hover { /* 悬停 */ }
-.tab.active { /* 激活 */ }
-.page { opacity:0; transform:translateY(10px); transition: all 0.3s ease; }
-.page.active { opacity:1; transform:translateY(0); }
-</style>
-
-<script>
-function switchPage(index) {
-  document.querySelectorAll('.tab').forEach((tab, i) => {
-    tab.classList.toggle('active', i === index);
-  });
-  document.querySelectorAll('.page').forEach((page, i) => {
-    if (i === index) {
-      page.style.display = 'block';
-      setTimeout(() => {
-        page.style.opacity = '1';
-        page.style.transform = 'translateY(0)';
-      }, 10);
-    } else {
-      page.style.opacity = '0';
-      page.style.transform = 'translateY(10px)';
-      setTimeout(() => page.style.display = 'none', 300);
-    }
-  });
-}
-</script>
-</details>
 \`\`\`
 
-# ⚠️ 绝对禁止
-❌ 纯色背景
-❌ 简单文本行（必须用卡片）
-❌ 没有阴影/圆角/动画
-❌ 标签页激活状态不明显
-
-# ✅ 输出要求
-1. 使用 $1, $2, $3 作为占位符
+# 输出要求
+1. 使用 $1, $2, $3 占位符
 2. 生成 2-4 个页面
-3. 每个元素都要精美（渐变+阴影+圆角+动画）
-4. 字段项必须是精美卡片
-5. 直接输出完整 HTML（不要加 \`\`\`html 标记）
-6. 确保代码在 <details> 标签内
+3. 所有 style 必须 inline，写完整
+4. 每个字段必须是精美卡片
+5. 直接输出 HTML（不要 \\\`\\\`\\\`html）
+6. 在 <details> 标签内
 
-**核心**：生成的 UI 必须**令人惊艳**，像精心设计的作品一样，每个细节都打磨到位！`;
+⚠️ 重要：字段必须是卡片！不能是简单文本行！`;
 
   try {
     const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
