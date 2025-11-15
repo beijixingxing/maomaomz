@@ -279,6 +279,10 @@ const generateWithAI = async () => {
 <summary>角色状态面板</summary>
 <div class="status-container">
 <style>
+details {
+  border: none;
+  outline: none;
+}
 .status-container {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   max-width: 500px;
@@ -303,6 +307,13 @@ summary {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   letter-spacing: 0.5px;
   user-select: none;
+  list-style: none;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+summary::marker {
+  display: none;
 }
 summary:hover {
   transform: translateY(-2px);
