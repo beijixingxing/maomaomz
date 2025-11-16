@@ -140,9 +140,9 @@ summary:hover {
 }
 </style>
   <div class="page-tabs">
-    <button class="page-tab active" onclick="switchPage(0)">基础信息</button>
-    <button class="page-tab" onclick="switchPage(1)">状态属性</button>
-    <button class="page-tab" onclick="switchPage(2)">关系面板</button>
+    <button class="page-tab active" onclick="const tabs=this.parentElement.querySelectorAll('.page-tab');tabs.forEach((t,i)=>t.classList.toggle('active',i===0));const pages=this.parentElement.nextElementSibling.querySelectorAll('.page');pages.forEach(p=>p.classList.toggle('active',p.dataset.page==='0'))">基础信息</button>
+    <button class="page-tab" onclick="const tabs=this.parentElement.querySelectorAll('.page-tab');tabs.forEach((t,i)=>t.classList.toggle('active',i===1));const pages=this.parentElement.nextElementSibling.querySelectorAll('.page');pages.forEach(p=>p.classList.toggle('active',p.dataset.page==='1'))">状态属性</button>
+    <button class="page-tab" onclick="const tabs=this.parentElement.querySelectorAll('.page-tab');tabs.forEach((t,i)=>t.classList.toggle('active',i===2));const pages=this.parentElement.nextElementSibling.querySelectorAll('.page');pages.forEach(p=>p.classList.toggle('active',p.dataset.page==='2'))">关系面板</button>
   </div>
   <div class="page-content">
     <div class="page active" data-page="0">
@@ -198,17 +198,6 @@ summary:hover {
   </div>
 </div>
 </details>
-<${scriptTag}>
-function switchPage(index) {
-  document.querySelectorAll('.page-tab').forEach((tab, i) => {
-    tab.classList.toggle('active', i === index);
-  });
-  document.querySelectorAll('.page').forEach((page) => {
-    const pageIndex = parseInt(page.getAttribute('data-page'));
-    page.classList.toggle('active', pageIndex === index);
-  });
-}
-</${scriptTag}>
 
 ---
 
@@ -327,9 +316,9 @@ summary:hover {
 }
 </style>
   <div class="page-tabs">
-    <button class="page-tab active" onclick="switchPage(0)">基础数据</button>
-    <button class="page-tab" onclick="switchPage(1)">属性状态</button>
-    <button class="page-tab" onclick="switchPage(2)">关系信息</button>
+    <button class="page-tab active" onclick="const tabs=this.parentElement.querySelectorAll('.page-tab');tabs.forEach((t,i)=>t.classList.toggle('active',i===0));const pages=this.parentElement.nextElementSibling.querySelectorAll('.page');pages.forEach(p=>p.classList.toggle('active',p.dataset.page==='0'))">基础数据</button>
+    <button class="page-tab" onclick="const tabs=this.parentElement.querySelectorAll('.page-tab');tabs.forEach((t,i)=>t.classList.toggle('active',i===1));const pages=this.parentElement.nextElementSibling.querySelectorAll('.page');pages.forEach(p=>p.classList.toggle('active',p.dataset.page==='1'))">属性状态</button>
+    <button class="page-tab" onclick="const tabs=this.parentElement.querySelectorAll('.page-tab');tabs.forEach((t,i)=>t.classList.toggle('active',i===2));const pages=this.parentElement.nextElementSibling.querySelectorAll('.page');pages.forEach(p=>p.classList.toggle('active',p.dataset.page==='2'))">关系信息</button>
   </div>
   <div class="page-content">
     <div class="page active" data-page="0">
@@ -381,17 +370,6 @@ summary:hover {
   </div>
 </div>
 </details>
-<${scriptTag}>
-function switchPage(index) {
-  document.querySelectorAll('.page-tab').forEach((tab, i) => {
-    tab.classList.toggle('active', i === index);
-  });
-  document.querySelectorAll('.page').forEach((page) => {
-    const pageIndex = parseInt(page.getAttribute('data-page'));
-    page.classList.toggle('active', pageIndex === index);
-  });
-}
-</${scriptTag}>
 
 ---
 
@@ -450,22 +428,16 @@ function switchPage(index) {
 
 ---
 
-## ⚠️ 关键提醒：翻页功能
-**必须包含完整的 switchPage 函数！**
-示例代码：
-<${scriptTag}>
-function switchPage(index) {
-  document.querySelectorAll('.page-tab').forEach((tab, i) => {
-    tab.classList.toggle('active', i === index);
-  });
-  document.querySelectorAll('.page').forEach((page) => {
-    const pageIndex = parseInt(page.getAttribute('data-page'));
-    page.classList.toggle('active', pageIndex === index);
-  });
-}
-</${scriptTag}>
+## ⚠️ 关键提醒：翻页功能实现方式
+**SillyTavern 可能会过滤 <${scriptTag}> 标签，所以必须使用内联 JavaScript！**
 
-**不包含此函数，翻页功能将无法工作！**
+### 方法1：使用内联匿名函数（推荐）
+<button class="page-tab active" onclick="(function(){const t=document.querySelectorAll('.page-tab');t.forEach((e,i)=>e.classList.toggle('active',i===0));const p=document.querySelectorAll('.page');p.forEach(e=>e.classList.toggle('active',e.getAttribute('data-page')==='0'))})()">第1页</button>
+
+### 方法2：完整内联代码
+<button onclick="const tabs=this.parentElement.querySelectorAll('.page-tab');tabs.forEach((t,i)=>t.classList.toggle('active',i===0));const pages=this.parentElement.parentElement.querySelectorAll('.page');pages.forEach(p=>p.classList.toggle('active',p.dataset.page==='0'))">第1页</button>
+
+**重要：每个按钮的 onclick 必须包含完整的切换逻辑，不要依赖外部函数！**
 
 ---
 
