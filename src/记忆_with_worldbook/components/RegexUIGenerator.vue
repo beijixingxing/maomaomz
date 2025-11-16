@@ -146,6 +146,25 @@
           class="action-button"
           style="
             padding: 8px 16px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            pointer-events: auto;
+          "
+          @click.stop="restoreFromBackup"
+        >
+          <i class="fa-solid fa-clock-rotate-left" style="margin-right: 6px; pointer-events: none"></i>
+          恢复备份
+        </button>
+        <button
+          class="action-button"
+          style="
+            padding: 8px 16px;
             background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
             border: none;
             border-radius: 8px;
@@ -666,35 +685,172 @@ const showTemplateDialog = ref(false);
 
 // localStorage 键名
 const STORAGE_KEY = 'pageable_statusbar_generator_data';
+const STORAGE_VERSION = 2; // 数据版本号
+const BACKUP_KEY = 'pageable_statusbar_generator_backup';
+const MAX_BACKUPS = 3; // 最多保留3个备份
+
+// 防抖定时器
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // 从 localStorage 加载数据
 const loadFromStorage = () => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      const data = JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+
+      // 检查数据版本
+      const version = parsed.version || 1;
+      let data = parsed.data || parsed; // 兼容旧版本
+
+      // 数据迁移
+      if (version < STORAGE_VERSION) {
+        console.log(`🔄 数据版本从 v${version} 升级到 v${STORAGE_VERSION}`);
+        data = migrateData(data, version);
+      }
+
+      // 加载数据
       triggerRegex.value = data.triggerRegex || '<-PAGEABLE_STATUSBAR->';
       aiPrompt.value = data.aiPrompt || '';
       generatedHTML.value = data.generatedHTML || '';
+
       console.log('✅ 已从 localStorage 加载翻页状态栏数据');
     }
   } catch (error) {
     console.error('❌ 加载数据失败:', error);
+    // 尝试从备份恢复
+    tryRestoreFromBackup();
   }
 };
 
-// 保存到 localStorage
-const saveToStorage = () => {
+// 数据迁移函数
+const migrateData = (data: any, fromVersion: number) => {
+  // v1 -> v2: 无需迁移，只是添加了版本号
+  return data;
+};
+
+// 从备份恢复
+const tryRestoreFromBackup = () => {
   try {
-    const data = {
-      triggerRegex: triggerRegex.value,
-      aiPrompt: aiPrompt.value,
-      generatedHTML: generatedHTML.value,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    console.log('💾 翻页状态栏数据已保存');
+    const backupStr = localStorage.getItem(BACKUP_KEY);
+    if (backupStr) {
+      const backups = JSON.parse(backupStr);
+      if (Array.isArray(backups) && backups.length > 0) {
+        const latestBackup = backups[0];
+        triggerRegex.value = latestBackup.triggerRegex || '<-PAGEABLE_STATUSBAR->';
+        aiPrompt.value = latestBackup.aiPrompt || '';
+        generatedHTML.value = latestBackup.generatedHTML || '';
+        console.log('✅ 已从备份恢复数据');
+        (window as any).toastr?.info('已从备份恢复数据');
+      }
+    }
   } catch (error) {
-    console.error('❌ 保存数据失败:', error);
+    console.error('❌ 从备份恢复失败:', error);
+  }
+};
+
+// 保存到 localStorage（带防抖）
+const saveToStorage = () => {
+  // 清除之前的定时器
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+
+  // 设置新的定时器（500ms 防抖）
+  saveTimeout = setTimeout(() => {
+    try {
+      const data = {
+        triggerRegex: triggerRegex.value,
+        aiPrompt: aiPrompt.value,
+        generatedHTML: generatedHTML.value,
+      };
+
+      // 包装数据，添加版本信息和时间戳
+      const wrappedData = {
+        version: STORAGE_VERSION,
+        timestamp: Date.now(),
+        data: data,
+      };
+
+      // 尝试保存
+      const jsonStr = JSON.stringify(wrappedData);
+      localStorage.setItem(STORAGE_KEY, jsonStr);
+
+      // 创建备份
+      createBackup(data);
+
+      console.log('💾 翻页状态栏数据已保存');
+    } catch (error) {
+      console.error('❌ 保存数据失败:', error);
+
+      // 如果是配额超出错误，尝试清理旧数据
+      if ((error as Error).name === 'QuotaExceededError') {
+        console.warn('⚠️ 存储空间不足，正在清理...');
+        cleanupStorage();
+        // 重试保存
+        try {
+          const data = {
+            triggerRegex: triggerRegex.value,
+            aiPrompt: aiPrompt.value,
+            generatedHTML: generatedHTML.value,
+          };
+          const wrappedData = {
+            version: STORAGE_VERSION,
+            timestamp: Date.now(),
+            data: data,
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(wrappedData));
+          console.log('✅ 清理后保存成功');
+        } catch (retryError) {
+          console.error('❌ 重试保存失败:', retryError);
+          (window as any).toastr?.error('存储空间不足，数据保存失败');
+        }
+      }
+    }
+  }, 500); // 500ms 防抖延迟
+};
+
+// 创建备份
+const createBackup = (data: any) => {
+  try {
+    const backupStr = localStorage.getItem(BACKUP_KEY);
+    let backups: any[] = [];
+
+    if (backupStr) {
+      backups = JSON.parse(backupStr);
+    }
+
+    // 添加新备份（带时间戳）
+    backups.unshift({
+      ...data,
+      timestamp: Date.now(),
+    });
+
+    // 只保留最近的 MAX_BACKUPS 个备份
+    if (backups.length > MAX_BACKUPS) {
+      backups = backups.slice(0, MAX_BACKUPS);
+    }
+
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(backups));
+  } catch (error) {
+    console.warn('⚠️ 创建备份失败:', error);
+  }
+};
+
+// 清理存储空间
+const cleanupStorage = () => {
+  try {
+    // 清理备份，只保留最新的一个
+    const backupStr = localStorage.getItem(BACKUP_KEY);
+    if (backupStr) {
+      const backups = JSON.parse(backupStr);
+      if (Array.isArray(backups) && backups.length > 0) {
+        localStorage.setItem(BACKUP_KEY, JSON.stringify([backups[0]]));
+        console.log('✅ 已清理旧备份');
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ 清理存储失败:', error);
   }
 };
 
@@ -703,7 +859,7 @@ onMounted(() => {
   loadFromStorage();
 });
 
-// 监听数据变化，自动保存
+// 监听数据变化，自动保存（带防抖）
 watch([triggerRegex, aiPrompt, generatedHTML], () => {
   saveToStorage();
 });
@@ -1037,11 +1193,55 @@ const showWorldbookGuide = () => {
 };
 
 const clearAll = () => {
-  if (confirm('确定要清空所有内容吗？')) {
+  if (confirm('确定要清空所有内容吗？\n\n注意：此操作会清空当前数据，但会保留备份。')) {
     triggerRegex.value = '<-PAGEABLE_STATUSBAR->';
     aiPrompt.value = '';
     generatedHTML.value = '';
-    (window as any).toastr?.success('已清空');
+    (window as any).toastr?.success('✅ 已清空，备份已保留');
+  }
+};
+
+// 恢复最近的备份
+const restoreFromBackup = () => {
+  try {
+    const backupStr = localStorage.getItem(BACKUP_KEY);
+    if (!backupStr) {
+      (window as any).toastr?.warning('没有可用的备份');
+      return;
+    }
+
+    const backups = JSON.parse(backupStr);
+    if (!Array.isArray(backups) || backups.length === 0) {
+      (window as any).toastr?.warning('没有可用的备份');
+      return;
+    }
+
+    const latestBackup = backups[0];
+    triggerRegex.value = latestBackup.triggerRegex || '<-PAGEABLE_STATUSBAR->';
+    aiPrompt.value = latestBackup.aiPrompt || '';
+    generatedHTML.value = latestBackup.generatedHTML || '';
+
+    const backupTime = new Date(latestBackup.timestamp).toLocaleString('zh-CN');
+    (window as any).toastr?.success(`✅ 已恢复备份 (${backupTime})`);
+  } catch (error) {
+    console.error('恢复备份失败:', error);
+    (window as any).toastr?.error('恢复备份失败');
+  }
+};
+
+// 清空所有数据（包括备份）
+const clearAllWithBackups = () => {
+  if (
+    confirm(
+      '⚠️ 警告：此操作将清空所有数据和备份！\n\n确定要继续吗？此操作不可恢复！',
+    )
+  ) {
+    triggerRegex.value = '<-PAGEABLE_STATUSBAR->';
+    aiPrompt.value = '';
+    generatedHTML.value = '';
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(BACKUP_KEY);
+    (window as any).toastr?.success('✅ 已清空所有数据和备份');
   }
 };
 
