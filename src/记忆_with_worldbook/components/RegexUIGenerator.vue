@@ -951,13 +951,33 @@ const exportRegex = () => {
     return;
   }
 
+  // 提取 {{字段名}} 占位符
+  const matches = generatedHTML.value.match(/\{\{([^}]+)\}\}/g);
+  if (!matches || matches.length === 0) {
+    (window as any).toastr?.warning('未检测到字段占位符');
+    return;
+  }
+
+  const uniqueFields = [...new Set(matches.map(m => m.slice(2, -2)))];
+
+  // 构建 findRegex - 添加捕获组
+  // 格式：<-PAGEABLE_STATUSBAR->\n{{姓名}}([^\n]+)\n{{年龄}}([^\n]+)\n...
+  const captureGroups = uniqueFields.map(field => `\\{\\{${field}\\}\\}([^\\n]+)`).join('\\n');
+  const findRegex = `${triggerRegex.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\r\\n]+${captureGroups}[\\r\\n]*`;
+
+  // 构建 replaceString - 将 {{字段名}} 替换为 $1, $2...
+  let replaceString = generatedHTML.value;
+  uniqueFields.forEach((field, index) => {
+    replaceString = replaceString.replace(new RegExp(`\\{\\{${field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}\\}`, 'g'), `$${index + 1}`);
+  });
+
   const uuid = `regex-pageable-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
   const regexData = {
     id: uuid,
     scriptName: '翻页状态栏',
-    findRegex: triggerRegex.value,
-    replaceString: generatedHTML.value,
+    findRegex: findRegex,
+    replaceString: replaceString,
     trimStrings: [],
     placement: [2],
     disabled: false,
