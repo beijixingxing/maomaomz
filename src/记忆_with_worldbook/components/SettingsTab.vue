@@ -3093,7 +3093,7 @@ const handle_hide_messages = async () => {
         // 批量设置消息为隐藏状态
         await setChatMessagesFn(
           messageIds.map(message_id => ({ message_id, is_hidden: true })),
-          { refresh: 'affected' }
+          { refresh: 'affected' },
         );
 
         window.toastr.success(`成功隐藏 ${messageIds.length} 个楼层`);
@@ -3196,7 +3196,7 @@ const handle_show_messages = async () => {
       // 批量设置消息为显示状态
       await setChatMessagesFn(
         messageIds.map(message_id => ({ message_id, is_hidden: false })),
-        { refresh: 'affected' }
+        { refresh: 'affected' },
       );
 
       window.toastr.success(`成功显示 ${messageIds.length} 个楼层`);
