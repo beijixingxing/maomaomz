@@ -60,7 +60,12 @@
             <i class="fa-solid fa-code" style="color: #10b981"></i>
             触发正则
           </h4>
-          <input v-model="triggerRegex" type="text" placeholder="<-UI->" class="regex-input" />
+          <input
+            v-model="triggerRegex"
+            type="text"
+            placeholder="/【界面】/g"
+            class="regex-input"
+          />
         </div>
 
         <div v-if="isModifyMode" class="modify-tips">
@@ -113,7 +118,7 @@ import { filterApiParams, normalizeApiEndpoint, useSettingsStore } from '../sett
 const settingsStore = useSettingsStore();
 const { settings } = storeToRefs(settingsStore);
 
-const triggerRegex = ref('<-UI->');
+const triggerRegex = ref('/【界面】/g');
 const userPrompt = ref('');
 const isGenerating = ref(false);
 const generatedCode = ref('');
@@ -138,7 +143,7 @@ const loadFromStorage = () => {
       const version = parsed.version || 1;
       let data = parsed.data || parsed;
 
-      triggerRegex.value = data.triggerRegex || '<-UI->';
+      triggerRegex.value = data.triggerRegex || '/【界面】/g';
       userPrompt.value = data.userPrompt || '';
       generatedCode.value = data.generatedCode || '';
 
@@ -495,12 +500,25 @@ const exportRegex = () => {
     return;
   }
 
+  // 解析用户输入的正则表达式格式
+  let findRegex = triggerRegex.value;
+
+  // 如果是 /pattern/flags 格式，提取 pattern
+  const regexMatch = triggerRegex.value.match(/^\/(.+?)\/([gimuy]*)$/);
+  if (regexMatch) {
+    // 用户输入的是正则格式，直接使用 pattern 部分
+    findRegex = regexMatch[1];
+  } else {
+    // 用户输入的是普通字符串，需要转义
+    findRegex = triggerRegex.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   const uuid = `regex-ui-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
   const regexData = {
     id: uuid,
     scriptName: '前端界面',
-    findRegex: triggerRegex.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    findRegex: findRegex,
     replaceString: generatedCode.value,
     trimStrings: [],
     placement: [2],
@@ -542,7 +560,7 @@ const restoreFromBackup = () => {
     }
 
     const latestBackup = backups[0];
-    triggerRegex.value = latestBackup.triggerRegex || '<-UI->';
+    triggerRegex.value = latestBackup.triggerRegex || '/【界面】/g';
     userPrompt.value = latestBackup.userPrompt || '';
     generatedCode.value = latestBackup.generatedCode || '';
 
@@ -557,7 +575,7 @@ const restoreFromBackup = () => {
 // 清空
 const clearAll = () => {
   if (confirm('确定要清空所有内容吗？\n\n注意：此操作会清空当前数据，但会保留备份。')) {
-    triggerRegex.value = '<-UI->';
+    triggerRegex.value = '/【界面】/g';
     userPrompt.value = '';
     generatedCode.value = '';
     isModifyMode.value = false;
