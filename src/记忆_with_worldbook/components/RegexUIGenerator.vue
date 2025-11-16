@@ -1115,7 +1115,7 @@ ${exampleOutput}
   // 创建世界书条目 JSON
   const worldbookEntry = {
     uid: Date.now(),
-    key: [triggerRegex.value],  // 保留完整的触发标记
+    key: [triggerRegex.value], // 保留完整的触发标记
     keysecondary: [],
     comment: '翻页状态栏',
     content: entryContent,
