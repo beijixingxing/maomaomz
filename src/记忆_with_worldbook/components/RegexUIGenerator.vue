@@ -368,13 +368,7 @@
         <!-- 世界书条目预览 -->
         <div
           v-if="generatedHTML"
-          style="
-            margin-top: 20px;
-            background: #2a2a2a;
-            border-radius: 12px;
-            padding: 16px;
-            border: 2px solid #8b5cf6;
-          "
+          style="margin-top: 20px; background: #2a2a2a; border-radius: 12px; padding: 16px; border: 2px solid #8b5cf6"
         >
           <div
             style="
@@ -841,14 +835,16 @@ ${uniqueFields.map(field => `- ${field}：描述${field}当前的值`).join('\n'
   // 生成示例状态
   const exampleStatus = `
 <status>
-${uniqueFields.map(field => {
+${uniqueFields
+  .map(field => {
     let example = '[具体值]';
     if (field.includes('姓名') || field.includes('名字')) example = '{{char}}';
     else if (field.includes('年龄')) example = '25';
     else if (field.includes('HP') || field.includes('生命')) example = '100/100';
     else if (field.includes('MP') || field.includes('魔法')) example = '80/100';
     return `<${field.toUpperCase()}_STATUS_>${example}`;
-  }).join('\n')}
+  })
+  .join('\n')}
 </status>`;
 
   return `${statusRule}\n\n##示例${exampleStatus}`;
