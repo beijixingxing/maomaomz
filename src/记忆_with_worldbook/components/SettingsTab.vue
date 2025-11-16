@@ -3092,7 +3092,10 @@ const handle_hide_messages = async () => {
 
         // 直接使用用户输入的范围格式调用 /hide 命令
         // 例如: /hide 143-144 或 /hide 143
-        const ranges = hide_range.value.split(',').map(r => r.trim()).filter(r => r);
+        const ranges = hide_range.value
+          .split(',')
+          .map(r => r.trim())
+          .filter(r => r);
 
         let successCount = 0;
         let failedRanges: string[] = [];
@@ -3107,7 +3110,7 @@ const handle_hide_messages = async () => {
             if (range.includes('-')) {
               const [start, end] = range.split('-').map(Number);
               if (start && end && start <= end) {
-                successCount += (end - start + 1);
+                successCount += end - start + 1;
               }
             } else {
               successCount++;
@@ -3221,7 +3224,10 @@ const handle_show_messages = async () => {
       }
 
       // 直接使用用户输入的范围格式调用 /unhide 命令
-      const ranges = hide_range.value.split(',').map(r => r.trim()).filter(r => r);
+      const ranges = hide_range.value
+        .split(',')
+        .map(r => r.trim())
+        .filter(r => r);
 
       let successCount = 0;
       let failedRanges: string[] = [];
@@ -3236,7 +3242,7 @@ const handle_show_messages = async () => {
           if (range.includes('-')) {
             const [start, end] = range.split('-').map(Number);
             if (start && end && start <= end) {
-              successCount += (end - start + 1);
+              successCount += end - start + 1;
             }
           } else {
             successCount++;
