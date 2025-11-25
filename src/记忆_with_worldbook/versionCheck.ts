@@ -37,44 +37,11 @@ function compareVersions(v1: string, v2: string): number {
 }
 
 /**
- * 从 GitHub 获取最新版本
+ * 从 GitHub 获取最新版本（直接读取 package.json，不依赖 Releases）
  */
 async function fetchLatestVersion(): Promise<{ version: string; url: string; notes: string } | null> {
-  try {
-    console.log('🔍 正在从 GitHub API 获取版本信息...');
-
-    // 尝试从 GitHub Releases API 获取
-    const response = await fetch(`${GITHUB_API_BASE}/repos/${GITHUB_REPO}/releases/latest`, {
-      headers: {
-        Accept: 'application/vnd.github.v3+json',
-      },
-      // 添加超时控制
-      signal: AbortSignal.timeout(10000), // 10秒超时
-    });
-
-    console.log(`📡 GitHub API 响应状态: ${response.status} ${response.statusText}`);
-
-    if (!response.ok) {
-      console.warn(`⚠️ GitHub API 请求失败 (${response.status})，尝试使用 jsDelivr CDN...`);
-      // 备用：使用 jsDelivr CDN 获取 package.json
-      return await fetchVersionFromCDN();
-    }
-
-    const data = await response.json();
-    console.log('✅ 成功获取版本信息:', data.tag_name);
-
-    return {
-      version: data.tag_name.replace(/^v/, ''),
-      url: data.html_url,
-      notes: data.body || '暂无更新说明',
-    };
-  } catch (error: any) {
-    console.error('❌ GitHub API 请求失败:', error.message || error);
-
-    // 如果是网络错误，尝试备用方案
-    console.warn('🔄 尝试使用 jsDelivr CDN 备用方案...');
-    return await fetchVersionFromCDN();
-  }
+  // 直接从 CDN/仓库读取 package.json，这样每次 push 代码后就能检测到更新
+  return await fetchVersionFromCDN();
 }
 
 /**
