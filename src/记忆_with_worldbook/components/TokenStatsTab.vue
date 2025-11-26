@@ -462,16 +462,36 @@ async function calculateTokenStats(): Promise<void> {
     }
 
     // 1.2 降级：直接使用 SillyTavern.characters / groups
-    if (
-      !characterTokensComputed &&
-      st &&
-      typeof (st as any).characterId !== 'undefined' &&
-      Array.isArray(st.characters)
-    ) {
-      const idx = (st as any).characterId as any;
-      const ch = (st.characters as any[])[idx];
+    if (!characterTokensComputed && st && Array.isArray(st.characters) && st.characters.length > 0) {
+      const charId = (st as any).characterId;
+      let ch: any = null;
+
+      // characterId 可能是数字索引，也可能是字符串
+      if (typeof charId === 'number' && st.characters[charId]) {
+        ch = st.characters[charId];
+      } else if (typeof charId === 'string') {
+        // 尝试作为数字索引
+        const numId = parseInt(charId, 10);
+        if (!isNaN(numId) && st.characters[numId]) {
+          ch = st.characters[numId];
+        }
+      }
+
+      // 如果还没找到，取第一个角色（当前聊天的角色）
+      if (!ch && st.characters.length > 0) {
+        // 尝试用 name2（当前角色名）来匹配
+        const name2 = (st as any).name2;
+        if (name2) {
+          ch = st.characters.find((c: any) => c.name === name2);
+        }
+        // 最后兜底：取第一个
+        if (!ch) {
+          ch = st.characters[0];
+        }
+      }
+
       if (ch) {
-        console.log('[TokenStats] 使用 SillyTavern.characters 和 characterId 获取角色:', ch.name, 'id=', idx);
+        console.log('[TokenStats] 使用 SillyTavern.characters 获取角色:', ch.name);
         local.characterName = ch.name || '(未命名角色)';
         const fields = [ch.description, ch.personality, ch.scenario, ch.first_mes].filter(Boolean).join('\n');
         local.characterCardTokens = getTokenCount(fields);
@@ -545,16 +565,8 @@ async function calculateTokenStats(): Promise<void> {
       }
     }
 
-    if (tav && typeof tav.getOrCreateChatLorebook === 'function') {
-      try {
-        const chatBook = await tav.getOrCreateChatLorebook();
-        if (chatBook && !lorebooksToProcess.has(chatBook)) {
-          lorebooksToProcess.set(chatBook, 'chat');
-        }
-      } catch (e) {
-        console.warn('getOrCreateChatLorebook 调用失败:', e);
-      }
-    }
+    // 注意：不再调用 getOrCreateChatLorebook()，因为它会自动创建聊天世界书
+    // "聊天" Token 统计的是对话消息内容，不是聊天世界书
 
     // 3. 遍历世界书条目
     for (const [bookName, source] of lorebooksToProcess.entries()) {
