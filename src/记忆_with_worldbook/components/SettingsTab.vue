@@ -3340,6 +3340,17 @@ const handle_refresh_hidden = async (showToast: boolean = false) => {
     }
 
     console.log(`刷新完成：${validHiddenMessages.length} 个有效隐藏楼层，${removedCount} 个已移除`);
+
+    // 强制刷新酒馆消息列表 UI（修复可能的渲染问题）
+    try {
+      const st = (window as any).SillyTavern;
+      if (st && typeof st.printMessages === 'function') {
+        console.log('🔄 强制刷新酒馆消息列表...');
+        await st.printMessages();
+      }
+    } catch (e) {
+      console.warn('强制刷新消息列表失败:', e);
+    }
   } catch (error) {
     console.error('刷新隐藏楼层失败:', error);
     if (showToast) {
