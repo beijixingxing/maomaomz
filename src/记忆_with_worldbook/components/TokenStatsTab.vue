@@ -421,17 +421,30 @@ async function calculateTokenStats(): Promise<void> {
         if (charData) {
           console.log('[TokenStats] 使用 TavernHelper.getCharData("current") 获取到角色:', charData.name);
           local.characterName = charData.name || '(未命名角色)';
-          // 统计所有角色卡字段，包括示例消息
-          const fields = [
-            charData.description,
-            charData.personality,
-            charData.scenario,
-            charData.first_mes,
-            charData.mes_example, // 示例消息（很重要！）
-          ]
-            .filter(Boolean)
-            .join('\n');
-          local.characterCardTokens = getTokenCount(fields);
+          // 统计所有角色卡字段
+          const fields: string[] = [];
+          // V1 字段
+          if (charData.description) fields.push(charData.description);
+          if (charData.personality) fields.push(charData.personality);
+          if (charData.scenario) fields.push(charData.scenario);
+          if (charData.first_mes) fields.push(charData.first_mes);
+          if (charData.mes_example) fields.push(charData.mes_example);
+          if (charData.creatorcomment) fields.push(charData.creatorcomment);
+          // V2 字段 (data 对象)
+          const v2 = charData.data;
+          if (v2) {
+            if (v2.system_prompt) fields.push(v2.system_prompt);
+            if (v2.post_history_instructions) fields.push(v2.post_history_instructions);
+            if (v2.creator_notes) fields.push(v2.creator_notes);
+            if (Array.isArray(v2.alternate_greetings)) {
+              fields.push(...v2.alternate_greetings.filter(Boolean));
+            }
+            // 深度提示词
+            if (v2.extensions?.depth_prompt?.prompt) {
+              fields.push(v2.extensions.depth_prompt.prompt);
+            }
+          }
+          local.characterCardTokens = getTokenCount(fields.join('\n'));
           characterTokensComputed = local.characterCardTokens > 0;
         } else {
           console.log('[TokenStats] TavernHelper.getCharData("current") 返回空');
@@ -473,17 +486,30 @@ async function calculateTokenStats(): Promise<void> {
       if (ch) {
         console.log('[TokenStats] 使用 SillyTavern.characters 获取角色:', ch.name);
         local.characterName = ch.name || '(未命名角色)';
-        // 统计所有角色卡字段，包括示例消息
-        const fields = [
-          ch.description,
-          ch.personality,
-          ch.scenario,
-          ch.first_mes,
-          ch.mes_example, // 示例消息（很重要！）
-        ]
-          .filter(Boolean)
-          .join('\n');
-        local.characterCardTokens = getTokenCount(fields);
+        // 统计所有角色卡字段
+        const fields: string[] = [];
+        // V1 字段
+        if (ch.description) fields.push(ch.description);
+        if (ch.personality) fields.push(ch.personality);
+        if (ch.scenario) fields.push(ch.scenario);
+        if (ch.first_mes) fields.push(ch.first_mes);
+        if (ch.mes_example) fields.push(ch.mes_example);
+        if (ch.creatorcomment) fields.push(ch.creatorcomment);
+        // V2 字段 (data 对象)
+        const v2 = ch.data;
+        if (v2) {
+          if (v2.system_prompt) fields.push(v2.system_prompt);
+          if (v2.post_history_instructions) fields.push(v2.post_history_instructions);
+          if (v2.creator_notes) fields.push(v2.creator_notes);
+          if (Array.isArray(v2.alternate_greetings)) {
+            fields.push(...v2.alternate_greetings.filter(Boolean));
+          }
+          // 深度提示词
+          if (v2.extensions?.depth_prompt?.prompt) {
+            fields.push(v2.extensions.depth_prompt.prompt);
+          }
+        }
+        local.characterCardTokens = getTokenCount(fields.join('\n'));
         characterTokensComputed = local.characterCardTokens > 0;
       }
     }
@@ -499,17 +525,29 @@ async function calculateTokenStats(): Promise<void> {
         for (const avatar of group.members) {
           const member = (st.characters as any[]).find((c: any) => c.avatar === avatar);
           if (member) {
-            // 统计所有角色卡字段，包括示例消息
-            const fields = [
-              member.description,
-              member.personality,
-              member.scenario,
-              member.first_mes,
-              member.mes_example, // 示例消息（很重要！）
-            ]
-              .filter(Boolean)
-              .join('\n');
-            total += getTokenCount(fields);
+            // 统计所有角色卡字段
+            const fields: string[] = [];
+            // V1 字段
+            if (member.description) fields.push(member.description);
+            if (member.personality) fields.push(member.personality);
+            if (member.scenario) fields.push(member.scenario);
+            if (member.first_mes) fields.push(member.first_mes);
+            if (member.mes_example) fields.push(member.mes_example);
+            if (member.creatorcomment) fields.push(member.creatorcomment);
+            // V2 字段 (data 对象)
+            const v2 = member.data;
+            if (v2) {
+              if (v2.system_prompt) fields.push(v2.system_prompt);
+              if (v2.post_history_instructions) fields.push(v2.post_history_instructions);
+              if (v2.creator_notes) fields.push(v2.creator_notes);
+              if (Array.isArray(v2.alternate_greetings)) {
+                fields.push(...v2.alternate_greetings.filter(Boolean));
+              }
+              if (v2.extensions?.depth_prompt?.prompt) {
+                fields.push(v2.extensions.depth_prompt.prompt);
+              }
+            }
+            total += getTokenCount(fields.join('\n'));
           }
         }
         local.characterCardTokens = total;
@@ -591,11 +629,11 @@ async function calculateTokenStats(): Promise<void> {
         // 计算 Token 数量
         const entryTokens = getTokenCount(entry.content);
 
-        // 判断条目类型：使用布尔值字段，而不是 type 字符串
+        // 判断条目类型：使用 entry.type 字符串字段
         let kind: 'c' | 's' | 'v';
-        if (entry.constant === true) {
+        if (entry.type === 'constant') {
           kind = 'c'; // 蓝灯 - constant
-        } else if (entry.vectorized === true) {
+        } else if (entry.type === 'vectorized') {
           kind = 'v'; // 向量 - vectorized
         } else {
           kind = 's'; // 绿灯 - selective（默认）
