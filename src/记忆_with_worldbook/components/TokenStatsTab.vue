@@ -878,9 +878,23 @@ async function calculateTokenStats(): Promise<void> {
       }
 
       if (Array.isArray(messages) && messages.length > 0) {
+        // 检查第一条消息的结构，确认隐藏字段名
+        if (messages[0]) {
+          console.log('[TokenStats] 消息样本:', Object.keys(messages[0]), 'is_hidden:', messages[0].is_hidden);
+        }
+
         // 过滤掉隐藏的消息（API不会发送隐藏的消息）
-        const visibleMessages = messages.filter((m: any) => !m.is_hidden);
-        console.log('[TokenStats] 总消息数:', messages.length, '可见消息数:', visibleMessages.length);
+        // 检查多种可能的隐藏标记: is_hidden, hidden, isHidden
+        const visibleMessages = messages.filter((m: any) => !m.is_hidden && !m.hidden && !m.isHidden);
+        const hiddenCount = messages.length - visibleMessages.length;
+        console.log(
+          '[TokenStats] 总消息数:',
+          messages.length,
+          '可见消息数:',
+          visibleMessages.length,
+          '隐藏消息数:',
+          hiddenCount,
+        );
 
         // 直接统计消息内容，不加额外格式化
         const text = visibleMessages
