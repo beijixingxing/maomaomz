@@ -863,12 +863,11 @@ async function calculateTokenStats(): Promise<void> {
 
     local.lorebookTokens = local.totalConstantTokens + local.totalSelectiveTokens + local.totalVectorizedTokens;
 
-    // 4. 聊天内容（包含消息名称和格式化开销）
+    // 4. 聊天内容（直接统计消息文本）
     try {
       let messages: any[] = [];
 
       if (st && Array.isArray(st.chat)) {
-        // SillyTavern.chat 已经包含当前会话的全部消息
         messages = st.chat;
       } else if (w.TavernHelper && typeof w.TavernHelper.getChatMessages === 'function') {
         try {
@@ -879,25 +878,12 @@ async function calculateTokenStats(): Promise<void> {
       }
 
       if (Array.isArray(messages) && messages.length > 0) {
-        // 获取角色名和用户名用于计算格式化开销
-        const charName = local.characterName || st?.name2 || 'Character';
-        const userName = st?.name1 || 'User';
-
-        // 统计每条消息，包含角色名前缀
-        let totalChatTokens = 0;
-        for (const m of messages) {
-          const content = typeof m.mes === 'string' ? m.mes : typeof m.message === 'string' ? m.message : '';
-          if (!content) continue;
-
-          // 判断是用户消息还是角色消息
-          const isUser = m.is_user === true || (m.is_system === false && m.name === userName);
-          const name = isUser ? userName : m.name || charName;
-
-          // 格式化后的消息：角色名 + 内容
-          const formattedMsg = `${name}: ${content}`;
-          totalChatTokens += getTokenCount(formattedMsg);
-        }
-        local.chatTokens = totalChatTokens;
+        // 直接统计消息内容，不加额外格式化
+        const text = messages
+          .map((m: any) => (typeof m.mes === 'string' ? m.mes : typeof m.message === 'string' ? m.message : ''))
+          .filter(Boolean)
+          .join('\n');
+        local.chatTokens = getTokenCount(text);
         console.log('[TokenStats] 聊天内容 Tokens:', local.chatTokens, '(共', messages.length, '条消息)');
       } else {
         local.chatTokens = 0;
