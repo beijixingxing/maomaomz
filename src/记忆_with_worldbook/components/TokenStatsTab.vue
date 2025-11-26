@@ -421,7 +421,14 @@ async function calculateTokenStats(): Promise<void> {
         if (charData) {
           console.log('[TokenStats] 使用 TavernHelper.getCharData("current") 获取到角色:', charData.name);
           local.characterName = charData.name || '(未命名角色)';
-          const fields = [charData.description, charData.personality, charData.scenario, charData.first_mes]
+          // 统计所有角色卡字段，包括示例消息
+          const fields = [
+            charData.description,
+            charData.personality,
+            charData.scenario,
+            charData.first_mes,
+            charData.mes_example, // 示例消息（很重要！）
+          ]
             .filter(Boolean)
             .join('\n');
           local.characterCardTokens = getTokenCount(fields);
@@ -466,7 +473,16 @@ async function calculateTokenStats(): Promise<void> {
       if (ch) {
         console.log('[TokenStats] 使用 SillyTavern.characters 获取角色:', ch.name);
         local.characterName = ch.name || '(未命名角色)';
-        const fields = [ch.description, ch.personality, ch.scenario, ch.first_mes].filter(Boolean).join('\n');
+        // 统计所有角色卡字段，包括示例消息
+        const fields = [
+          ch.description,
+          ch.personality,
+          ch.scenario,
+          ch.first_mes,
+          ch.mes_example, // 示例消息（很重要！）
+        ]
+          .filter(Boolean)
+          .join('\n');
         local.characterCardTokens = getTokenCount(fields);
         characterTokensComputed = local.characterCardTokens > 0;
       }
@@ -483,7 +499,14 @@ async function calculateTokenStats(): Promise<void> {
         for (const avatar of group.members) {
           const member = (st.characters as any[]).find((c: any) => c.avatar === avatar);
           if (member) {
-            const fields = [member.description, member.personality, member.scenario, member.first_mes]
+            // 统计所有角色卡字段，包括示例消息
+            const fields = [
+              member.description,
+              member.personality,
+              member.scenario,
+              member.first_mes,
+              member.mes_example, // 示例消息（很重要！）
+            ]
               .filter(Boolean)
               .join('\n');
             total += getTokenCount(fields);
