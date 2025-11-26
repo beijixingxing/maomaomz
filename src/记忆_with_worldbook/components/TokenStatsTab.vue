@@ -432,27 +432,51 @@ function getTokenCount(text: string | null | undefined): number {
   return Math.ceil(text.length / 4);
 }
 
-function collectPresetPromptTexts(st: any, tav: any): string[] {
+function collectPresetPromptTexts(st: any, tav: any): { texts: string[]; details: string } {
   const texts: string[] = [];
   const seen = new Set<string>(); // 避免重复统计
+  let presetCount = 0;
+  let oaiCount = 0;
+  let extCount = 0;
 
-  const pushText = (value: unknown) => {
-    if (typeof value !== 'string') return;
+  const pushText = (value: unknown, source: string) => {
+    if (typeof value !== 'string') return false;
     const trimmed = value.trim();
     if (trimmed && !seen.has(trimmed)) {
       seen.add(trimmed);
       texts.push(value);
+      return true;
     }
+    return false;
   };
 
-  // 1) 当前预设的 prompts（tavern helper）
+  // 1) 当前预设的 prompts（tavern helper）- 最重要！
   if (tav && typeof tav.getPreset === 'function') {
     try {
       const preset = tav.getPreset('in_use');
+      console.log('[TokenStats] 预设对象:', preset);
       if (preset && Array.isArray(preset.prompts)) {
+        console.log('[TokenStats] 预设 prompts 数量:', preset.prompts.length);
         for (const prompt of preset.prompts) {
-          if (prompt?.enabled !== false && prompt?.content) {
-            pushText(prompt.content);
+          // 只统计有 content 的提示词（普通提示词和系统提示词）
+          // 占位符提示词（charDescription等）没有 content
+          if (prompt?.content) {
+            // 检查是否启用（enabled 可能是 undefined，默认视为启用）
+            const isEnabled = prompt.enabled !== false;
+            if (isEnabled && pushText(prompt.content, 'preset')) {
+              presetCount++;
+              console.log('[TokenStats] 添加预设提示词:', prompt.id || prompt.name, '长度:', prompt.content.length);
+            }
+          }
+        }
+      }
+      // 也检查 prompts_unused（未添加到列表的提示词）
+      if (preset && Array.isArray(preset.prompts_unused)) {
+        for (const prompt of preset.prompts_unused) {
+          if (prompt?.content && prompt.enabled !== false) {
+            if (pushText(prompt.content, 'preset_unused')) {
+              presetCount++;
+            }
           }
         }
       }
@@ -461,7 +485,7 @@ function collectPresetPromptTexts(st: any, tav: any): string[] {
     }
   }
 
-  // 2) chatCompletionSettings / oai_settings
+  // 2) chatCompletionSettings / oai_settings - 备用来源
   const oai = st?.chatCompletionSettings;
   if (oai && typeof oai === 'object') {
     const promptFields = [
@@ -480,45 +504,43 @@ function collectPresetPromptTexts(st: any, tav: any): string[] {
       'scenario_format',
       'personality_format',
       'char_description_format',
+      'enhance_definitions',
     ];
     for (const field of promptFields) {
-      if (oai[field]) pushText(oai[field]);
+      if (oai[field] && pushText(oai[field], `oai.${field}`)) {
+        oaiCount++;
+      }
     }
-    // prompts 数组 (tokenInspect 里展示的最终 prompt 列表)
+    // prompts 数组
     if (Array.isArray(oai.prompts)) {
       for (const item of oai.prompts) {
-        if (item?.content) pushText(item.content);
+        if (item?.content && pushText(item.content, 'oai.prompts')) {
+          oaiCount++;
+        }
       }
     }
   }
 
-  // 3) 作者注释 (Author's Note) - 非常重要！
+  // 3) 作者注释 (Author's Note)
   const context = (st as any)?.context;
-  if (context) {
-    // 作者注释可能在多个位置
-    if (context.note_prompt) pushText(context.note_prompt);
+  if (context?.note_prompt && pushText(context.note_prompt, 'author_note')) {
+    extCount++;
   }
 
-  // 从 power_user 获取作者注释
-  const powerUser = st?.powerUserSettings;
-  if (powerUser) {
-    if (powerUser.main_prompt) pushText(powerUser.main_prompt);
-    if (powerUser.nsfw_prompt) pushText(powerUser.nsfw_prompt);
-    if (powerUser.jailbreak_prompt) pushText(powerUser.jailbreak_prompt);
-  }
-
-  // 4) 深度提示词和扩展注入
+  // 4) 扩展注入的提示词
   if (st?.extensionPrompts && typeof st.extensionPrompts === 'object') {
     for (const [key, ext] of Object.entries(st.extensionPrompts)) {
       if (ext && typeof ext === 'object') {
         const extObj = ext as any;
-        if (extObj.value) pushText(extObj.value);
-        if (extObj.content) pushText(extObj.content);
+        if (extObj.value && pushText(extObj.value, `ext.${key}`)) {
+          extCount++;
+        }
       }
     }
   }
 
-  return texts;
+  const details = `预设:${presetCount} OAI:${oaiCount} 扩展:${extCount}`;
+  return { texts, details };
 }
 
 async function calculateTokenStats(): Promise<void> {
@@ -705,20 +727,24 @@ async function calculateTokenStats(): Promise<void> {
 
     // 1.5 预设提示词统计（收集所有系统提示词文本）
     try {
-      const presetTexts = collectPresetPromptTexts(st, tav);
+      const { texts: presetTexts, details } = collectPresetPromptTexts(st, tav);
       for (const text of presetTexts) {
         local.systemPromptTokens += getTokenCount(text);
       }
-      console.log('[TokenStats] 预设/系统提示词 Tokens:', local.systemPromptTokens, '(共', presetTexts.length, '条)');
-      // 扩展注入的提示词
-      if (st?.extensionPrompts && typeof st.extensionPrompts === 'object') {
-        for (const [key, ext] of Object.entries(st.extensionPrompts)) {
-          if (ext && typeof ext === 'object' && (ext as any).value) {
-            local.extensionTokens += getTokenCount((ext as any).value);
-          }
-        }
-        console.log('[TokenStats] 扩展注入 Tokens:', local.extensionTokens);
+      console.log(
+        '[TokenStats] 预设/系统提示词 Tokens:',
+        local.systemPromptTokens,
+        `(${details}, 共${presetTexts.length}条)`,
+      );
+
+      // 用户人设（单独统计）
+      if (st?.powerUserSettings?.persona_description) {
+        local.personaTokens = getTokenCount(st.powerUserSettings.persona_description);
+        console.log('[TokenStats] 用户人设 Tokens:', local.personaTokens);
       }
+
+      // 扩展注入（已在 collectPresetPromptTexts 中处理，这里只记录日志）
+      // extensionTokens 保持为 0，因为已经算入 systemPromptTokens
     } catch (e) {
       console.warn('[TokenStats] 获取预设相关 Token 失败:', e);
     }
