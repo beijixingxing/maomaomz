@@ -480,8 +480,25 @@ export const useSummaryHistoryStore = defineStore('summaryHistory', () => {
     }
   };
 
+  const clearSummaryHistory = () => {
+    try {
+      const chat_id = getChatIdSafe();
+      if (!chat_id) {
+        console.error('无法获取聊天 ID');
+        return;
+      }
+      const scriptId = getScriptIdSafe();
+      const storageKey = `${scriptId}_summary_history_${chat_id}`;
+      localStorage.removeItem(storageKey);
+      console.log('已清空总结历史:', chat_id);
+    } catch (e) {
+      console.warn('清空总结历史失败:', e);
+    }
+  };
+
   return {
     addSummary,
     getSummaryHistory,
+    clearSummaryHistory,
   };
 });
