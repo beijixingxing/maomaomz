@@ -14,44 +14,18 @@ export function getTavernApiPresets(): Array<{ name: string; value: string }> {
     const presets: Array<{ name: string; value: string }> = [];
     const mainDoc = window.parent?.document || document;
 
-    // 查找所有 select 元素，调试用
-    const allSelects = mainDoc.querySelectorAll('select');
-    console.log('📍 页面上所有 select 元素:');
-    allSelects.forEach((sel, i) => {
-      const s = sel as HTMLSelectElement;
-      if (s.options.length > 2) {
-        console.log(`  [${i}] id=${s.id}, name=${s.name}, class=${s.className}, options=${s.options.length}`);
-      }
-    });
+    // 使用正确的选择器 - openai_proxy_preset 是 API 连接配置
+    const profileSelect = mainDoc.querySelector('#openai_proxy_preset') as HTMLSelectElement;
 
-    // 尝试多个可能的选择器 - API 连接配置
-    const selectors = [
-      '#api_button_openai', // OpenAI API 按钮
-      '#reverse_proxy_preset', // 反向代理预设
-      '#proxy_preset', // 代理预设
-      '#api_url_scale', // API URL
-      '.api_button', // API 按钮类
-    ];
-
-    for (const selector of selectors) {
-      const profileSelect = mainDoc.querySelector(selector) as HTMLSelectElement;
-      if (profileSelect && profileSelect.tagName === 'SELECT') {
-        console.log(`📍 尝试选择器 ${selector}:`, profileSelect?.options?.length);
-
-        if (profileSelect.options && profileSelect.options.length > 1) {
-          for (let i = 0; i < profileSelect.options.length; i++) {
-            const option = profileSelect.options[i];
-            if (option.value && option.value !== '' && option.text !== '<None>') {
-              presets.push({
-                name: option.text || option.value,
-                value: option.value,
-              });
-            }
-          }
-          if (presets.length > 0) {
-            console.log(`✅ 从 ${selector} 获取到 ${presets.length} 个配置`);
-            return presets;
-          }
+    if (profileSelect && profileSelect.options) {
+      for (let i = 0; i < profileSelect.options.length; i++) {
+        const option = profileSelect.options[i];
+        // 跳过空值和 None
+        if (option.value && option.value.trim() !== '') {
+          presets.push({
+            name: option.text || option.value,
+            value: option.value,
+          });
         }
       }
     }
@@ -69,7 +43,7 @@ export function getTavernApiPresets(): Array<{ name: string; value: string }> {
 export function getTavernCurrentPreset(): string {
   try {
     const mainDoc = window.parent?.document || document;
-    const profileSelect = mainDoc.querySelector('#connection_profile') as HTMLSelectElement;
+    const profileSelect = mainDoc.querySelector('#openai_proxy_preset') as HTMLSelectElement;
     if (profileSelect) {
       return profileSelect.value || '';
     }
@@ -85,11 +59,11 @@ export function getTavernCurrentPreset(): string {
 export async function switchTavernPreset(presetValue: string): Promise<boolean> {
   try {
     const mainDoc = window.parent?.document || document;
-    const profileSelect = mainDoc.querySelector('#connection_profile') as HTMLSelectElement;
+    const profileSelect = mainDoc.querySelector('#openai_proxy_preset') as HTMLSelectElement;
 
     if (profileSelect) {
       profileSelect.value = presetValue;
-      // 触发 change 事件
+      // 触发 change 事件让酒馆应用配置
       profileSelect.dispatchEvent(new Event('change', { bubbles: true }));
       return true;
     }
