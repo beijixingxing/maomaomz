@@ -79,8 +79,50 @@ async function tavernProxyFetch(url: string, options: RequestInit = {}): Promise
   try {
     console.log('🔄 尝试通过酒馆后端代理:', tavernOrigin);
 
-    // 方法 1: 使用酒馆的 /api/backends/chat-completions 端点
-    // 这是酒馆内置的 OpenAI 兼容代理
+    // 方法 1: 使用酒馆的 /api/backends/chat-completions/generate 端点
+    // 这是酒馆用于 OpenAI 兼容 API 的标准代理方式
+    if (options.method === 'POST' && url.includes('/chat/completions')) {
+      try {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const headers = (options.headers as Record<string, string>) || {};
+        const apiKey = headers['Authorization']?.replace('Bearer ', '') || '';
+
+        // 从 URL 中提取基础地址（移除 /chat/completions 和 /v1）
+        const baseUrl = url.replace(/\/chat\/completions\/?$/, '').replace(/\/v1\/?$/, '');
+
+        console.log('🔗 使用酒馆 generate 代理，基础 URL:', baseUrl);
+
+        const proxyResponse = await fetch(`${tavernOrigin}/api/backends/chat-completions/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(typeof SillyTavern !== 'undefined' && SillyTavern.getRequestHeaders
+              ? SillyTavern.getRequestHeaders()
+              : {}),
+          },
+          body: JSON.stringify({
+            ...body,
+            chat_completion_source: 'custom',
+            custom_url: baseUrl,
+            custom_include_headers: apiKey ? `Authorization: Bearer ${apiKey}` : '',
+            reverse_proxy: baseUrl,
+            proxy_password: apiKey,
+          }),
+        });
+
+        if (proxyResponse.ok) {
+          console.log('✅ 成功通过酒馆 generate 代理');
+          return proxyResponse;
+        } else {
+          const errText = await proxyResponse.text().catch(() => '');
+          console.log('⚠️ generate 代理返回错误:', proxyResponse.status, errText.substring(0, 200));
+        }
+      } catch (e) {
+        console.log('⚠️ generate 代理不可用:', e);
+      }
+    }
+
+    // 方法 2: 使用酒馆的 /api/backends/chat-completions 端点（兼容旧版）
     if (options.method === 'POST' && url.includes('/chat/completions')) {
       try {
         const body = options.body ? JSON.parse(options.body as string) : {};
@@ -110,7 +152,7 @@ async function tavernProxyFetch(url: string, options: RequestInit = {}): Promise
       }
     }
 
-    // 方法 2: 使用通用代理端点
+    // 方法 3: 使用通用代理端点
     const proxyResponse = await fetch(`${tavernOrigin}/api/proxy`, {
       method: 'POST',
       headers: {
@@ -139,9 +181,9 @@ async function tavernProxyFetch(url: string, options: RequestInit = {}): Promise
   throw new Error(
     `无法连接到 API 端点 (CORS 错误)\n\n` +
       `💡 解决方案：\n` +
-      `1. 在反代服务中启用 CORS（添加 Access-Control-Allow-Origin: * 头）\n` +
+      `1. 在酒馆主界面配置相同的 API（Chat Completion → Custom）\n` +
       `2. 使用支持 CORS 的反代服务\n` +
-      `3. 确保 Neural Proxy 已正确配置`,
+      `3. 或联系反代提供者添加 CORS 支持`,
   );
 }
 
@@ -493,6 +535,38 @@ ${messages.map(msg => `[${msg.role}]: ${msg.message}`).join('\n\n')}
 
 直接输出总结内容，不要任何回复语：`;
 
+  // 如果启用了"使用酒馆 API"，直接通过酒馆后端发送请求（绕过 CORS）
+  if (settings.use_tavern_api) {
+    console.log('🍺 使用酒馆 API 发送总结请求（绕过 CORS）...');
+
+    if (typeof SillyTavern === 'undefined' || typeof SillyTavern.generateQuietPrompt !== 'function') {
+      throw new Error('酒馆 API 不可用，请确保在 SillyTavern 环境中运行，或关闭"使用酒馆 API"选项');
+    }
+
+    try {
+      // 使用酒馆的 generateQuietPrompt API，它会通过酒馆后端发送请求
+      const generateFn = SillyTavern.generateQuietPrompt();
+      const result = await generateFn(
+        summaryPrompt, // quiet_prompt
+        false, // quiet_to_loud
+        true, // skip_wian (跳过世界书)
+        undefined, // quiet_image
+        undefined, // quiet_name
+        settings.max_tokens, // response_length
+      );
+
+      if (!result || result.trim() === '') {
+        throw new Error('酒馆 API 返回了空结果');
+      }
+
+      console.log('✅ 通过酒馆 API 成功获取总结');
+      return result;
+    } catch (e) {
+      console.error('❌ 酒馆 API 调用失败:', e);
+      throw new Error(`酒馆 API 调用失败: ${(e as Error).message}\n\n请确保酒馆主界面已配置好 API 连接。`);
+    }
+  }
+
   console.log('准备调用 API，URL:', apiUrl);
   console.log('请求体:', {
     model: settings.model,
@@ -667,6 +741,30 @@ ${messages.map(msg => `[${msg.role}]: ${msg.message}`).join('\n\n')}
  */
 export async function summarizeText(prompt: string): Promise<string> {
   const settings = useSettingsStore().settings;
+
+  // 如果启用了"使用酒馆 API"，直接通过酒馆后端发送请求
+  if (settings.use_tavern_api) {
+    console.log('🍺 使用酒馆 API 发送请求（绕过 CORS）...');
+
+    if (typeof SillyTavern === 'undefined' || typeof SillyTavern.generateQuietPrompt !== 'function') {
+      throw new Error('酒馆 API 不可用，请确保在 SillyTavern 环境中运行，或关闭"使用酒馆 API"选项');
+    }
+
+    try {
+      const generateFn = SillyTavern.generateQuietPrompt();
+      const result = await generateFn(prompt, false, true, undefined, undefined, settings.max_tokens || 4000);
+
+      if (!result || result.trim() === '') {
+        throw new Error('酒馆 API 返回了空结果');
+      }
+
+      console.log('✅ 通过酒馆 API 成功获取结果');
+      return result;
+    } catch (e) {
+      console.error('❌ 酒馆 API 调用失败:', e);
+      throw new Error(`酒馆 API 调用失败: ${(e as Error).message}`);
+    }
+  }
 
   // 验证 API endpoint
   if (!settings.api_endpoint || settings.api_endpoint.trim() === '') {

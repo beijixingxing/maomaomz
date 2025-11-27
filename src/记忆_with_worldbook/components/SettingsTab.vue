@@ -71,441 +71,470 @@
       </div>
 
       <div v-show="expandedSections['api']">
+        <!-- 使用酒馆 API 开关 -->
         <div class="form-group" style="margin-bottom: 18px !important">
-          <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">API 提供商</label>
-          <select
-            v-model="settings.api_provider"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-              cursor: pointer;
-            "
-            @change="handleProviderChange"
-          >
-            <option value="openai">OpenAI</option>
-            <option value="gemini">Gemini AI Studio</option>
-            <option value="local-proxy">本地反代 (无需 API Key)</option>
-          </select>
-        </div>
-
-        <div class="form-group" style="margin-bottom: 18px !important">
-          <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
-            API 端点
-            <span style="color: #888; font-size: 11px; margin-left: 8px"> (兼容酒馆格式，填写 base URL 即可) </span>
-          </label>
-          <input
-            v-model="settings.api_endpoint"
-            type="text"
-            placeholder="https://你的服务器/v1"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-            "
-          />
           <div
             style="
-              margin-top: 8px;
-              padding: 8px 12px;
-              background: rgba(74, 158, 255, 0.1);
-              border-radius: 4px;
-              border-left: 3px solid #4a9eff;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 12px 16px;
+              background: linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(255, 152, 0, 0.1) 100%);
+              border: 1px solid rgba(255, 193, 7, 0.3);
+              border-radius: 8px;
             "
           >
-            <div style="color: #4a9eff; font-size: 12px; font-weight: bold; margin-bottom: 4px">
-              📌 常见端点示例（与酒馆格式一致）：
+            <div>
+              <div style="color: #ffc107; font-size: 13px; font-weight: 600; margin-bottom: 4px">🍺 使用酒馆 API</div>
+              <div style="color: #999; font-size: 11px; line-height: 1.4">
+                直接使用酒馆主界面配置的 API，完美绕过 CORS 问题<br />
+                无需在插件中单独配置，推荐反代用户开启
+              </div>
             </div>
-            <div style="color: #999; font-size: 11px; line-height: 1.6">
-              • <strong>OpenAI 官方:</strong> https://api.openai.com/v1<br />
-              • <strong>Gemini AI Studio:</strong> https://generativelanguage.googleapis.com/v1beta/openai/<br />
-              • <strong>NewAPI / One API:</strong> https://你的服务器/v1<br />
-              • <strong>本地模型 (Ollama):</strong> http://localhost:11434/v1<br />
-              • <strong>本地反代 (Neural Proxy):</strong> http://127.0.0.1:8889/v1<br />
-              💡 <strong>提示：</strong>会自动补全 /chat/completions，也可以直接填完整路径
-            </div>
-          </div>
-        </div>
-
-        <div class="form-group" style="margin-bottom: 18px !important">
-          <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
-            API Key
-            <span style="color: #888; font-size: 11px; margin-left: 8px"> (本地反代可留空) </span>
-          </label>
-          <input
-            v-model="settings.api_key"
-            type="password"
-            placeholder="sk-... （本地反代可留空）"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-            "
-          />
-        </div>
-
-        <div class="form-group">
-          <div class="model-controls" style="display: flex; flex-direction: column; gap: 10px">
-            <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
-              模型名称
-              <span v-if="available_models.length === 0" style="color: #888; font-size: 11px; margin-left: 8px">
-                (手动输入模型名称，如 gpt-4o-mini)
-              </span>
+            <label class="switch" style="flex-shrink: 0; margin-left: 16px">
+              <input v-model="settings.use_tavern_api" type="checkbox" />
+              <span class="slider round"></span>
             </label>
-            <div class="button-group" style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 5px">
-              <button
-                :disabled="loading_models"
-                class="fetch-button"
-                style="
-                  flex: 1;
-                  min-width: 120px;
-                  padding: 12px 16px;
-                  border: none;
-                  border-radius: 12px;
-                  cursor: pointer;
-                  font-weight: 500;
-                  font-size: 13px;
-                  transition: all 0.2s;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  gap: 6px;
-                  background: #4a9eff;
-                  box-shadow: 0 2px 8px rgba(74, 158, 255, 0.3);
-                  color: white;
-                "
-                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(74, 158, 255, 0.4)'"
-                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(74, 158, 255, 0.3)'"
-                @click="handle_fetch_models"
-              >
-                {{ loading_models ? '拉取中...' : '🔍 拉取模型列表' }}
-              </button>
-              <button
-                class="save-button"
-                style="
-                  flex: 1;
-                  min-width: 120px;
-                  padding: 12px 16px;
-                  border: none;
-                  border-radius: 12px;
-                  cursor: pointer;
-                  font-weight: 500;
-                  font-size: 13px;
-                  transition: all 0.2s;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  gap: 6px;
-                  background: #51cf66;
-                  box-shadow: 0 2px 8px rgba(81, 207, 102, 0.3);
-                  color: white;
-                "
-                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(81, 207, 102, 0.4)'"
-                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(81, 207, 102, 0.3)'"
-                @click="handleSaveApiConfig"
-              >
-                💾 保存配置
-              </button>
-            </div>
           </div>
-          <input
-            v-if="available_models.length === 0"
-            v-model="settings.model"
-            type="text"
-            placeholder="gpt-4o-mini 或 deepseek-chat 等"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-            "
-          />
-          <select
-            v-else
-            v-model="settings.model"
-            class="model-select"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-            "
-          >
-            <option v-for="model in available_models" :key="model" :value="model">{{ model }}</option>
-          </select>
         </div>
 
-        <!-- API 模板管理 -->
-        <div
-          class="form-group"
-          style="
-            margin-top: 25px;
-            margin-bottom: 18px !important;
-            padding: 18px;
-            background: rgba(74, 158, 255, 0.05);
-            border-radius: 12px;
-            border: 1px solid rgba(74, 158, 255, 0.2);
-          "
-        >
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px">
-            <label
+        <div v-show="!settings.use_tavern_api">
+          <div class="form-group" style="margin-bottom: 18px !important">
+            <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">API 提供商</label>
+            <select
+              v-model="settings.api_provider"
               style="
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                color: #4a9eff;
-                font-size: 14px;
-                font-weight: 600;
-                margin: 0;
-              "
-            >
-              <i class="fa-solid fa-bookmark"></i>
-              API 模板管理
-            </label>
-            <button
-              style="
-                padding: 8px 16px;
-                background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
-                border: none;
-                border-radius: 8px;
-                color: white;
-                font-size: 12px;
-                cursor: pointer;
-                transition: all 0.2s;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-              "
-              onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(74, 158, 255, 0.4)'"
-              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'"
-              @click="showSaveTemplateDialog = true"
-            >
-              <i class="fa-solid fa-plus"></i>
-              保存当前配置
-            </button>
-          </div>
-
-          <!-- 模板列表 -->
-          <div v-if="apiTemplates.length > 0" style="display: flex; flex-direction: column; gap: 10px">
-            <div
-              v-for="template in apiTemplates"
-              :key="template.id"
-              style="
-                padding: 12px 16px;
+                width: 100%;
+                padding: 10px 12px;
                 background: #2a2a2a;
                 border: 1px solid #3a3a3a;
-                border-radius: 8px;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                transition: all 0.2s;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+                cursor: pointer;
               "
-              onmouseover="this.style.borderColor='#4a9eff'; this.style.background='#2f2f2f'"
-              onmouseout="this.style.borderColor='#3a3a3a'; this.style.background='#2a2a2a'"
+              @change="handleProviderChange"
             >
-              <div style="flex: 1; min-width: 0">
-                <div style="color: #e0e0e0; font-size: 13px; font-weight: 500; margin-bottom: 4px">
-                  {{ template.name }}
-                </div>
-                <div
-                  style="color: #888; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
-                >
-                  {{ template.endpoint }} • {{ template.model }}
-                </div>
+              <option value="openai">OpenAI</option>
+              <option value="gemini">Gemini AI Studio</option>
+              <option value="local-proxy">本地反代 (无需 API Key)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 18px !important">
+            <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
+              API 端点
+              <span style="color: #888; font-size: 11px; margin-left: 8px"> (兼容酒馆格式，填写 base URL 即可) </span>
+            </label>
+            <input
+              v-model="settings.api_endpoint"
+              type="text"
+              placeholder="https://你的服务器/v1"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+              "
+            />
+            <div
+              style="
+                margin-top: 8px;
+                padding: 8px 12px;
+                background: rgba(74, 158, 255, 0.1);
+                border-radius: 4px;
+                border-left: 3px solid #4a9eff;
+              "
+            >
+              <div style="color: #4a9eff; font-size: 12px; font-weight: bold; margin-bottom: 4px">
+                📌 常见端点示例（与酒馆格式一致）：
               </div>
-              <div style="display: flex; gap: 8px; margin-left: 12px">
-                <button
-                  style="
-                    padding: 6px 12px;
-                    background: #51cf66;
-                    border: none;
-                    border-radius: 6px;
-                    color: white;
-                    font-size: 11px;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                  "
-                  onmouseover="this.style.background='#40c057'; this.style.transform='scale(1.05)'"
-                  onmouseout="this.style.background='#51cf66'; this.style.transform='scale(1)'"
-                  title="加载此模板"
-                  @click="loadApiTemplate(template)"
-                >
-                  <i class="fa-solid fa-download"></i>
-                </button>
-                <button
-                  style="
-                    padding: 6px 12px;
-                    background: #ff6b6b;
-                    border: none;
-                    border-radius: 6px;
-                    color: white;
-                    font-size: 11px;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                  "
-                  onmouseover="this.style.background='#fa5252'; this.style.transform='scale(1.05)'"
-                  onmouseout="this.style.background='#ff6b6b'; this.style.transform='scale(1)'"
-                  title="删除此模板"
-                  @click="deleteApiTemplate(template.id)"
-                >
-                  <i class="fa-solid fa-trash"></i>
-                </button>
+              <div style="color: #999; font-size: 11px; line-height: 1.6">
+                • <strong>OpenAI 官方:</strong> https://api.openai.com/v1<br />
+                • <strong>Gemini AI Studio:</strong> https://generativelanguage.googleapis.com/v1beta/openai/<br />
+                • <strong>NewAPI / One API:</strong> https://你的服务器/v1<br />
+                • <strong>本地模型 (Ollama):</strong> http://localhost:11434/v1<br />
+                • <strong>本地反代 (Neural Proxy):</strong> http://127.0.0.1:8889/v1<br />
+                💡 <strong>提示：</strong>会自动补全 /chat/completions，也可以直接填完整路径
               </div>
             </div>
           </div>
-          <div v-else style="padding: 20px; text-align: center; color: #888; font-size: 12px">
-            <i class="fa-solid fa-inbox" style="font-size: 24px; margin-bottom: 8px; opacity: 0.5"></i>
-            <div>暂无保存的模板</div>
-            <div style="margin-top: 4px; font-size: 11px; color: #666">点击"保存当前配置"创建第一个模板</div>
-          </div>
-        </div>
 
-        <div class="form-group" style="margin-bottom: 18px !important">
-          <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px"
-            >最大 Token 数（建议4000以上获得更详细的总结）</label
+          <div class="form-group" style="margin-bottom: 18px !important">
+            <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
+              API Key
+              <span style="color: #888; font-size: 11px; margin-left: 8px"> (本地反代可留空) </span>
+            </label>
+            <input
+              v-model="settings.api_key"
+              type="password"
+              placeholder="sk-... （本地反代可留空）"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+              "
+            />
+          </div>
+
+          <div class="form-group">
+            <div class="model-controls" style="display: flex; flex-direction: column; gap: 10px">
+              <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
+                模型名称
+                <span v-if="available_models.length === 0" style="color: #888; font-size: 11px; margin-left: 8px">
+                  (手动输入模型名称，如 gpt-4o-mini)
+                </span>
+              </label>
+              <div class="button-group" style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 5px">
+                <button
+                  :disabled="loading_models"
+                  class="fetch-button"
+                  style="
+                    flex: 1;
+                    min-width: 120px;
+                    padding: 12px 16px;
+                    border: none;
+                    border-radius: 12px;
+                    cursor: pointer;
+                    font-weight: 500;
+                    font-size: 13px;
+                    transition: all 0.2s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    background: #4a9eff;
+                    box-shadow: 0 2px 8px rgba(74, 158, 255, 0.3);
+                    color: white;
+                  "
+                  onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(74, 158, 255, 0.4)'"
+                  onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(74, 158, 255, 0.3)'"
+                  @click="handle_fetch_models"
+                >
+                  {{ loading_models ? '拉取中...' : '🔍 拉取模型列表' }}
+                </button>
+                <button
+                  class="save-button"
+                  style="
+                    flex: 1;
+                    min-width: 120px;
+                    padding: 12px 16px;
+                    border: none;
+                    border-radius: 12px;
+                    cursor: pointer;
+                    font-weight: 500;
+                    font-size: 13px;
+                    transition: all 0.2s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    background: #51cf66;
+                    box-shadow: 0 2px 8px rgba(81, 207, 102, 0.3);
+                    color: white;
+                  "
+                  onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(81, 207, 102, 0.4)'"
+                  onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(81, 207, 102, 0.3)'"
+                  @click="handleSaveApiConfig"
+                >
+                  💾 保存配置
+                </button>
+              </div>
+            </div>
+            <input
+              v-if="available_models.length === 0"
+              v-model="settings.model"
+              type="text"
+              placeholder="gpt-4o-mini 或 deepseek-chat 等"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+              "
+            />
+            <select
+              v-else
+              v-model="settings.model"
+              class="model-select"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+              "
+            >
+              <option v-for="model in available_models" :key="model" :value="model">{{ model }}</option>
+            </select>
+          </div>
+
+          <!-- API 模板管理 -->
+          <div
+            class="form-group"
+            style="
+              margin-top: 25px;
+              margin-bottom: 18px !important;
+              padding: 18px;
+              background: rgba(74, 158, 255, 0.05);
+              border-radius: 12px;
+              border: 1px solid rgba(74, 158, 255, 0.2);
+            "
           >
-          <input
-            v-model.number="settings.max_tokens"
-            type="number"
-            min="100"
-            max="16000"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-            "
-          />
-        </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px">
+              <label
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  color: #4a9eff;
+                  font-size: 14px;
+                  font-weight: 600;
+                  margin: 0;
+                "
+              >
+                <i class="fa-solid fa-bookmark"></i>
+                API 模板管理
+              </label>
+              <button
+                style="
+                  padding: 8px 16px;
+                  background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+                  border: none;
+                  border-radius: 8px;
+                  color: white;
+                  font-size: 12px;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                "
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(74, 158, 255, 0.4)'"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'"
+                @click="showSaveTemplateDialog = true"
+              >
+                <i class="fa-solid fa-plus"></i>
+                保存当前配置
+              </button>
+            </div>
 
-        <div class="form-group" style="margin-bottom: 18px !important">
-          <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
-            Temperature (温度) <span style="color: #888; font-size: 11px">(0-2，推荐 0.7)</span>
-          </label>
-          <input
-            v-model.number="settings.temperature"
-            type="number"
-            min="0"
-            max="2"
-            step="0.1"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-            "
-          />
-          <div style="margin-top: 4px; color: #888; font-size: 11px">
-            较高值（如 0.8）使输出更随机，较低值（如 0.2）使其更确定
+            <!-- 模板列表 -->
+            <div v-if="apiTemplates.length > 0" style="display: flex; flex-direction: column; gap: 10px">
+              <div
+                v-for="template in apiTemplates"
+                :key="template.id"
+                style="
+                  padding: 12px 16px;
+                  background: #2a2a2a;
+                  border: 1px solid #3a3a3a;
+                  border-radius: 8px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  transition: all 0.2s;
+                "
+                onmouseover="this.style.borderColor='#4a9eff'; this.style.background='#2f2f2f'"
+                onmouseout="this.style.borderColor='#3a3a3a'; this.style.background='#2a2a2a'"
+              >
+                <div style="flex: 1; min-width: 0">
+                  <div style="color: #e0e0e0; font-size: 13px; font-weight: 500; margin-bottom: 4px">
+                    {{ template.name }}
+                  </div>
+                  <div
+                    style="color: #888; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+                  >
+                    {{ template.endpoint }} • {{ template.model }}
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px; margin-left: 12px">
+                  <button
+                    style="
+                      padding: 6px 12px;
+                      background: #51cf66;
+                      border: none;
+                      border-radius: 6px;
+                      color: white;
+                      font-size: 11px;
+                      cursor: pointer;
+                      transition: all 0.2s;
+                    "
+                    onmouseover="this.style.background='#40c057'; this.style.transform='scale(1.05)'"
+                    onmouseout="this.style.background='#51cf66'; this.style.transform='scale(1)'"
+                    title="加载此模板"
+                    @click="loadApiTemplate(template)"
+                  >
+                    <i class="fa-solid fa-download"></i>
+                  </button>
+                  <button
+                    style="
+                      padding: 6px 12px;
+                      background: #ff6b6b;
+                      border: none;
+                      border-radius: 6px;
+                      color: white;
+                      font-size: 11px;
+                      cursor: pointer;
+                      transition: all 0.2s;
+                    "
+                    onmouseover="this.style.background='#fa5252'; this.style.transform='scale(1.05)'"
+                    onmouseout="this.style.background='#ff6b6b'; this.style.transform='scale(1)'"
+                    title="删除此模板"
+                    @click="deleteApiTemplate(template.id)"
+                  >
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div v-else style="padding: 20px; text-align: center; color: #888; font-size: 12px">
+              <i class="fa-solid fa-inbox" style="font-size: 24px; margin-bottom: 8px; opacity: 0.5"></i>
+              <div>暂无保存的模板</div>
+              <div style="margin-top: 4px; font-size: 11px; color: #666">点击"保存当前配置"创建第一个模板</div>
+            </div>
           </div>
-        </div>
 
-        <div class="form-group" style="margin-bottom: 18px !important">
-          <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
-            Top P (核采样) <span style="color: #888; font-size: 11px">(0-1，推荐 1.0)</span>
-          </label>
-          <input
-            v-model.number="settings.top_p"
-            type="number"
-            min="0"
-            max="1"
-            step="0.01"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-            "
-          />
-          <div style="margin-top: 4px; color: #888; font-size: 11px">
-            ⚠️ 一般建议只改 Temperature 或 Top P，不要同时修改
+          <div class="form-group" style="margin-bottom: 18px !important">
+            <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px"
+              >最大 Token 数（建议4000以上获得更详细的总结）</label
+            >
+            <input
+              v-model.number="settings.max_tokens"
+              type="number"
+              min="100"
+              max="16000"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+              "
+            />
           </div>
-        </div>
 
-        <div class="form-group" style="margin-bottom: 18px !important">
-          <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
-            Presence Penalty (存在惩罚) <span style="color: #888; font-size: 11px">(-2.0 to 2.0，推荐 0)</span>
-          </label>
-          <input
-            v-model.number="settings.presence_penalty"
-            type="number"
-            min="-2"
-            max="2"
-            step="0.1"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-            "
-          />
-          <div style="margin-top: 4px; color: #888; font-size: 11px">
-            正值根据标记是否出现过来惩罚，增加讨论新主题的可能性
+          <div class="form-group" style="margin-bottom: 18px !important">
+            <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
+              Temperature (温度) <span style="color: #888; font-size: 11px">(0-2，推荐 0.7)</span>
+            </label>
+            <input
+              v-model.number="settings.temperature"
+              type="number"
+              min="0"
+              max="2"
+              step="0.1"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+              "
+            />
+            <div style="margin-top: 4px; color: #888; font-size: 11px">
+              较高值（如 0.8）使输出更随机，较低值（如 0.2）使其更确定
+            </div>
           </div>
-        </div>
 
-        <div class="form-group" style="margin-bottom: 18px !important">
-          <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
-            Frequency Penalty (频率惩罚) <span style="color: #888; font-size: 11px">(-2.0 to 2.0，推荐 0)</span>
-          </label>
-          <input
-            v-model.number="settings.frequency_penalty"
-            type="number"
-            min="-2"
-            max="2"
-            step="0.1"
-            style="
-              width: 100%;
-              padding: 10px 12px;
-              background: #2a2a2a;
-              border: 1px solid #3a3a3a;
-              border-radius: 6px;
-              color: #e0e0e0;
-              font-size: 13px;
-              transition: border-color 0.2s;
-            "
-          />
-          <div style="margin-top: 4px; color: #888; font-size: 11px">
-            正值根据标记频率来惩罚，降低逐字重复同一行的可能性
+          <div class="form-group" style="margin-bottom: 18px !important">
+            <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
+              Top P (核采样) <span style="color: #888; font-size: 11px">(0-1，推荐 1.0)</span>
+            </label>
+            <input
+              v-model.number="settings.top_p"
+              type="number"
+              min="0"
+              max="1"
+              step="0.01"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+              "
+            />
+            <div style="margin-top: 4px; color: #888; font-size: 11px">
+              ⚠️ 一般建议只改 Temperature 或 Top P，不要同时修改
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 18px !important">
+            <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
+              Presence Penalty (存在惩罚) <span style="color: #888; font-size: 11px">(-2.0 to 2.0，推荐 0)</span>
+            </label>
+            <input
+              v-model.number="settings.presence_penalty"
+              type="number"
+              min="-2"
+              max="2"
+              step="0.1"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+              "
+            />
+            <div style="margin-top: 4px; color: #888; font-size: 11px">
+              正值根据标记是否出现过来惩罚，增加讨论新主题的可能性
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 18px !important">
+            <label style="display: block; margin-bottom: 6px; color: #ccc; font-size: 13px">
+              Frequency Penalty (频率惩罚) <span style="color: #888; font-size: 11px">(-2.0 to 2.0，推荐 0)</span>
+            </label>
+            <input
+              v-model.number="settings.frequency_penalty"
+              type="number"
+              min="-2"
+              max="2"
+              step="0.1"
+              style="
+                width: 100%;
+                padding: 10px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                transition: border-color 0.2s;
+              "
+            />
+            <div style="margin-top: 4px; color: #888; font-size: 11px">
+              正值根据标记频率来惩罚，降低逐字重复同一行的可能性
+            </div>
           </div>
         </div>
       </div>

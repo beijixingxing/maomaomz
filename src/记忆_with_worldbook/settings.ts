@@ -85,6 +85,7 @@ export function getTavernApiConfig() {
 }
 
 const Settings = z.object({
+  use_tavern_api: z.boolean().default(false), // 是否使用酒馆主界面配置的 API（绕过 CORS）
   api_provider: z.string().default('openai'), // 'openai' | 'gemini'
   api_endpoint: z.string().default('https://api.openai.com/v1'), // 兼容酒馆格式：base URL
   api_key: z.string().default(''),
