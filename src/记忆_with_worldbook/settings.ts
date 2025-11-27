@@ -73,15 +73,19 @@ export function getTavernApiPresets(): Array<{ name: string; value: string }> {
  */
 export function getTavernCurrentModel(): string {
   try {
+    console.log('🔍 开始检测酒馆模型...');
+
     if (typeof SillyTavern !== 'undefined') {
       // 方法1: 使用 getChatCompletionModel
       if (typeof SillyTavern.getChatCompletionModel === 'function') {
         const model = SillyTavern.getChatCompletionModel();
+        console.log('📍 getChatCompletionModel 返回:', model);
         if (model) return model;
       }
 
       // 方法2: 从 chatCompletionSettings 获取
       const settings = SillyTavern.chatCompletionSettings;
+      console.log('📍 chatCompletionSettings:', settings);
       if (settings) {
         // 检查多种可能的模型字段
         const model =
@@ -90,6 +94,7 @@ export function getTavernCurrentModel(): string {
           settings.claude_model || // Claude
           settings.model ||
           '';
+        console.log('📍 从 settings 提取的模型:', model);
         if (model) return model;
       }
     }
@@ -97,12 +102,14 @@ export function getTavernCurrentModel(): string {
     // 方法3: 从 localStorage 读取
     try {
       const tavernSettings = JSON.parse(localStorage.getItem('TavernAI_Settings') || '{}');
+      console.log('📍 TavernAI_Settings:', Object.keys(tavernSettings));
       const model =
         tavernSettings.openai_model ||
         tavernSettings.google_model ||
         tavernSettings.claude_model ||
         tavernSettings.model ||
         '';
+      console.log('📍 从 localStorage 提取的模型:', model);
       if (model) return model;
     } catch (e) {
       // 忽略解析错误
@@ -112,6 +119,7 @@ export function getTavernCurrentModel(): string {
     const modelSelect = document.querySelector(
       '#model_google_select, #model_openai_select, #model_claude_select',
     ) as HTMLSelectElement;
+    console.log('📍 DOM 模型选择器:', modelSelect?.value);
     if (modelSelect && modelSelect.value) {
       return modelSelect.value;
     }
