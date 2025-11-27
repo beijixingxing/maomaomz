@@ -69,17 +69,31 @@ export function getTavernApiPresets(): Array<{ name: string; value: string }> {
   }
 }
 
+// 找到正确的预设选择器
+function findPresetSelector(): HTMLSelectElement | null {
+  const mainDoc = window.parent?.document || document;
+  const selectors = [
+    '#connection_profile',
+    '#openai_proxy_preset',
+    'select[id*="connection"]',
+    'select[id*="profile"]',
+  ];
+  for (const selector of selectors) {
+    const el = mainDoc.querySelector(selector) as HTMLSelectElement;
+    if (el && el.options && el.options.length > 2) {
+      return el;
+    }
+  }
+  return null;
+}
+
 /**
  * 获取当前酒馆选中的 API 连接预设
  */
 export function getTavernCurrentPreset(): string {
   try {
-    const mainDoc = window.parent?.document || document;
-    const profileSelect = mainDoc.querySelector('#openai_proxy_preset') as HTMLSelectElement;
-    if (profileSelect) {
-      return profileSelect.value || '';
-    }
-    return '';
+    const profileSelect = findPresetSelector();
+    return profileSelect?.value || '';
   } catch (error) {
     return '';
   }
@@ -90,13 +104,25 @@ export function getTavernCurrentPreset(): string {
  */
 export async function switchTavernPreset(presetValue: string): Promise<boolean> {
   try {
-    const mainDoc = window.parent?.document || document;
-    const profileSelect = mainDoc.querySelector('#openai_proxy_preset') as HTMLSelectElement;
+    const profileSelect = findPresetSelector();
 
     if (profileSelect) {
       profileSelect.value = presetValue;
-      // 触发 change 事件让酒馆应用配置
+      // 触发多种事件确保酒馆响应
       profileSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      profileSelect.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // 尝试调用酒馆的应用预设函数
+      try {
+        const parentWin = window.parent as any;
+        if (parentWin && typeof parentWin.applyConnectionProfile === 'function') {
+          await parentWin.applyConnectionProfile(presetValue);
+          console.log('✅ 通过 applyConnectionProfile 应用预设');
+        }
+      } catch (e) {
+        // 忽略
+      }
+
       return true;
     }
     return false;

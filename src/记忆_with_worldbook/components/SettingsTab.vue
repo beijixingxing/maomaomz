@@ -1599,12 +1599,18 @@ const refreshTavernInfo = () => {
 // 切换预设
 const onPresetChange = async () => {
   if (selectedTavernPreset.value) {
+    console.log('🔄 切换预设到:', selectedTavernPreset.value);
     const success = await switchTavernPreset(selectedTavernPreset.value);
     if (success) {
-      // 等待一下让酒馆切换完成
+      // 等待酒馆切换完成，多次刷新确保获取到新模型
       setTimeout(() => {
         tavernCurrentModel.value = getTavernCurrentModel();
-      }, 500);
+        console.log('📍 1秒后模型:', tavernCurrentModel.value);
+      }, 1000);
+      setTimeout(() => {
+        tavernCurrentModel.value = getTavernCurrentModel();
+        console.log('📍 2秒后模型:', tavernCurrentModel.value);
+      }, 2000);
     }
   }
 };
