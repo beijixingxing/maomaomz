@@ -108,10 +108,39 @@
               border-radius: 8px;
             "
           >
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px">
-              <div style="color: #51cf66; font-size: 12px; font-weight: 600">✅ 当前酒馆配置</div>
+            <div style="color: #51cf66; font-size: 12px; font-weight: 600; margin-bottom: 10px">
+              ✅ 选择酒馆 API 预设
+            </div>
+
+            <!-- 预设选择下拉框 -->
+            <div style="margin-bottom: 10px">
+              <select
+                v-model="selectedTavernPreset"
+                style="
+                  width: 100%;
+                  padding: 10px 12px;
+                  background: #2a2a2a;
+                  border: 1px solid #3a3a3a;
+                  border-radius: 6px;
+                  color: #e0e0e0;
+                  font-size: 13px;
+                  cursor: pointer;
+                "
+                @change="onPresetChange"
+              >
+                <option value="" disabled>-- 选择预设 --</option>
+                <option v-for="preset in tavernPresets" :key="preset.value" :value="preset.value">
+                  {{ preset.name }}
+                </option>
+              </select>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; color: #aaa; font-size: 11px">
+              <span style="color: #888">当前模型:</span>
+              <span style="color: #51cf66; font-weight: 500">{{ tavernCurrentModel || '未检测到' }}</span>
               <button
                 style="
+                  margin-left: auto;
                   padding: 4px 10px;
                   background: rgba(81, 207, 102, 0.2);
                   border: 1px solid rgba(81, 207, 102, 0.4);
@@ -120,28 +149,10 @@
                   font-size: 10px;
                   cursor: pointer;
                 "
-                @click="updateTavernModel"
+                @click="refreshTavernInfo"
               >
                 <i class="fa-solid fa-sync"></i> 刷新
               </button>
-            </div>
-            <div style="color: #aaa; font-size: 11px; line-height: 1.6">
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px">
-                <span style="color: #888">当前模型:</span>
-                <span style="color: #51cf66; font-weight: 500">{{ tavernCurrentModel || '点击刷新检测' }}</span>
-              </div>
-              <div
-                style="
-                  color: #888;
-                  font-size: 10px;
-                  margin-top: 8px;
-                  padding: 8px;
-                  background: rgba(0, 0, 0, 0.2);
-                  border-radius: 4px;
-                "
-              >
-                💡 <strong>使用方法：</strong>在酒馆主界面切换 API 预设后，插件会自动使用新配置
-              </div>
             </div>
           </div>
         </div>
@@ -1556,7 +1567,14 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { onMounted, ref, watch } from 'vue';
-import { getTavernCurrentModel, useSettingsStore, useSummaryHistoryStore } from '../settings';
+import {
+  getTavernApiPresets,
+  getTavernCurrentModel,
+  getTavernCurrentPreset,
+  switchTavernPreset,
+  useSettingsStore,
+  useSummaryHistoryStore,
+} from '../settings';
 import { useTaskStore } from '../taskStore';
 import { getChatIdSafe, getScriptIdSafe, handleApiError } from '../utils';
 import { isApiConfigValid as checkApiConfig, getApiConfigError } from '../utils/api-config';
@@ -1566,10 +1584,34 @@ const { settings } = storeToRefs(settingsStore);
 
 // 酒馆当前模型
 const tavernCurrentModel = ref<string>('');
+// 酒馆预设列表
+const tavernPresets = ref<Array<{ name: string; value: string }>>([]);
+// 当前选中的预设
+const selectedTavernPreset = ref<string>('');
 
-// 更新酒馆当前模型显示
-const updateTavernModel = () => {
+// 刷新酒馆信息（预设列表和当前模型）
+const refreshTavernInfo = () => {
+  tavernPresets.value = getTavernApiPresets();
+  selectedTavernPreset.value = getTavernCurrentPreset();
   tavernCurrentModel.value = getTavernCurrentModel();
+};
+
+// 切换预设
+const onPresetChange = async () => {
+  if (selectedTavernPreset.value) {
+    const success = await switchTavernPreset(selectedTavernPreset.value);
+    if (success) {
+      // 等待一下让酒馆切换完成
+      setTimeout(() => {
+        tavernCurrentModel.value = getTavernCurrentModel();
+      }, 500);
+    }
+  }
+};
+
+// 更新酒馆当前模型显示（保留旧函数名兼容）
+const updateTavernModel = () => {
+  refreshTavernInfo();
 };
 
 // 监听 use_tavern_api 变化，更新显示
@@ -1577,7 +1619,7 @@ watch(
   () => settings.value.use_tavern_api,
   newVal => {
     if (newVal) {
-      updateTavernModel();
+      refreshTavernInfo();
     }
   },
   { immediate: true },
