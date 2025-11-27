@@ -83,9 +83,39 @@ export function getTavernCurrentModel(): string {
       // 方法2: 从 chatCompletionSettings 获取
       const settings = SillyTavern.chatCompletionSettings;
       if (settings) {
-        return settings.openai_model || settings.model || '';
+        // 检查多种可能的模型字段
+        const model =
+          settings.openai_model ||
+          settings.google_model || // Google AI Studio
+          settings.claude_model || // Claude
+          settings.model ||
+          '';
+        if (model) return model;
       }
     }
+
+    // 方法3: 从 localStorage 读取
+    try {
+      const tavernSettings = JSON.parse(localStorage.getItem('TavernAI_Settings') || '{}');
+      const model =
+        tavernSettings.openai_model ||
+        tavernSettings.google_model ||
+        tavernSettings.claude_model ||
+        tavernSettings.model ||
+        '';
+      if (model) return model;
+    } catch (e) {
+      // 忽略解析错误
+    }
+
+    // 方法4: 从 DOM 读取模型选择器
+    const modelSelect = document.querySelector(
+      '#model_google_select, #model_openai_select, #model_claude_select',
+    ) as HTMLSelectElement;
+    if (modelSelect && modelSelect.value) {
+      return modelSelect.value;
+    }
+
     return '';
   } catch (error) {
     console.error('❌ 获取酒馆当前模型失败:', error);
