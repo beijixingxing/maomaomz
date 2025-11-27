@@ -115,13 +115,40 @@ export function getTavernCurrentModel(): string {
       // 忽略解析错误
     }
 
-    // 方法4: 从 DOM 读取模型选择器
-    const modelSelect = document.querySelector(
-      '#model_google_select, #model_openai_select, #model_claude_select',
-    ) as HTMLSelectElement;
-    console.log('📍 DOM 模型选择器:', modelSelect?.value);
-    if (modelSelect && modelSelect.value) {
-      return modelSelect.value;
+    // 方法4: 从 DOM 读取模型选择器（在主页面查找）
+    const mainDoc = window.parent?.document || document;
+    const selectors = [
+      '#model_google_select',
+      '#model_openai_select',
+      '#model_claude_select',
+      'select[name="model"]',
+      '#openai_model',
+      '#google_model',
+    ];
+    for (const sel of selectors) {
+      const el = mainDoc.querySelector(sel) as HTMLSelectElement | HTMLInputElement;
+      if (el && el.value) {
+        console.log('📍 从 DOM 找到模型:', sel, el.value);
+        return el.value;
+      }
+    }
+
+    // 方法5: 直接从酒馆全局变量获取（通过 parent window）
+    try {
+      const parentWin = window.parent as any;
+      if (parentWin && parentWin.oai_settings) {
+        const model =
+          parentWin.oai_settings.google_model ||
+          parentWin.oai_settings.openai_model ||
+          parentWin.oai_settings.claude_model ||
+          '';
+        if (model) {
+          console.log('📍 从 parent.oai_settings 找到模型:', model);
+          return model;
+        }
+      }
+    } catch (e) {
+      // 跨域限制，忽略
     }
 
     return '';
