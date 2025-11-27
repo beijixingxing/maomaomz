@@ -399,6 +399,13 @@ $(() => {
             justify-content: center !important;
             padding: 10px 8px !important;
             font-size: 12px !important;
+            min-height: 44px !important;
+            display: flex !important;
+            align-items: center !important;
+          }
+
+          .statusbar-generator > .section-header > div > button i {
+            margin-right: 4px !important;
           }
 
           /* 移动端：所有带固定宽度的元素强制改为100%宽度 */
@@ -448,7 +455,19 @@ $(() => {
           .memory-panel-container .greetings-tab > div > div[style*="flex: 1"] {
             width: 100% !important;
             flex: none !important;
-            max-height: 50vh !important;
+            max-height: none !important;
+            height: auto !important;
+          }
+
+          /* 移动端：开场白管理器整体高度自适应 */
+          .greetings-tab {
+            height: auto !important;
+            overflow-y: visible !important;
+          }
+
+          .greetings-tab > div[style*="flex: 1"] {
+            overflow: visible !important;
+            height: auto !important;
           }
 
           /* 移动端：开场白管理器顶部操作按钮优化 */
