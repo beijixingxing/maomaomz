@@ -89,35 +89,48 @@ $(() => {
             border-radius: 8px !important;
           }
 
-          /* 移动端：标签栏可横向滚动 */
+          /* 移动端：标签栏紧凑图标模式 */
           .panel-tabs {
             overflow-x: auto !important;
             overflow-y: hidden !important;
             white-space: nowrap !important;
             -webkit-overflow-scrolling: touch !important;
-            padding: 0 8px !important;
+            padding: 0 4px !important;
+            gap: 2px !important;
+            background: #151515 !important;
           }
 
           .panel-tabs::-webkit-scrollbar {
-            height: 3px !important;
+            height: 2px !important;
           }
 
           .panel-tabs .tab-item {
             flex: 0 0 auto !important;
-            padding: 12px 16px !important;
-            font-size: 13px !important;
-            gap: 6px !important;
+            padding: 10px 12px !important;
+            font-size: 11px !important;
+            gap: 4px !important;
             min-width: auto !important;
-            border-radius: 0 !important; /* 移动端标签不需要圆角 */
+            border-radius: 8px !important;
+            flex-direction: column !important;
+            align-items: center !important;
           }
 
           .panel-tabs .tab-item .tab-icon {
-            font-size: 15px !important;
+            font-size: 18px !important;
+            margin-bottom: 2px !important;
           }
 
           .panel-tabs .tab-item .tab-label {
             white-space: nowrap !important;
             font-weight: 500 !important;
+            font-size: 10px !important;
+            max-width: 50px !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+
+          .panel-tabs .tab-item.active {
+            background: rgba(74, 158, 255, 0.2) !important;
           }
 
           /* 移动端：内容区域优化 */
@@ -131,7 +144,7 @@ $(() => {
             overflow-x: hidden !important;
             -webkit-overflow-scrolling: touch !important;
             height: 100% !important;
-            padding: 12px !important;
+            padding: 8px !important;
           }
 
           /* 移动端：确保标签页内容不超出 */
@@ -140,23 +153,30 @@ $(() => {
             overflow-x: hidden !important;
           }
 
-          /* 移动端：按钮优化 */
+          /* 移动端：按钮优化 - 更紧凑 */
           .memory-panel-container button,
           .memory-panel-container .el-button {
-            padding: 12px 18px !important;
-            font-size: 14px !important;
-            min-height: 48px !important; /* iOS推荐的最小触摸区域 */
-            border-radius: 12px !important; /* 统一圆角 */
+            padding: 10px 14px !important;
+            font-size: 13px !important;
+            min-height: 44px !important;
+            border-radius: 8px !important;
             font-weight: 500 !important;
           }
 
           /* 移动端：小按钮优化 */
           .memory-panel-container .mini-button,
           .memory-panel-container .show-button {
-            padding: 10px 16px !important;
-            min-height: 44px !important;
-            font-size: 13px !important;
-            border-radius: 10px !important;
+            padding: 8px 12px !important;
+            min-height: 40px !important;
+            font-size: 12px !important;
+            border-radius: 8px !important;
+          }
+
+          /* 移动端：action-button 图标模式 */
+          .memory-panel-container .action-button {
+            padding: 8px 10px !important;
+            min-height: 40px !important;
+            font-size: 12px !important;
           }
 
           /* 移动端：复选框优化 */
@@ -193,50 +213,53 @@ $(() => {
             width: 100% !important;
           }
 
-          /* 移动端：输入框优化 */
+          /* 移动端：输入框优化 - 更紧凑 */
           .memory-panel-container input,
           .memory-panel-container textarea,
           .memory-panel-container select {
             font-size: 16px !important; /* 防止iOS自动缩放 */
-            padding: 12px !important;
-            min-height: 44px !important;
+            padding: 10px !important;
+            min-height: 40px !important;
+            border-radius: 6px !important;
           }
 
           .memory-panel-container textarea {
-            min-height: 120px !important;
+            min-height: 100px !important;
           }
 
-          /* 移动端：表单项间距 */
+          /* 移动端：表单项间距 - 更紧凑 */
           .memory-panel-container .form-group,
-          .memory-panel-container [style*="margin"] {
-            margin-bottom: 16px !important;
+          .memory-panel-container [style*="margin-bottom: 18px"],
+          .memory-panel-container [style*="margin-bottom: 20px"] {
+            margin-bottom: 10px !important;
           }
 
-          /* 移动端：卡片/面板内边距 */
+          /* 移动端：卡片/面板内边距 - 更紧凑 */
           .memory-panel-container .card,
           .memory-panel-container .panel,
-          .memory-panel-container .section {
-            padding: 12px !important;
-            margin: 8px 0 !important;
+          .memory-panel-container .section,
+          .memory-panel-container .config-section {
+            padding: 10px !important;
+            margin: 6px 0 !important;
           }
 
           /* 移动端：字段组优化 */
           .memory-panel-container .field-group,
           .memory-panel-container [class*="field"] {
-            padding: 8px !important;
-            margin-bottom: 12px !important;
+            padding: 6px !important;
+            margin-bottom: 8px !important;
           }
 
           /* 移动端：工具区域优化 */
           .memory-panel-container .tool-section,
           .memory-panel-container .section-content {
-            padding: 12px 8px !important;
+            padding: 8px 6px !important;
           }
 
           /* 移动端：预览区域优化 */
           .memory-panel-container .preview-container,
           .memory-panel-container [class*="preview"] {
-            padding: 8px !important;
+            padding: 6px !important;
             max-width: 100% !important;
             overflow-x: auto !important;
           }
@@ -335,38 +358,40 @@ $(() => {
           .pageable-statusbar-generator > .section-header {
             flex-direction: column !important;
             align-items: stretch !important;
-            gap: 12px !important;
-            padding: 15px !important;
+            gap: 8px !important;
+            padding: 10px !important;
           }
 
           .pageable-statusbar-generator > .section-header h3 {
             text-align: center !important;
-            font-size: 15px !important;
+            font-size: 14px !important;
+            margin-bottom: 4px !important;
           }
 
           .pageable-statusbar-generator > .section-header > div {
             display: grid !important;
             grid-template-columns: repeat(4, 1fr) !important;
-            gap: 6px !important;
+            gap: 4px !important;
             width: 100% !important;
           }
 
           .pageable-statusbar-generator > .section-header > div > button {
-            padding: 8px 4px !important;
-            font-size: 11px !important;
+            padding: 6px 2px !important;
+            font-size: 9px !important;
             flex-direction: column !important;
-            gap: 4px !important;
-            min-height: 56px !important;
+            gap: 2px !important;
+            min-height: 48px !important;
+            border-radius: 6px !important;
           }
 
           .pageable-statusbar-generator > .section-header > div > button i {
             margin-right: 0 !important;
-            font-size: 16px !important;
+            font-size: 14px !important;
           }
 
           /* 移动端：状态栏生成器专属优化 */
           .statusbar-generator {
-            padding: 12px !important;
+            padding: 8px !important;
           }
 
           .statusbar-generator > div[style*="display: grid"] > div {
@@ -378,34 +403,36 @@ $(() => {
           .statusbar-generator > .section-header {
             flex-direction: column !important;
             align-items: stretch !important;
-            gap: 12px !important;
-            padding: 15px !important;
+            gap: 8px !important;
+            padding: 10px !important;
           }
 
           .statusbar-generator > .section-header h3 {
             text-align: center !important;
-            font-size: 15px !important;
+            font-size: 14px !important;
           }
 
           .statusbar-generator > .section-header > div {
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
-            gap: 8px !important;
+            gap: 6px !important;
             width: 100% !important;
           }
 
           .statusbar-generator > .section-header > div > button {
             width: 100% !important;
             justify-content: center !important;
-            padding: 10px 8px !important;
-            font-size: 12px !important;
-            min-height: 44px !important;
+            padding: 8px 6px !important;
+            font-size: 11px !important;
+            min-height: 40px !important;
             display: flex !important;
             align-items: center !important;
+            border-radius: 6px !important;
           }
 
           .statusbar-generator > .section-header > div > button i {
             margin-right: 4px !important;
+            font-size: 12px !important;
           }
 
           /* 移动端：所有带固定宽度的元素强制改为100%宽度 */
@@ -472,8 +499,9 @@ $(() => {
 
           /* 移动端：开场白管理器顶部操作按钮优化 */
           .memory-panel-container .header-actions {
-            flex-direction: column !important;
-            gap: 8px !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 6px !important;
             width: 100% !important;
           }
 
@@ -481,6 +509,9 @@ $(() => {
           .memory-panel-container .header-actions button {
             width: 100% !important;
             justify-content: center !important;
+            padding: 8px 6px !important;
+            font-size: 11px !important;
+            min-height: 38px !important;
           }
 
           .memory-panel-container .header-actions .count-badge {
@@ -491,12 +522,13 @@ $(() => {
           .greetings-tab > .section-header {
             flex-direction: column !important;
             align-items: stretch !important;
-            gap: 12px !important;
-            padding: 15px !important;
+            gap: 8px !important;
+            padding: 10px !important;
           }
 
           .greetings-tab > .section-header h3 {
             text-align: center !important;
+            font-size: 14px !important;
           }
 
           /* 移动端：开场白管理器底部操作按钮堆叠 */
