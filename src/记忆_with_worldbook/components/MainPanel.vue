@@ -85,31 +85,71 @@
       </div>
     </div>
 
-    <!-- 移动端标签菜单 -->
-    <div
-      v-if="isMobile"
-      class="mobile-tab-menu"
-      style="
-        background: #222;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        flex-shrink: 0;
-        padding: 8px 10px 6px;
-      "
-    >
-      <div class="mobile-tab-grid" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+    <!-- 移动端标签头 + 可折叠菜单 -->
+    <template v-if="isMobile">
+      <div
+        class="mobile-tab-header"
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 10px;
+          background: #1f2933;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          flex-shrink: 0;
+        "
+      >
+        <div style="display: flex; align-items: center; gap: 8px">
+          <i :class="currentTab.icon" class="mobile-tab-icon"></i>
+          <span class="mobile-tab-label" style="font-size: 13px">{{ currentTab.label }}</span>
+        </div>
         <button
-          v-for="tab of tabs"
-          :key="tab.key"
           type="button"
-          class="mobile-tab-btn"
-          :class="{ 'mobile-tab-btn-active': activeTab === tab.key }"
-          @click="switchTab(tab.key)"
+          class="mobile-tab-toggle"
+          style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            background: rgba(15, 23, 42, 0.8);
+            color: #e5e7eb;
+            font-size: 11px;
+            cursor: pointer;
+          "
+          @click="toggleMobileMenu"
         >
-          <i :class="tab.icon" class="mobile-tab-icon"></i>
-          <span class="mobile-tab-label">{{ tab.label }}</span>
+          <i class="fa-solid" :class="isMobileMenuOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          <span>{{ isMobileMenuOpen ? '收起功能' : '全部功能' }}</span>
         </button>
       </div>
-    </div>
+
+      <div
+        v-if="isMobileMenuOpen"
+        class="mobile-tab-menu"
+        style="
+          background: #111827;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          flex-shrink: 0;
+          padding: 6px 10px 8px;
+        "
+      >
+        <div class="mobile-tab-grid" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+          <button
+            v-for="tab of tabs"
+            :key="tab.key"
+            type="button"
+            class="mobile-tab-btn"
+            :class="{ 'mobile-tab-btn-active': activeTab === tab.key }"
+            @click="handleMobileTabClick(tab.key)"
+          >
+            <i :class="tab.icon" class="mobile-tab-icon"></i>
+            <span class="mobile-tab-label">{{ tab.label }}</span>
+          </button>
+        </div>
+      </div>
+    </template>
 
     <!-- 面板标签栏（桌面端） -->
     <div
@@ -223,6 +263,9 @@ const activeTab = ref<
 // 仅用于 UI 的移动端检测，不影响业务逻辑
 const isMobile = ref(false);
 
+// 移动端标签菜单展开状态
+const isMobileMenuOpen = ref(false);
+
 const updateIsMobile = () => {
   isMobile.value = window.innerWidth <= 768;
 };
@@ -264,6 +307,22 @@ const componentProps = computed(() => ({
 const switchTab = (tabKey: string) => {
   console.log('切换标签页:', tabKey);
   activeTab.value = tabKey as any;
+};
+
+// 当前标签信息（用于移动端头部展示）
+const currentTab = computed(() => {
+  return tabs.find(tab => tab.key === activeTab.value) ?? tabs[0];
+});
+
+// 切换移动端菜单展开状态
+const toggleMobileMenu = () => {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value;
+};
+
+// 移动端点击标签：切换并收起菜单
+const handleMobileTabClick = (tabKey: string) => {
+  switchTab(tabKey);
+  isMobileMenuOpen.value = false;
 };
 
 // 最小化面板
