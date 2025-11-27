@@ -14,17 +14,32 @@ export function getTavernApiPresets(): Array<{ name: string; value: string }> {
     const presets: Array<{ name: string; value: string }> = [];
     const mainDoc = window.parent?.document || document;
 
-    // 从 DOM 读取 API 连接配置下拉框 (#connection_profile)
-    const profileSelect = mainDoc.querySelector('#connection_profile') as HTMLSelectElement;
-    if (profileSelect && profileSelect.options) {
-      for (let i = 0; i < profileSelect.options.length; i++) {
-        const option = profileSelect.options[i];
-        // 跳过 <None> 和空值
-        if (option.value && option.value !== '' && option.text !== '<None>') {
-          presets.push({
-            name: option.text || option.value,
-            value: option.value,
-          });
+    // 尝试多个可能的选择器
+    const selectors = [
+      '#connection_profile', // 连接配置
+      '#settings_preset_openai', // OpenAI 预设
+      '#openai_preset_list', // 预设列表
+      'select[name="connection_profile"]',
+    ];
+
+    for (const selector of selectors) {
+      const profileSelect = mainDoc.querySelector(selector) as HTMLSelectElement;
+      console.log(`📍 尝试选择器 ${selector}:`, profileSelect?.options?.length);
+
+      if (profileSelect && profileSelect.options && profileSelect.options.length > 1) {
+        for (let i = 0; i < profileSelect.options.length; i++) {
+          const option = profileSelect.options[i];
+          // 跳过 <None> 和空值
+          if (option.value && option.value !== '' && option.text !== '<None>') {
+            presets.push({
+              name: option.text || option.value,
+              value: option.value,
+            });
+          }
+        }
+        if (presets.length > 0) {
+          console.log(`✅ 从 ${selector} 获取到 ${presets.length} 个预设`);
+          return presets;
         }
       }
     }
