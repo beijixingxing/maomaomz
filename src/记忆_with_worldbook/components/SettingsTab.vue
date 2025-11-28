@@ -287,8 +287,14 @@
                     box-shadow: 0 2px 8px rgba(74, 158, 255, 0.3);
                     color: white;
                   "
-                  onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(74, 158, 255, 0.4)'"
-                  onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(74, 158, 255, 0.3)'"
+                  onmouseover="
+                    this.style.transform = 'translateY(-2px)';
+                    this.style.boxShadow = '0 4px 12px rgba(74, 158, 255, 0.4)';
+                  "
+                  onmouseout="
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = '0 2px 8px rgba(74, 158, 255, 0.3)';
+                  "
                   @click="handle_fetch_models"
                 >
                   {{ loading_models ? '拉取中...' : '🔍 拉取模型列表' }}
@@ -313,8 +319,14 @@
                     box-shadow: 0 2px 8px rgba(81, 207, 102, 0.3);
                     color: white;
                   "
-                  onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(81, 207, 102, 0.4)'"
-                  onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(81, 207, 102, 0.3)'"
+                  onmouseover="
+                    this.style.transform = 'translateY(-2px)';
+                    this.style.boxShadow = '0 4px 12px rgba(81, 207, 102, 0.4)';
+                  "
+                  onmouseout="
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = '0 2px 8px rgba(81, 207, 102, 0.3)';
+                  "
                   @click="handleSaveApiConfig"
                 >
                   💾 保存配置
@@ -397,8 +409,14 @@
                   align-items: center;
                   gap: 6px;
                 "
-                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(74, 158, 255, 0.4)'"
-                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'"
+                onmouseover="
+                  this.style.transform = 'translateY(-2px)';
+                  this.style.boxShadow = '0 4px 12px rgba(74, 158, 255, 0.4)';
+                "
+                onmouseout="
+                  this.style.transform = 'translateY(0)';
+                  this.style.boxShadow = 'none';
+                "
                 @click="showSaveTemplateDialog = true"
               >
                 <i class="fa-solid fa-plus"></i>
@@ -421,8 +439,14 @@
                   justify-content: space-between;
                   transition: all 0.2s;
                 "
-                onmouseover="this.style.borderColor='#4a9eff'; this.style.background='#2f2f2f'"
-                onmouseout="this.style.borderColor='#3a3a3a'; this.style.background='#2a2a2a'"
+                onmouseover="
+                  this.style.borderColor = '#4a9eff';
+                  this.style.background = '#2f2f2f';
+                "
+                onmouseout="
+                  this.style.borderColor = '#3a3a3a';
+                  this.style.background = '#2a2a2a';
+                "
               >
                 <div style="flex: 1; min-width: 0">
                   <div style="color: #e0e0e0; font-size: 13px; font-weight: 500; margin-bottom: 4px">
@@ -446,8 +470,14 @@
                       cursor: pointer;
                       transition: all 0.2s;
                     "
-                    onmouseover="this.style.background='#40c057'; this.style.transform='scale(1.05)'"
-                    onmouseout="this.style.background='#51cf66'; this.style.transform='scale(1)'"
+                    onmouseover="
+                      this.style.background = '#40c057';
+                      this.style.transform = 'scale(1.05)';
+                    "
+                    onmouseout="
+                      this.style.background = '#51cf66';
+                      this.style.transform = 'scale(1)';
+                    "
                     title="加载此模板"
                     @click="loadApiTemplate(template)"
                   >
@@ -464,8 +494,14 @@
                       cursor: pointer;
                       transition: all 0.2s;
                     "
-                    onmouseover="this.style.background='#fa5252'; this.style.transform='scale(1.05)'"
-                    onmouseout="this.style.background='#ff6b6b'; this.style.transform='scale(1)'"
+                    onmouseover="
+                      this.style.background = '#fa5252';
+                      this.style.transform = 'scale(1.05)';
+                    "
+                    onmouseout="
+                      this.style.background = '#ff6b6b';
+                      this.style.transform = 'scale(1)';
+                    "
                     title="删除此模板"
                     @click="deleteApiTemplate(template.id)"
                   >
@@ -737,8 +773,14 @@
                 transition: all 0.3s ease;
                 box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
               "
-              onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.3)'"
-              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.2)'"
+              onmouseover="
+                this.style.transform = 'translateY(-1px)';
+                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+              "
+              onmouseout="
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+              "
               @click="handleSaveSettings"
             >
               💾 保存设置
@@ -755,8 +797,14 @@
                 transition: all 0.3s ease;
                 box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
               "
-              onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.3)'"
-              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.2)'"
+              onmouseover="
+                this.style.transform = 'translateY(-1px)';
+                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+              "
+              onmouseout="
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+              "
               @click="handleReloadSettings"
             >
               🔄 重新加载
@@ -773,8 +821,14 @@
                 transition: all 0.3s ease;
                 box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
               "
-              onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.3)'"
-              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.2)'"
+              onmouseover="
+                this.style.transform = 'translateY(-1px)';
+                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+              "
+              onmouseout="
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+              "
               @click="handleResetAutoSummaryStart"
             >
               🔄 重置起始楼层

@@ -71,9 +71,7 @@
               >楼层 {{ item.start_id }} - {{ item.end_id }}</span
             >
           </div>
-          <span class="expand-icon" style="color: #888; font-size: 12px">{{
-            isTableExpanded(index) ? '▼' : '▶'
-          }}</span>
+          <span class="expand-icon" style="color: #888; font-size: 12px">{{ isTableExpanded(index) ? '▼' : '▶' }}</span>
         </div>
         <div
           v-if="isTableExpanded(index)"
