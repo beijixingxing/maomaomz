@@ -544,7 +544,7 @@ export async function summarizeMessages(start_id: number, end_id: number): Promi
 ...
 
 对话内容：
-${messages.map(msg => `[${msg.role}]: ${msg.message}`).join('\n\n')}
+${messages.map(msg => `[${msg.role}]: ${preprocessContent(msg.message)}`).join('\n\n')}
 
 直接输出总结内容，不要任何回复语：`;
 

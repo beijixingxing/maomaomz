@@ -2714,7 +2714,7 @@ const processBatch = async (
   const messagesText = batchMessages
     .map((msg, idx) => {
       const role = msg.role === 'user' ? '用户' : 'AI';
-      return `[消息${idx + 1}] ${role}: ${msg.message}`;
+      return `[消息${idx + 1}] ${role}: ${preprocessContent(msg.message)}`;
     })
     .join('\n\n');
 
