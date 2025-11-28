@@ -3,8 +3,8 @@
  */
 
 /**
- * 替换内容中的未成年年龄信息
- * 将 18 岁以下的年龄替换为安全表述，避免触发 Gemini 等模型的安全拒绝
+ * 替换内容中的敏感信息
+ * 将敏感词替换为安全表述，避免触发 Gemini 等模型的安全拒绝
  */
 export function sanitizeAgeContent(content: string): string {
   if (!content) return content;
@@ -12,18 +12,17 @@ export function sanitizeAgeContent(content: string): string {
   let result = content;
 
   // 中文年龄表述：X岁（X < 18）
-  // 匹配：1-17岁、01-17岁
   result = result.replace(/\b([1-9]|1[0-7])\s*岁/g, '年轻');
   result = result.replace(/\b0([1-9]|1[0-7])\s*岁/g, '年轻');
 
-  // 英文年龄表述：X years old, X-year-old, age X
+  // 英文年龄表述
   result = result.replace(/\b([1-9]|1[0-7])\s*years?\s*old\b/gi, 'young');
   result = result.replace(/\b([1-9]|1[0-7])-year-old\b/gi, 'young');
   result = result.replace(/\bage\s*([1-9]|1[0-7])\b/gi, 'young age');
 
-  // 特定词汇替换
+  // 敏感词替换表
   const sensitiveTerms: [RegExp, string][] = [
-    // 中文
+    // === 年龄相关 ===
     [/未成年/g, '年轻人'],
     [/小孩子?/g, '年轻人'],
     [/小朋友/g, '年轻人'],
@@ -34,17 +33,62 @@ export function sanitizeAgeContent(content: string): string {
     [/幼女/g, '少女'],
     [/幼童/g, '年轻人'],
     [/儿童/g, '年轻人'],
-    [/少年/g, '年轻人'],
     [/萝莉/g, '少女'],
     [/正太/g, '少年'],
-    // 英文
     [/\bminor[s]?\b/gi, 'young person'],
     [/\bchild(ren)?\b/gi, 'young person'],
     [/\bkid[s]?\b/gi, 'young person'],
     [/\bteen(ager)?[s]?\b/gi, 'young person'],
     [/\bunder\s*age[d]?\b/gi, 'young'],
-    [/\bloli\b/gi, 'young girl'],
-    [/\bshota\b/gi, 'young boy'],
+    [/\bloli\b/gi, 'girl'],
+    [/\bshota\b/gi, 'boy'],
+
+    // === 家庭关系敏感词（乱伦相关）===
+    [/乱伦/g, '禁忌关系'],
+    [/母子/g, '两人'],
+    [/父女/g, '两人'],
+    [/兄妹/g, '两人'],
+    [/姐弟/g, '两人'],
+    [/兄弟/g, '两人'],
+    [/姐妹/g, '两人'],
+    [/母女/g, '两人'],
+    [/父子/g, '两人'],
+    [/叔侄/g, '两人'],
+    [/舅甥/g, '两人'],
+    [/继母/g, '女性'],
+    [/继父/g, '男性'],
+    [/后妈/g, '女性'],
+    [/后爸/g, '男性'],
+    [/养母/g, '女性'],
+    [/养父/g, '男性'],
+    [/干妈/g, '女性'],
+    [/干爹/g, '男性'],
+    [/岳母/g, '女性'],
+    [/公公/g, '男性'],
+    [/婆婆/g, '女性'],
+    [/嫂子/g, '女性'],
+    [/小姨子?/g, '女性'],
+    [/大姨子?/g, '女性'],
+    [/小舅子?/g, '男性'],
+    [/大舅子?/g, '男性'],
+    [/\bincest\b/gi, 'forbidden relationship'],
+    [/\bstep-?mom\b/gi, 'woman'],
+    [/\bstep-?dad\b/gi, 'man'],
+    [/\bstep-?mother\b/gi, 'woman'],
+    [/\bstep-?father\b/gi, 'man'],
+    [/\bstep-?sister\b/gi, 'woman'],
+    [/\bstep-?brother\b/gi, 'man'],
+    [/\bstep-?son\b/gi, 'man'],
+    [/\bstep-?daughter\b/gi, 'woman'],
+
+    // === 其他敏感词 ===
+    [/强奸/g, '强制'],
+    [/强暴/g, '强制'],
+    [/轮奸/g, '侵犯'],
+    [/迷奸/g, '侵犯'],
+    [/\brape[d]?\b/gi, 'assault'],
+    [/\braped\b/gi, 'assaulted'],
+    [/\braping\b/gi, 'assaulting'],
   ];
 
   for (const [pattern, replacement] of sensitiveTerms) {
