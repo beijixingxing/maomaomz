@@ -49,12 +49,39 @@ export function getGenerateQuietPrompt(): ((prompt: string, ...args: any[]) => P
   }
 
   console.log('❌ 无法找到 generateQuietPrompt 函数');
+
+  // 更详细的调试信息
   console.log('🔍 调试信息:', {
     'window.SillyTavern': !!win.SillyTavern,
     'window.SillyTavern.getContext': typeof win.SillyTavern?.getContext,
     'window.generateQuietPrompt': typeof win.generateQuietPrompt,
     'parent.SillyTavern': !!win.parent?.SillyTavern,
   });
+
+  // 输出 SillyTavern 对象的所有属性
+  if (win.SillyTavern) {
+    console.log('📋 SillyTavern 对象属性:', Object.keys(win.SillyTavern));
+
+    // 输出 getContext() 返回的对象属性
+    if (typeof win.SillyTavern.getContext === 'function') {
+      const ctx = win.SillyTavern.getContext();
+      console.log('📋 SillyTavern.getContext() 返回的属性:', Object.keys(ctx || {}));
+
+      // 检查是否有 generate 相关的方法
+      const generateMethods = Object.keys(ctx || {}).filter(k => k.toLowerCase().includes('generate'));
+      if (generateMethods.length > 0) {
+        console.log('🔍 发现 generate 相关方法:', generateMethods);
+      }
+    }
+  }
+
+  // 检查全局 window 上是否有 generate 相关函数
+  const globalGenerateFns = Object.keys(win).filter(
+    k => k.toLowerCase().includes('generate') && typeof win[k] === 'function',
+  );
+  if (globalGenerateFns.length > 0) {
+    console.log('🔍 全局 generate 相关函数:', globalGenerateFns);
+  }
 
   return null;
 }
