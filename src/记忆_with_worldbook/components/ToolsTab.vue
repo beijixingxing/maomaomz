@@ -3370,6 +3370,65 @@ const clearModifyRequest = () => {
 
 // ==================== 通用流式生成辅助函数 ====================
 
+/**
+ * 智能提取 JSON 对象
+ * 尝试从文本中提取 JSON，支持多种格式
+ */
+const extractJsonFromText = (text: string): { json: any; rawText: string } | null => {
+  const trimmedText = text.trim();
+
+  // 方法1: 直接解析（文本本身就是 JSON）
+  try {
+    const parsed = JSON.parse(trimmedText);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return { json: parsed, rawText: trimmedText };
+    }
+  } catch (e) {
+    // 继续尝试其他方法
+  }
+
+  // 方法2: 提取代码块中的 JSON
+  const codeBlockMatch = trimmedText.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    try {
+      const parsed = JSON.parse(codeBlockMatch[1].trim());
+      if (typeof parsed === 'object' && parsed !== null) {
+        return { json: parsed, rawText: codeBlockMatch[1].trim() };
+      }
+    } catch (e) {
+      // 继续尝试其他方法
+    }
+  }
+
+  // 方法3: 查找文本中的第一个 { ... } 对象
+  const braceStart = trimmedText.indexOf('{');
+  if (braceStart !== -1) {
+    let braceCount = 0;
+    let braceEnd = -1;
+    for (let i = braceStart; i < trimmedText.length; i++) {
+      if (trimmedText[i] === '{') braceCount++;
+      if (trimmedText[i] === '}') braceCount--;
+      if (braceCount === 0) {
+        braceEnd = i;
+        break;
+      }
+    }
+    if (braceEnd !== -1) {
+      const jsonCandidate = trimmedText.substring(braceStart, braceEnd + 1);
+      try {
+        const parsed = JSON.parse(jsonCandidate);
+        if (typeof parsed === 'object' && parsed !== null) {
+          return { json: parsed, rawText: jsonCandidate };
+        }
+      } catch (e) {
+        // JSON 无效
+      }
+    }
+  }
+
+  return null;
+};
+
 // 从流式响应中提取内容
 const extractStreamContent = (chunk: any): string | null => {
   // OpenAI 格式
@@ -3765,20 +3824,21 @@ const handleGenerateWorldbookEntry = async () => {
     }
 
     // 尝试解析 JSON
-    try {
-      // 提取 JSON 部分（如果有代码块包裹）
-      const jsonMatch = generatedText.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, generatedText];
-      const jsonText = jsonMatch[1] || generatedText;
-
-      const parsedEntry = JSON.parse(jsonText);
-      worldbookEntryOutput.value = parsedEntry;
+    const extractResult = extractJsonFromText(generatedText);
+    if (extractResult) {
+      worldbookEntryOutput.value = extractResult.json;
       saveToolsDataImmediate(); // 立即保存结果
-
       window.toastr.success('世界书条目生成完成！');
-    } catch (parseError) {
-      console.error('JSON 解析失败:', parseError);
-      console.log('原始响应:', generatedText);
-      window.toastr.error('生成的内容格式错误，请重试');
+    } else {
+      console.error('JSON 提取失败，原始响应:', generatedText);
+      // 保存原始响应以便用户查看
+      worldbookEntryOutput.value = {
+        _error: true,
+        _message: 'AI 返回的内容不是有效的 JSON 格式，请重试或手动修改',
+        _rawResponse: generatedText,
+      };
+      saveToolsDataImmediate();
+      window.toastr.warning('AI 返回的内容不是 JSON 格式，已显示原始响应');
     }
   } catch (error) {
     console.error('世界书条目生成失败:', error);
@@ -3932,21 +3992,22 @@ ${worldbookModifyRequest.value}`,
     }
 
     // 尝试解析 JSON
-    try {
-      // 提取 JSON 部分（如果有代码块包裹）
-      const jsonMatch = generatedText.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, generatedText];
-      const jsonText = jsonMatch[1] || generatedText;
-
-      const parsedEntry = JSON.parse(jsonText);
-      worldbookEntryOutput.value = parsedEntry;
+    const extractResult = extractJsonFromText(generatedText);
+    if (extractResult) {
+      worldbookEntryOutput.value = extractResult.json;
       worldbookModifyRequest.value = ''; // 清空修改需求
       saveToolsDataImmediate(); // 立即保存结果
-
       window.toastr.success('世界书条目修改完成！');
-    } catch (parseError) {
-      console.error('JSON 解析失败:', parseError);
-      console.log('原始响应:', generatedText);
-      window.toastr.error('修改的内容格式错误，请重试');
+    } else {
+      console.error('JSON 提取失败，原始响应:', generatedText);
+      // 保存原始响应以便用户查看
+      worldbookEntryOutput.value = {
+        _error: true,
+        _message: 'AI 返回的内容不是有效的 JSON 格式，请重试或手动修改',
+        _rawResponse: generatedText,
+      };
+      saveToolsDataImmediate();
+      window.toastr.warning('AI 返回的内容不是 JSON 格式，已显示原始响应');
     }
   } catch (error) {
     console.error('世界书条目修改失败:', error);
