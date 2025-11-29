@@ -1,5 +1,6 @@
 import { filterApiParams } from '../settings';
 import { APISettings, ChatMessage } from '../types';
+import { handleApiResponseError } from './error-handler';
 
 /**
  * 获取 SillyTavern 的 generateQuietPrompt 函数
@@ -166,8 +167,7 @@ export async function callAIWithTavernSupport(
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
+    await handleApiResponseError(response, 'AI 生成');
   }
 
   const data = await response.json();

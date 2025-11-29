@@ -2432,6 +2432,7 @@ import { onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue';
 import { detectApiProvider, filterApiParams, normalizeApiEndpoint, useSettingsStore } from '../settings';
 import { copyToClipboard, getScriptIdSafe } from '../utils';
 import { callAIWithTavernSupport } from '../utils/api';
+import { translateError } from '../utils/error-handler';
 import UIGenerator from './UIGenerator.vue';
 
 const settingsStore = useSettingsStore();
@@ -2945,7 +2946,7 @@ const handleAntiClicheProcess = async () => {
     window.toastr.success('文本清理完成！');
   } catch (error) {
     console.error('反八股清理失败:', error);
-    window.toastr.error('清理失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '文本清理'));
   } finally {
     isProcessingAntiCliche.value = false;
     antiClicheProgressPercent.value = 0;
@@ -3039,7 +3040,7 @@ const handleModifyAntiCliche = async () => {
     window.toastr.success('修改完成！');
   } catch (error) {
     console.error('反八股修改失败:', error);
-    window.toastr.error('修改失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '修改'));
   } finally {
     isModifyingAntiCliche.value = false;
     antiClicheProgressPercent.value = 0;
@@ -3250,7 +3251,7 @@ const handleGenerateCharacterCard = async () => {
     window.toastr.success('角色卡生成完成！');
   } catch (error) {
     console.error('角色卡生成失败:', error);
-    window.toastr.error('生成失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '生成'));
   } finally {
     isGeneratingCharacter.value = false;
     characterProgressPercent.value = 0;
@@ -3383,7 +3384,7 @@ ${modifyRequest.value}`,
     window.toastr.success('角色卡修改完成！');
   } catch (error) {
     console.error('角色卡修改失败:', error);
-    window.toastr.error('修改失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '修改'));
   } finally {
     isModifyingCharacter.value = false;
     characterProgressPercent.value = 0;
@@ -3887,7 +3888,7 @@ const handleGenerateWorldbookEntry = async () => {
     }
   } catch (error) {
     console.error('世界书条目生成失败:', error);
-    window.toastr.error('生成失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '生成'));
   } finally {
     isGeneratingWorldbook.value = false;
     worldbookProgressPercent.value = 0;
@@ -3933,7 +3934,7 @@ const handleInsertEntry = async () => {
     window.toastr.success(`✅ 条目已成功插入到「${selectedWorldbook.value}」`);
   } catch (error) {
     console.error('插入条目失败:', error);
-    window.toastr.error('插入失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '插入条目'));
   } finally {
     isInsertingEntry.value = false;
   }
@@ -4072,7 +4073,7 @@ ${worldbookModifyRequest.value}`,
     }
   } catch (error) {
     console.error('世界书条目修改失败:', error);
-    window.toastr.error('修改失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '修改'));
   } finally {
     isModifyingWorldbook.value = false;
     worldbookProgressPercent.value = 0;
@@ -4120,7 +4121,7 @@ const loadWorldbookEntries = async () => {
     }
   } catch (error) {
     console.error('❌ 加载世界书条目失败:', error);
-    window.toastr.error('加载失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '加载'));
     worldbookEntries.value = [];
   }
 };
@@ -4227,7 +4228,7 @@ const editWorldbookEntry = (entry: WorldbookEntry) => {
     showEditDialog.value = true;
   } catch (error) {
     console.error('打开编辑界面失败:', error);
-    window.toastr.error('打开编辑界面失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '打开编辑界面'));
   }
 };
 
@@ -4277,7 +4278,7 @@ const saveEditedEntry = async () => {
     window.toastr.success('条目已保存');
   } catch (error) {
     console.error('保存条目失败:', error);
-    window.toastr.error('保存失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '保存'));
   }
 };
 
@@ -4297,7 +4298,7 @@ const deleteWorldbookEntry = async (entry: WorldbookEntry) => {
     window.toastr.success(`已删除条目 "${entry.name}"`);
   } catch (error) {
     console.error('删除条目失败:', error);
-    window.toastr.error('删除失败：' + (error as Error).message);
+    window.toastr.error(translateError(error, '删除'));
   }
 };
 </script>
