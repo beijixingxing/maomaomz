@@ -4351,7 +4351,36 @@ ${batchInput.value}
   {"name": "条目名称2", "description": "该条目的详细描述"}
 ]`;
 
-    const splitResponse = await callAIWithTavernSupport([{ role: 'user', content: splitPrompt }], settings.value);
+    // 构建请求参数
+    const splitPayload = {
+      model: settings.value.model,
+      max_tokens: settings.value.max_tokens || 4000,
+      temperature: 0.7,
+      messages: [{ role: 'user', content: splitPrompt }],
+    };
+
+    let splitResponse: string;
+    if (settings.value.use_tavern_api) {
+      splitResponse = await callAIWithTavernSupport(splitPayload.messages, settings.value);
+    } else {
+      // 直接调用 API（和反八股工具一样的方式）
+      const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
+      const filteredPayload = filterApiParams(splitPayload, settings.value.api_endpoint);
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${settings.value.api_key}`,
+        },
+        body: JSON.stringify(filteredPayload),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
+      }
+      const data = await response.json();
+      splitResponse = data.choices?.[0]?.message?.content?.trim() || '';
+    }
 
     // 解析拆分结果
     let entries: Array<{ name: string; description: string }> = [];
@@ -4396,7 +4425,34 @@ ${batchInput.value}
   "enabled": true
 }`;
 
-        const response = await callAIWithTavernSupport([{ role: 'user', content: generatePrompt }], settings.value);
+        // 构建请求参数
+        const generatePayload = {
+          model: settings.value.model,
+          max_tokens: settings.value.max_tokens || 4000,
+          temperature: 0.7,
+          messages: [{ role: 'user', content: generatePrompt }],
+        };
+
+        let response: string;
+        if (settings.value.use_tavern_api) {
+          response = await callAIWithTavernSupport(generatePayload.messages, settings.value);
+        } else {
+          const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
+          const filteredPayload = filterApiParams(generatePayload, settings.value.api_endpoint);
+          const fetchResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${settings.value.api_key}`,
+            },
+            body: JSON.stringify(filteredPayload),
+          });
+          if (!fetchResponse.ok) {
+            throw new Error(`API 请求失败 (${fetchResponse.status})`);
+          }
+          const data = await fetchResponse.json();
+          response = data.choices?.[0]?.message?.content?.trim() || '';
+        }
 
         // 解析生成的条目
         const jsonMatch = response.match(/\{[\s\S]*\}/);
