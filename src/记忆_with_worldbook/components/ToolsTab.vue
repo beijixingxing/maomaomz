@@ -2904,7 +2904,14 @@ const handleAntiClicheProcess = async () => {
 
     let generatedText: string;
 
-    if (enableAntiClicheStreaming.value) {
+    // 如果启用了"使用酒馆 API"，通过酒馆后端发送请求（绕过 CORS）
+    if (settings.value.use_tavern_api) {
+      console.log('🍺 使用酒馆 API 发送反八股请求（绕过 CORS）...');
+      const { callAIWithTavernSupport } = await import('../utils/api');
+      generatedText = await callAIWithTavernSupport(requestPayload.messages, settings.value, {
+        onProgress: p => (antiClicheProgressPercent.value = p),
+      });
+    } else if (enableAntiClicheStreaming.value) {
       // 流式生成
       generatedText = await generateWithStreaming(requestPayload, antiClicheProgressPercent);
     } else {
@@ -2991,7 +2998,14 @@ const handleModifyAntiCliche = async () => {
 
     let modifiedText: string;
 
-    if (enableAntiClicheStreaming.value) {
+    // 如果启用了"使用酒馆 API"，通过酒馆后端发送请求（绕过 CORS）
+    if (settings.value.use_tavern_api) {
+      console.log('🍺 使用酒馆 API 发送反八股修改请求（绕过 CORS）...');
+      const { callAIWithTavernSupport } = await import('../utils/api');
+      modifiedText = await callAIWithTavernSupport(requestPayload.messages, settings.value, {
+        onProgress: p => (antiClicheProgressPercent.value = p),
+      });
+    } else if (enableAntiClicheStreaming.value) {
       // 流式生成
       modifiedText = await generateWithStreaming(requestPayload, antiClicheProgressPercent);
     } else {
@@ -3195,7 +3209,14 @@ const handleGenerateCharacterCard = async () => {
 
     let generatedText: string;
 
-    if (enableCharacterStreaming.value) {
+    // 如果启用了"使用酒馆 API"，通过酒馆后端发送请求（绕过 CORS）
+    if (settings.value.use_tavern_api) {
+      console.log('🍺 使用酒馆 API 发送角色卡生成请求（绕过 CORS）...');
+      const { callAIWithTavernSupport } = await import('../utils/api');
+      generatedText = await callAIWithTavernSupport(requestPayload.messages, settings.value, {
+        onProgress: p => (characterProgressPercent.value = p),
+      });
+    } else if (enableCharacterStreaming.value) {
       // 流式生成
       generatedText = await generateWithStreaming(requestPayload, characterProgressPercent);
     } else {
@@ -3320,7 +3341,14 @@ ${modifyRequest.value}`,
 
     let modifiedCard: string;
 
-    if (enableCharacterStreaming.value) {
+    // 如果启用了"使用酒馆 API"，通过酒馆后端发送请求（绕过 CORS）
+    if (settings.value.use_tavern_api) {
+      console.log('🍺 使用酒馆 API 发送角色卡修改请求（绕过 CORS）...');
+      const { callAIWithTavernSupport } = await import('../utils/api');
+      modifiedCard = await callAIWithTavernSupport(requestPayload.messages, settings.value, {
+        onProgress: p => (characterProgressPercent.value = p),
+      });
+    } else if (enableCharacterStreaming.value) {
       // 流式生成
       modifiedCard = await generateWithStreaming(requestPayload, characterProgressPercent);
     } else {
