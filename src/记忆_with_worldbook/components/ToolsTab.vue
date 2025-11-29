@@ -610,6 +610,27 @@
           </button>
 
           <button
+            class="batch-button"
+            :disabled="isBatchGenerating"
+            style="
+              padding: 12px 24px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              border: none;
+              border-radius: 12px;
+              color: white;
+              font-size: 13px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.3s ease;
+              box-shadow: 0 3px 12px rgba(102, 126, 234, 0.3);
+            "
+            @click="showBatchDialog = true"
+          >
+            <i class="fa-solid fa-layer-group" style="font-size: 14px; margin-right: 6px"></i>
+            批量生成
+          </button>
+
+          <button
             class="clear-button"
             style="
               padding: 12px 24px;
@@ -2422,6 +2443,203 @@
         <UIGenerator />
       </div>
     </div>
+
+    <!-- 批量生成对话框 -->
+    <div
+      v-if="showBatchDialog"
+      class="batch-dialog-overlay"
+      style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      "
+      @click.self="!isBatchGenerating && (showBatchDialog = false)"
+    >
+      <div
+        class="batch-dialog"
+        style="
+          width: 600px;
+          max-height: 80vh;
+          background: #2a2a2a;
+          border-radius: 12px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+          overflow: hidden;
+        "
+      >
+        <!-- 对话框头部 -->
+        <div
+          style="
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          "
+        >
+          <h3 style="margin: 0; color: white; font-size: 16px; font-weight: 600">
+            <i class="fa-solid fa-layer-group" style="margin-right: 8px"></i>
+            批量生成世界书条目
+          </h3>
+          <button
+            v-if="!isBatchGenerating"
+            style="background: none; border: none; color: white; font-size: 18px; cursor: pointer; padding: 4px"
+            @click="showBatchDialog = false"
+          >
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+
+        <!-- 对话框内容 -->
+        <div style="padding: 20px; max-height: calc(80vh - 140px); overflow-y: auto">
+          <div v-if="!isBatchGenerating && batchResults.length === 0">
+            <p style="color: #ccc; font-size: 13px; margin-bottom: 12px">
+              <i class="fa-solid fa-info-circle" style="color: #667eea; margin-right: 6px"></i>
+              输入一段完整的设定文本，AI 将自动拆分并生成多个世界书条目。
+            </p>
+            <p
+              style="
+                color: #888;
+                font-size: 12px;
+                margin-bottom: 16px;
+                background: #1a1a1a;
+                padding: 8px;
+                border-radius: 4px;
+                border-left: 3px solid #667eea;
+              "
+            >
+              💡
+              示例：「魔法学院位于云端之上，由大魔导师艾莉创立于千年前。学院分为火、水、风、土四系，每系都有独立的塔楼。学院禁止黑魔法，违者终身禁入。」
+            </p>
+            <textarea
+              v-model="batchInput"
+              placeholder="请输入完整的设定文本，AI 将自动拆分成多个条目..."
+              style="
+                width: 100%;
+                height: 200px;
+                padding: 12px;
+                background: #1a1a1a;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 13px;
+                resize: vertical;
+                font-family: inherit;
+              "
+            ></textarea>
+          </div>
+
+          <!-- 生成进度 -->
+          <div v-if="isBatchGenerating" style="text-align: center; padding: 20px 0">
+            <div style="margin-bottom: 16px">
+              <i class="fa-solid fa-spinner fa-spin" style="font-size: 32px; color: #667eea"></i>
+            </div>
+            <p style="color: #ccc; font-size: 14px; margin-bottom: 8px">
+              正在生成第 {{ batchProgress.current }} / {{ batchProgress.total }} 个条目
+            </p>
+            <p style="color: #888; font-size: 12px">
+              {{ batchProgress.currentName || '准备中...' }}
+            </p>
+            <div style="margin-top: 16px; background: #1a1a1a; height: 8px; border-radius: 4px; overflow: hidden">
+              <div
+                :style="{
+                  width: (batchProgress.total > 0 ? (batchProgress.current / batchProgress.total) * 100 : 0) + '%',
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #667eea, #764ba2)',
+                  transition: 'width 0.3s ease',
+                }"
+              ></div>
+            </div>
+          </div>
+
+          <!-- 生成结果 -->
+          <div v-if="!isBatchGenerating && batchResults.length > 0">
+            <p style="color: #51cf66; font-size: 14px; margin-bottom: 16px">
+              <i class="fa-solid fa-check-circle" style="margin-right: 6px"></i>
+              成功生成 {{ batchResults.length }} 个条目
+            </p>
+            <div style="max-height: 300px; overflow-y: auto">
+              <div
+                v-for="(entry, index) in batchResults"
+                :key="index"
+                style="
+                  background: #1a1a1a;
+                  padding: 12px;
+                  border-radius: 6px;
+                  margin-bottom: 8px;
+                  border-left: 3px solid #667eea;
+                "
+              >
+                <div style="color: #fff; font-weight: 600; margin-bottom: 4px">{{ entry.name || '未命名条目' }}</div>
+                <div style="color: #888; font-size: 12px">
+                  关键词: {{ Array.isArray(entry.key) ? entry.key.join(', ') : entry.key || '无' }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 对话框底部 -->
+        <div style="padding: 16px 20px; background: #1a1a1a; display: flex; justify-content: flex-end; gap: 12px">
+          <button
+            v-if="!isBatchGenerating && batchResults.length === 0"
+            :disabled="!batchInput.trim()"
+            style="
+              padding: 10px 20px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              border: none;
+              border-radius: 6px;
+              color: white;
+              font-size: 13px;
+              cursor: pointer;
+              opacity: 1;
+            "
+            :style="{ opacity: !batchInput.trim() ? 0.5 : 1 }"
+            @click="handleBatchGenerate"
+          >
+            <i class="fa-solid fa-magic" style="margin-right: 6px"></i>
+            开始批量生成
+          </button>
+          <button
+            v-if="!isBatchGenerating && batchResults.length > 0"
+            style="
+              padding: 10px 20px;
+              background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
+              border: none;
+              border-radius: 6px;
+              color: white;
+              font-size: 13px;
+              cursor: pointer;
+            "
+            @click="handleBatchInsert"
+          >
+            <i class="fa-solid fa-plus" style="margin-right: 6px"></i>
+            全部插入到世界书
+          </button>
+          <button
+            v-if="!isBatchGenerating"
+            style="
+              padding: 10px 20px;
+              background: #3a3a3a;
+              border: none;
+              border-radius: 6px;
+              color: #ccc;
+              font-size: 13px;
+              cursor: pointer;
+            "
+            @click="closeBatchDialog"
+          >
+            {{ batchResults.length > 0 ? '关闭' : '取消' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -2466,6 +2684,13 @@ const worldbookModifyRequest = ref('');
 const isModifyingWorldbook = ref(false);
 const enableWorldbookStreaming = ref(false); // 世界书条目生成是否启用流式传输
 const worldbookProgressPercent = ref(0); // 世界书条目生成进度
+
+// 批量生成相关
+const showBatchDialog = ref(false);
+const batchInput = ref('');
+const isBatchGenerating = ref(false);
+const batchProgress = ref({ current: 0, total: 0, currentName: '' });
+const batchResults = ref<Array<Partial<WorldbookEntry>>>([]);
 
 // 世界书查看器相关
 const selectedViewerWorldbook = ref('');
@@ -4085,6 +4310,143 @@ const clearWorldbookModifyRequest = () => {
   worldbookModifyRequest.value = '';
   saveToolsDataImmediate(); // 立即保存
   window.toastr.success('修改需求已清空');
+};
+
+// ==================== 批量生成世界书条目 ====================
+
+// 关闭批量生成对话框
+const closeBatchDialog = () => {
+  showBatchDialog.value = false;
+  batchInput.value = '';
+  batchResults.value = [];
+  batchProgress.value = { current: 0, total: 0, currentName: '' };
+};
+
+// 批量生成世界书条目
+const handleBatchGenerate = async () => {
+  if (!batchInput.value.trim()) {
+    window.toastr.warning('请输入设定文本');
+    return;
+  }
+
+  try {
+    isBatchGenerating.value = true;
+    batchResults.value = [];
+    batchProgress.value = { current: 0, total: 0, currentName: '正在分析文本...' };
+
+    // 第一步：让 AI 分析文本并拆分成多个条目描述
+    const splitPrompt = `你是世界书条目拆分专家。请分析以下设定文本，将其拆分成多个独立的世界书条目。
+
+要求：
+1. 每个条目应该是一个独立的概念（角色、地点、物品、规则等）
+2. 返回 JSON 数组格式
+3. 每个元素包含 name（条目名称）和 description（条目描述）
+
+设定文本：
+${batchInput.value}
+
+请直接返回 JSON 数组，格式如下：
+[
+  {"name": "条目名称1", "description": "该条目的详细描述"},
+  {"name": "条目名称2", "description": "该条目的详细描述"}
+]`;
+
+    const splitResponse = await callAIWithTavernSupport([{ role: 'user', content: splitPrompt }], settings.value);
+
+    // 解析拆分结果
+    let entries: Array<{ name: string; description: string }> = [];
+    try {
+      const jsonMatch = splitResponse.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        entries = JSON.parse(jsonMatch[0]);
+      }
+    } catch {
+      window.toastr.error('AI 返回的拆分结果格式错误，请重试');
+      isBatchGenerating.value = false;
+      return;
+    }
+
+    if (entries.length === 0) {
+      window.toastr.warning('未能从文本中拆分出条目，请检查输入');
+      isBatchGenerating.value = false;
+      return;
+    }
+
+    batchProgress.value.total = entries.length;
+    window.toastr.info(`已拆分为 ${entries.length} 个条目，开始生成...`);
+
+    // 第二步：逐个生成世界书条目
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      batchProgress.value.current = i + 1;
+      batchProgress.value.currentName = entry.name;
+
+      try {
+        const generatePrompt = `你是SillyTavern世界书条目生成专家。请根据以下描述生成一个世界书条目。
+
+条目名称：${entry.name}
+条目描述：${entry.description}
+
+请直接返回 JSON 格式的世界书条目，包含以下字段：
+{
+  "name": "条目名称（必填）",
+  "key": ["触发关键词数组"],
+  "content": "条目正文内容",
+  "comment": "条目注释/备注",
+  "enabled": true
+}`;
+
+        const response = await callAIWithTavernSupport([{ role: 'user', content: generatePrompt }], settings.value);
+
+        // 解析生成的条目
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const generatedEntry = JSON.parse(jsonMatch[0]);
+          batchResults.value.push(generatedEntry);
+        }
+      } catch (error) {
+        console.error(`生成条目 "${entry.name}" 失败:`, error);
+        // 继续生成下一个
+      }
+    }
+
+    if (batchResults.value.length > 0) {
+      window.toastr.success(`成功生成 ${batchResults.value.length} 个条目`);
+    } else {
+      window.toastr.error('所有条目生成失败，请重试');
+    }
+  } catch (error) {
+    console.error('批量生成失败:', error);
+    window.toastr.error(translateError(error, '批量生成'));
+  } finally {
+    isBatchGenerating.value = false;
+  }
+};
+
+// 批量插入条目到世界书
+const handleBatchInsert = async () => {
+  if (batchResults.value.length === 0) {
+    window.toastr.warning('没有可插入的条目');
+    return;
+  }
+
+  if (!selectedWorldbook.value) {
+    window.toastr.warning('请先在下方选择目标世界书');
+    showBatchDialog.value = false;
+    return;
+  }
+
+  try {
+    await (window as any).TavernHelper.createWorldbookEntries(selectedWorldbook.value, batchResults.value, {
+      render: 'immediate',
+    });
+
+    window.toastr.success(`已将 ${batchResults.value.length} 个条目插入到「${selectedWorldbook.value}」`);
+    closeBatchDialog();
+  } catch (error) {
+    console.error('批量插入失败:', error);
+    window.toastr.error(translateError(error, '批量插入'));
+  }
 };
 
 // ==================== 世界书查看器相关函数 ====================
