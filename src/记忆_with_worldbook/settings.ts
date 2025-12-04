@@ -324,6 +324,7 @@ const Settings = z.object({
   presence_penalty: z.number().default(0.0), // 存在惩罚 (-2.0 to 2.0)
   frequency_penalty: z.number().default(0.0), // 频率惩罚 (-2.0 to 2.0)
   auto_summarize_enabled: z.boolean().default(false),
+  auto_bind_to_worldbook: z.boolean().default(false), // 总结后自动绑定到世界书
   auto_hide_after_summary: z.boolean().default(false), // 总结后自动隐藏已总结楼层
   keep_recent_messages: z.number().default(10), // 保留最近几条消息不隐藏
   summarize_interval: z.number().default(50), // 每多少楼层自动总结一次

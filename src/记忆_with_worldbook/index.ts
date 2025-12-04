@@ -284,11 +284,92 @@ $(() => {
                 // 🔧 重新获取最新设置（异步回调中原有的 settings 可能不是最新值）
                 const currentStore = useSettingsStore();
                 const currentSettings = currentStore.settings;
-                console.log('🔍 自动隐藏检查:', {
+                console.log('🔍 自动处理检查:', {
+                  auto_bind_to_worldbook: currentSettings.auto_bind_to_worldbook,
                   auto_hide_after_summary: currentSettings.auto_hide_after_summary,
                   start_id,
                   end_id,
                 });
+
+                // 自动绑定到世界书
+                if (currentSettings.auto_bind_to_worldbook) {
+                  try {
+                    console.log('📚 开始自动绑定总结到世界书...');
+                    const TH = (window as any).TavernHelper;
+
+                    if (TH) {
+                      // 获取当前角色名
+                      let characterName = '未知角色';
+                      try {
+                        const currentCharacter = TH.getCharData?.('current');
+                        if (currentCharacter?.name) {
+                          characterName = currentCharacter.name.replace(/[<>:"\/\\|?*]/g, '_').trim();
+                        }
+                      } catch (e) {
+                        console.warn('获取角色信息失败:', e);
+                      }
+
+                      // 生成世界书名称
+                      const dateStr = new Date().toISOString().slice(0, 10);
+                      const worldbookName = `总结_${characterName}_${dateStr}`;
+
+                      // 检查世界书是否存在，不存在则创建
+                      let existingWorldbooks: string[] = [];
+                      try {
+                        existingWorldbooks = TH.getWorldbookNames?.() || [];
+                      } catch (e) {
+                        console.warn('获取世界书列表失败:', e);
+                      }
+
+                      if (!existingWorldbooks.includes(worldbookName)) {
+                        // 创建新世界书
+                        console.log(`📚 创建新世界书: ${worldbookName}`);
+                        await TH.createWorldbook?.(worldbookName, []);
+
+                        // 绑定到当前聊天
+                        try {
+                          await TH.rebindChatWorldbook?.('current', worldbookName);
+                          console.log(`✅ 世界书 "${worldbookName}" 已创建并绑定到当前聊天`);
+                        } catch (bindError) {
+                          console.warn('绑定世界书到聊天失败:', bindError);
+                        }
+                      }
+
+                      // 创建世界书条目
+                      const entryName = `总结_楼层${start_id}-${end_id}`;
+                      const newEntry = {
+                        name: entryName,
+                        enabled: true,
+                        strategy: {
+                          type: 'constant' as const,
+                          keys: [],
+                          keys_secondary: { logic: 'and_any' as const, keys: [] },
+                          scan_depth: 'same_as_global' as const,
+                        },
+                        position: {
+                          type: 'before_character_definition' as const,
+                          role: 'system' as const,
+                          depth: 1,
+                        },
+                        content: summary,
+                        comment: `自动生成的总结条目 - 楼层范围: ${start_id} - ${end_id}`,
+                        insertion_order: 0,
+                        uid: Date.now(),
+                      };
+
+                      await TH.createWorldbookEntries?.(worldbookName, [newEntry], { render: 'immediate' });
+                      window.toastr.info(`📚 总结已绑定到世界书: ${worldbookName}`);
+                      console.log('✅ 自动绑定世界书成功');
+                    } else {
+                      console.warn('⚠️ TavernHelper 不可用，无法自动绑定世界书');
+                    }
+                  } catch (worldbookError) {
+                    console.error('❌ 自动绑定世界书失败:', worldbookError);
+                    window.toastr.warning('⚠️ 自动绑定世界书失败: ' + (worldbookError as Error).message);
+                  }
+                } else {
+                  console.log('ℹ️ 自动绑定世界书未启用，跳过');
+                }
 
                 // 自动隐藏已总结的楼层
                 if (currentSettings.auto_hide_after_summary) {
