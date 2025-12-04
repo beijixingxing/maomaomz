@@ -2465,7 +2465,8 @@
       <div
         class="batch-dialog"
         style="
-          width: 600px;
+          width: 90%;
+          max-width: 600px;
           max-height: 80vh;
           background: #2a2a2a;
           border-radius: 12px;
@@ -2528,9 +2529,11 @@
                 border: 1px solid #3a3a3a;
                 border-radius: 6px;
                 color: #e0e0e0;
-                font-size: 13px;
+                font-size: 16px;
                 resize: vertical;
                 font-family: inherit;
+                box-sizing: border-box;
+                -webkit-appearance: none;
               "
             ></textarea>
           </div>
@@ -2584,7 +2587,16 @@
         </div>
 
         <!-- 对话框底部 -->
-        <div style="padding: 16px 20px; background: #1a1a1a; display: flex; justify-content: flex-end; gap: 12px">
+        <div
+          style="
+            padding: 16px 20px;
+            background: #1a1a1a;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
+          "
+        >
           <button
             v-if="!isBatchGenerating && batchResults.length === 0"
             :disabled="!batchInput.trim()"

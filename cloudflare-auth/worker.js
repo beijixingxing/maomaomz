@@ -61,6 +61,7 @@ async function redisDel(key) {
 // ========== Cloudflare Workers 主程序 ==========
 
 export default {
+  // HTTP 请求处理
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -105,12 +106,127 @@ export default {
         return await handleGetBannedEndpoints(request, env, corsHeaders);
       } else if (path === '/admin' || path === '/') {
         return handleAdmin(env);
+      } else if (path === '/get-auto-update-config') {
+        return await handleGetAutoUpdateConfig(request, env, corsHeaders);
+      } else if (path === '/set-auto-update-config') {
+        return await handleSetAutoUpdateConfig(request, env, corsHeaders);
+      } else if (path === '/trigger-auto-update') {
+        return await handleTriggerAutoUpdate(request, env, corsHeaders);
+      } else if (path === '/get-code' || path === '/daily-code') {
+        return await handleGetCode(request, env, corsHeaders);
+      } else if (path === '/api/bot/claim') {
+        return await handleBotClaim(request, env, corsHeaders);
       } else {
         return jsonResponse({ error: '404 Not Found' }, 404, corsHeaders);
       }
     } catch (error) {
       console.error('Error:', error);
       return jsonResponse({ error: 'Internal Server Error', details: error.message }, 500, corsHeaders);
+    }
+  },
+
+  // 🔄 定时任务处理（Cron Triggers）
+  async scheduled(event, env, ctx) {
+    console.log('⏰ 定时任务触发:', new Date().toISOString());
+
+    try {
+      // 检查是否启用了自动更新
+      const configStr = await redisGet('auto_update_config');
+      const config = configStr ? JSON.parse(configStr) : { enabled: false, hour: 0, days: 1 };
+
+      if (!config.enabled) {
+        console.log('ℹ️ 自动更新未启用，跳过');
+        return;
+      }
+
+      // 检查是否到达用户配置的更新时间（北京时间）
+      const now = new Date();
+      const beijingHour = (now.getUTCHours() + 8) % 24;
+      const configuredHour = config.hour !== undefined ? config.hour : 0;
+      const configuredDays = config.days !== undefined ? config.days : 1;
+
+      if (beijingHour !== configuredHour) {
+        console.log('ℹ️ 当前北京时间 ' + beijingHour + ' 点，配置更新时间 ' + configuredHour + ' 点，跳过');
+        return;
+      }
+
+      // 检查天数间隔
+      if (configuredDays > 1) {
+        const lastUpdateStr = await redisGet('updated_at');
+        if (lastUpdateStr) {
+          const lastUpdate = new Date(lastUpdateStr);
+          const daysSinceLastUpdate = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysSinceLastUpdate < configuredDays) {
+            console.log('ℹ️ 距上次更新 ' + daysSinceLastUpdate + ' 天，配置间隔 ' + configuredDays + ' 天，跳过');
+            return;
+          }
+        }
+      }
+
+      console.log(
+        '🔄 到达配置的更新时间（每' + configuredDays + '天，北京时间 ' + configuredHour + ' 点），开始更新...',
+      );
+
+      // 生成新的授权码
+      const today = new Date();
+      const dateStr =
+        today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
+
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let random = '';
+      for (let i = 0; i < 4; i++) {
+        random += chars[Math.floor(Math.random() * chars.length)];
+      }
+
+      const newCode = 'MEOW-' + dateStr + '-' + random;
+
+      // 保存旧的授权码到历史
+      const oldCode = await redisGet('current_code');
+      if (oldCode) {
+        const historyStr = await redisGet('history');
+        const history = historyStr ? JSON.parse(historyStr) : [];
+        history.unshift({
+          code: oldCode,
+          replacedAt: new Date().toISOString(),
+          replacedBy: 'auto_update',
+        });
+        if (history.length > 30) {
+          history.length = 30;
+        }
+        await redisSet('history', JSON.stringify(history));
+      }
+
+      // 更新当前授权码
+      await redisSet('current_code', newCode);
+      await redisSet('updated_at', new Date().toISOString());
+
+      // 记录自动更新日志
+      const autoUpdateLogsStr = await redisGet('auto_update_logs');
+      const autoUpdateLogs = autoUpdateLogsStr ? JSON.parse(autoUpdateLogsStr) : [];
+      autoUpdateLogs.unshift({
+        oldCode: oldCode || '无',
+        newCode: newCode,
+        timestamp: new Date().toISOString(),
+        trigger: 'cron',
+      });
+      if (autoUpdateLogs.length > 100) {
+        autoUpdateLogs.length = 100;
+      }
+      await redisSet('auto_update_logs', JSON.stringify(autoUpdateLogs));
+
+      // 重置今日统计
+      await redisSet(
+        'stats',
+        JSON.stringify({
+          success: 0,
+          failed: 0,
+          lastReset: new Date().toISOString(),
+        }),
+      );
+
+      console.log('✅ 自动更新授权码成功:', newCode);
+    } catch (error) {
+      console.error('❌ 自动更新失败:', error);
     }
   },
 };
@@ -139,11 +255,11 @@ async function handleVerify(request, env, corsHeaders) {
     // 🔥 检查 API 端点是否被禁用
     const bannedEndpointsStr = await redisGet('banned_endpoints');
     const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
-    
+
     if (cleanApiEndpoint !== 'unknown' && bannedEndpoints[cleanApiEndpoint]) {
       const banInfo = bannedEndpoints[cleanApiEndpoint];
       console.log(`⛔ 已禁用的 API 端点尝试验证: ${cleanApiEndpoint}`);
-      
+
       // 记录被拒绝的访问
       await logVerification(env, {
         code,
@@ -154,7 +270,7 @@ async function handleVerify(request, env, corsHeaders) {
         timestamp: timestamp || new Date().toISOString(),
         reason: 'BANNED_ENDPOINT',
       });
-      
+
       return jsonResponse(
         {
           valid: false,
@@ -326,15 +442,15 @@ async function handleStats(request, env, corsHeaders) {
     // 获取API端点数据 🔥
     const endpointsStr = await redisGet('api_endpoints');
     const endpoints = endpointsStr ? JSON.parse(endpointsStr) : {};
-    
+
     // 获取禁用列表
     const bannedEndpointsStr = await redisGet('banned_endpoints');
     const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
-    
+
     // 合并禁用状态到端点列表
     const endpointList = Object.values(endpoints).map(ep => ({
       ...ep,
-      isBanned: !!bannedEndpoints[ep.endpoint]
+      isBanned: !!bannedEndpoints[ep.endpoint],
     }));
 
     // 按访问次数排序
@@ -383,7 +499,7 @@ async function handleStats(request, env, corsHeaders) {
 }
 
 /**
- * 管理页面
+ * 管理页面 - 侧边栏布局版本
  */
 function handleAdmin(env) {
   const html = `<!DOCTYPE html>
@@ -393,531 +509,300 @@ function handleAdmin(env) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🐱 猫猫的小破烂 - 授权管理后台</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; line-height: 1.6; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-            background: linear-gradient(135deg, #1a1a1a 0%, #2a1a1a 50%, #1a2a2a 100%);
-            color: #e0e0e0;
-            min-height: 100vh;
-            padding: 20px;
-            line-height: 1.6;
-        }
+        /* 侧边栏 */
+        .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 240px; background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%); border-right: 1px solid #2a2a2a; overflow-y: auto; z-index: 100; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 20px 16px; border-bottom: 1px solid #2a2a2a; text-align: center; }
+        .sidebar-header h1 { font-size: 18px; background: linear-gradient(135deg, #ff9500 0%, #ffa500 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .sidebar-header .warning { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: #fff; padding: 6px 10px; border-radius: 6px; margin-top: 10px; font-size: 10px; font-weight: 700; }
+        .nav-group { padding: 10px 0; border-bottom: 1px solid #1f1f1f; }
+        .nav-group-title { padding: 6px 16px; font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #888; cursor: pointer; transition: all 0.2s; border-left: 3px solid transparent; }
+        .nav-item:hover { background: rgba(74, 158, 255, 0.1); color: #fff; }
+        .nav-item.active { background: rgba(74, 158, 255, 0.15); color: #4a9eff; border-left-color: #4a9eff; }
+        .nav-item .icon { font-size: 16px; }
+        .nav-item .label { font-size: 13px; }
+        .sidebar-footer { padding: 12px; border-top: 1px solid #2a2a2a; margin-top: auto; }
+        .sidebar-footer label { display: block; margin-bottom: 4px; color: #888; font-size: 11px; }
+        .sidebar-footer input { width: 100%; padding: 8px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 12px; }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+        /* 主内容区 */
+        .main-content { margin-left: 240px; min-height: 100vh; padding: 20px; }
+        .page-header { margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #2a2a2a; }
+        .page-header h2 { font-size: 22px; color: #fff; }
+        .page-header p { color: #888; font-size: 13px; margin-top: 4px; }
+        .page { display: none; }
+        .page.active { display: block; }
 
-        .header {
-            text-align: center;
-            padding: 40px 20px;
-            background: linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 100%);
-            border-radius: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            border: 1px solid #3a3a3a;
-        }
+        /* 卡片 */
+        .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+        .card-title { font-size: 15px; color: #4a9eff; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
 
-        .header h1 {
-            font-size: 36px;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #ff9500 0%, #ffa500 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
+        /* 表单 */
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; margin-bottom: 4px; color: #ccc; font-size: 13px; }
+        input[type="text"], input[type="password"], textarea { width: 100%; padding: 10px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 13px; }
+        input:focus, textarea:focus { outline: none; border-color: #4a9eff; }
+        textarea { min-height: 120px; resize: vertical; font-family: 'Courier New', monospace; }
 
-        .warning-banner {
-            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-            color: #fff;
-            padding: 15px;
-            border-radius: 12px;
-            margin: 20px auto;
-            max-width: 600px;
-            font-weight: 700;
-            font-size: 16px;
-            letter-spacing: 1px;
-            text-align: center;
-            box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
-        }
+        /* 按钮 */
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: linear-gradient(135deg, #4a9eff 0%, #3b82f6 100%); color: #fff; }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(74, 158, 255, 0.3); }
+        .btn-secondary { background: #2a2a2a; color: #ccc; }
+        .btn-secondary:hover { background: #3a3a3a; }
+        .btn-danger { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: #fff; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
 
-        .card {
-            background: rgba(42, 42, 42, 0.8);
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
-            padding: 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-            border: 1px solid #3a3a3a;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
+        /* 统计卡片 */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .stat-card { background: #0f0f0f; border: 1px solid #2a2a2a; border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-value { font-size: 24px; font-weight: 700; color: #4a9eff; }
+        .stat-label { font-size: 11px; color: #888; margin-top: 4px; }
 
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 40px rgba(74, 158, 255, 0.2);
-        }
+        /* 授权码显示 */
+        .code-display { background: #0f0f0f; border: 2px solid #4a9eff; border-radius: 8px; padding: 16px; text-align: center; font-family: 'Courier New', monospace; font-size: 22px; font-weight: 700; color: #4a9eff; letter-spacing: 2px; }
 
-        .card h2 {
-            color: #4a9eff;
-            margin-bottom: 20px;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            cursor: pointer;
-            user-select: none;
-            transition: all 0.3s ease;
-        }
+        /* 列表项 */
+        .list-item { background: #0f0f0f; border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; border-left: 3px solid #4a9eff; }
+        .list-item.success { border-left-color: #10b981; }
+        .list-item.error { border-left-color: #ef4444; }
+        .list-item.warning { border-left-color: #f59e0b; }
 
-        .card h2:hover {
-            color: #6ab4ff;
-        }
+        /* 开关 */
+        .switch-container { display: flex; align-items: center; gap: 10px; }
+        .switch { width: 44px; height: 24px; background: #3a3a3a; border-radius: 12px; position: relative; cursor: pointer; transition: background 0.3s; }
+        .switch.active { background: #4a9eff; }
+        .switch::after { content: ''; position: absolute; width: 20px; height: 20px; background: #fff; border-radius: 50%; top: 2px; left: 2px; transition: transform 0.3s; }
+        .switch.active::after { transform: translateX(20px); }
 
-        .card-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        /* 提示 */
+        .alert { padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
+        .alert-success { background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #10b981; }
+        .alert-error { background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #ef4444; }
+        #alert-container { position: fixed; top: 16px; right: 16px; z-index: 1000; max-width: 360px; }
 
-        .collapse-icon {
-            font-size: 16px;
-            transition: transform 0.3s ease;
-            color: #888;
-        }
+        /* 滚动容器 */
+        .scroll-container { max-height: 350px; overflow-y: auto; }
 
-        .collapse-icon.collapsed {
-            transform: rotate(-90deg);
-        }
-
-        .card-content {
-            max-height: 2000px;
-            overflow: hidden;
-            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
-            opacity: 1;
-        }
-
-        .card-content.collapsed {
-            max-height: 0 !important;
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #ccc;
-            font-weight: 500;
-        }
-
-        input[type="text"],
-        input[type="password"],
-        textarea {
-            width: 100%;
-            padding: 14px;
-            background: #1a1a1a;
-            border: 2px solid #3a3a3a;
-            border-radius: 10px;
-            color: #fff;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 200px;
-            line-height: 1.6;
-            font-family: 'Courier New', 'Monaco', monospace;
-        }
-
-        input:focus,
-        textarea:focus {
-            outline: none;
-            border-color: #4a9eff;
-            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.1);
-        }
-
-        .button {
-            padding: 14px 28px;
-            background: linear-gradient(135deg, #4a9eff 0%, #3b82f6 100%);
-            border: none;
-            border-radius: 10px;
-            color: #fff;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 16px rgba(74, 158, 255, 0.3);
-        }
-
-        .button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(74, 158, 255, 0.5);
-        }
-
-        .button:active {
-            transform: translateY(0);
-        }
-
-        .button-secondary {
-            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-            box-shadow: 0 4px 16px rgba(107, 114, 128, 0.3);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 100%);
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #3a3a3a;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 32px;
-            font-weight: 700;
-            color: #4a9eff;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            color: #888;
-            font-size: 14px;
-        }
-
-        .code-display {
-            background: #1a1a1a;
-            padding: 20px;
-            border-radius: 10px;
-            border: 2px solid #4a9eff;
-            font-family: 'Courier New', monospace;
-            font-size: 24px;
-            text-align: center;
-            letter-spacing: 3px;
-            color: #4a9eff;
-            margin: 20px 0;
-            font-weight: 700;
-        }
-
-        .history-item {
-            background: #1a1a1a;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-left: 4px solid #4a9eff;
-        }
-
-        .history-code {
-            font-family: 'Courier New', monospace;
-            font-weight: 700;
-            color: #4a9eff;
-        }
-
-        .history-time {
-            color: #888;
-            font-size: 14px;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(74, 158, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #4a9eff;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .alert {
-            padding: 15px 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-weight: 500;
-        }
-
-        .alert-success {
-            background: rgba(16, 185, 129, 0.2);
-            border: 1px solid #10b981;
-            color: #10b981;
-        }
-
-        .alert-error {
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid #ef4444;
-            color: #ef4444;
-        }
-
+        /* 响应式 */
         @media (max-width: 768px) {
-            .header h1 {
-                font-size: 28px;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
+            .sidebar { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid #2a2a2a; }
+            .main-content { margin-left: 0; }
+            .nav-group { display: flex; flex-wrap: wrap; padding: 6px; }
+            .nav-item { padding: 6px 10px; border-left: none; border-radius: 4px; }
         }
+
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🐱 猫猫的小破烂 - 授权管理后台</h1>
-            <p style="color: #888; margin-top: 10px;">作者: mzrodyu | 完全免费 | 禁止商业化</p>
-            <div class="warning-banner">
-                ⚠️ 商业化死全家，贩子死全家 ⚠️
-            </div>
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h1>🐱 猫猫的小破烂</h1>
+            <p style="font-size: 11px; color: #888; margin-top: 4px;">授权管理后台</p>
+            <div class="warning">⚠️ 商业化死全家 ⚠️</div>
         </div>
+        <nav>
+            <div class="nav-group">
+                <div class="nav-group-title">授权管理</div>
+                <div class="nav-item active" onclick="showPage('dashboard')"><span class="icon">�</span><span class="label">仪表盘</span></div>
+                <div class="nav-item" onclick="showPage('auth-code')"><span class="icon">🔑</span><span class="label">授权码管理</span></div>
+                <div class="nav-item" onclick="showPage('auto-update')"><span class="icon">🔄</span><span class="label">自动更新</span></div>
+            </div>
+            <div class="nav-group">
+                <div class="nav-group-title">监控</div>
+                <div class="nav-item" onclick="showPage('endpoints')"><span class="icon">🌐</span><span class="label">API端点</span></div>
+                <div class="nav-item" onclick="showPage('logs')"><span class="icon">📋</span><span class="label">验证日志</span></div>
+                <div class="nav-item" onclick="showPage('banned')"><span class="icon">🚫</span><span class="label">禁用列表</span></div>
+            </div>
+            <div class="nav-group">
+                <div class="nav-group-title">设置</div>
+                <div class="nav-item" onclick="showPage('plugin-info')"><span class="icon">�</span><span class="label">插件信息</span></div>
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            <label>🔐 管理员密钥</label>
+            <input type="password" id="adminKey" placeholder="输入密钥" />
+        </div>
+    </aside>
 
+    <!-- 主内容区 -->
+    <main class="main-content">
         <div id="alert-container"></div>
 
-        <!-- 插件信息管理 -->
-        <div class="card">
-            <h2 onclick="toggleCard('plugin-info')">
-                <span class="card-header">📦 插件信息管理</span>
-                <span class="collapse-icon" id="plugin-info-icon">▼</span>
-            </h2>
-            <div class="card-content" id="plugin-info-content">
-            <div class="form-group">
-                <label>当前版本号</label>
-                <input type="text" id="pluginVersion" placeholder="例如：1.4.0" />
+        <!-- 仪表盘 -->
+        <div id="page-dashboard" class="page active">
+            <div class="page-header"><h2>📊 仪表盘</h2><p>授权系统概览</p></div>
+            <div class="card">
+                <div class="card-title">当前授权码</div>
+                <div class="code-display" id="currentCode">加载中...</div>
+                <p style="text-align: center; color: #888; margin-top: 10px;">更新时间: <span id="updatedTime">--</span></p>
+                <div class="btn-group" style="justify-content: center; margin-top: 12px;">
+                    <button class="btn btn-primary" onclick="copyCode()">📋 复制</button>
+                    <button class="btn btn-secondary" onclick="refreshStats()">🔄 刷新</button>
+                </div>
             </div>
-            <div class="form-group">
-                <label>更新日志（支持 Markdown）</label>
-                <textarea id="pluginChangelog" placeholder="例如：&#10;## v1.4.0&#10;- 新增功能A&#10;- 修复Bug B&#10;&#10;## v1.3.0&#10;- 修复了XXX问题" style="min-height: 300px;"></textarea>
-            </div>
-            <div class="form-group">
-                <label>使用说明（支持 Markdown）</label>
-                <textarea id="pluginUsage" placeholder="例如：&#10;## 功能简介&#10;&#10;### 总结功能&#10;- 自动/手动总结对话&#10;&#10;### 写卡辅助&#10;- 生成角色卡、世界书等" style="min-height: 400px;"></textarea>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button class="button" onclick="updatePluginInfo()">💾 保存插件信息</button>
-                <button class="button button-secondary" onclick="loadPluginInfo()">🔄 重新加载</button>
-            </div>
-            <div id="plugin-info-status" style="margin-top: 15px; padding: 12px; background: rgba(74, 158, 255, 0.1); border-radius: 8px; border-left: 4px solid #4a9eff; display: none;">
-                <strong>📋 当前插件信息：</strong>
-                <div id="plugin-info-display" style="margin-top: 10px; font-size: 14px;"></div>
-            </div>
-            </div>
-        </div>
-
-        <!-- 更新授权码 -->
-        <div class="card">
-            <h2 onclick="toggleCard('update-code')">
-                <span class="card-header">🔑 更新今日授权码</span>
-                <span class="collapse-icon" id="update-code-icon">▼</span>
-            </h2>
-            <div class="card-content" id="update-code-content">
-            <div class="form-group">
-                <label>管理员密钥</label>
-                <input type="password" id="adminKey" placeholder="输入你的管理员密钥" />
-            </div>
-            <div class="form-group">
-                <label>新的授权码</label>
-                <input type="text" id="newCode" placeholder="例如：MEOW-20251110-ABCD" />
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button class="button" onclick="updateCode()">🚀 更新授权码</button>
-                <button class="button button-secondary" onclick="generateCode()">🎲 自动生成</button>
-            </div>
-            </div>
-        </div>
-
-        <!-- 当前授权码显示 -->
-        <div class="card">
-            <h2 onclick="toggleCard('current-code')">
-                <span class="card-header">📊 当前授权码</span>
-                <span class="collapse-icon" id="current-code-icon">▼</span>
-            </h2>
-            <div class="card-content" id="current-code-content">
-            <div class="code-display" id="currentCode">加载中...</div>
-            <p style="text-align: center; color: #888;">
-                <span id="updatedTime">更新时间: 加载中...</span>
-            </p>
-            <button class="button" onclick="copyCode()" style="width: 100%; margin-top: 15px;">
-                📋 复制到剪贴板
-            </button>
-            </div>
-        </div>
-
-        <!-- 使用统计 -->
-        <div class="card">
-            <h2 onclick="toggleCard('stats')">
-                <span class="card-header">📈 今日使用统计</span>
-                <span class="collapse-icon" id="stats-icon">▼</span>
-            </h2>
-            <div class="card-content" id="stats-content">
             <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="statSuccess">0</div>
-                    <div class="stat-label">验证成功</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="statFailed">0</div>
-                    <div class="stat-label">验证失败</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="statTotal">0</div>
-                    <div class="stat-label">总验证次数</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="statRate">0%</div>
-                    <div class="stat-label">成功率</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="statEndpoints">0</div>
-                    <div class="stat-label">API端点数</div>
-                </div>
+                <div class="stat-card"><div class="stat-value" id="statSuccess">0</div><div class="stat-label">验证成功</div></div>
+                <div class="stat-card"><div class="stat-value" id="statFailed">0</div><div class="stat-label">验证失败</div></div>
+                <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">总次数</div></div>
+                <div class="stat-card"><div class="stat-value" id="statRate">0%</div><div class="stat-label">成功率</div></div>
+                <div class="stat-card"><div class="stat-value" id="statEndpoints">0</div><div class="stat-label">API端点</div></div>
             </div>
-            <button class="button button-secondary" onclick="refreshStats()" style="width: 100%;">
-                🔄 刷新统计
-            </button>
+            <div class="card">
+                <div class="card-title">� 历史授权码</div>
+                <div id="historyList" class="scroll-container" style="max-height: 180px;"><p style="color: #888; text-align: center;">加载中...</p></div>
             </div>
         </div>
 
-        <!-- 授权码使用统计 -->
-        <div class="card">
-            <h2 onclick="toggleCard('code-usage')">
-                <span class="card-header">🔑 授权码使用统计</span>
-                <span class="collapse-icon" id="code-usage-icon">▼</span>
-            </h2>
-            <div class="card-content" id="code-usage-content">
-            <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
-                📊 每个授权码的使用次数、独立IP数量、API端点分布
-            </p>
-            <div id="codeUsageList" style="max-height: 400px; overflow-y: auto;">
-                <p style="color: #888; text-align: center;">加载中...</p>
+        <!-- 授权码管理 -->
+        <div id="page-auth-code" class="page">
+            <div class="page-header"><h2>� 授权码管理</h2><p>更新和管理授权码</p></div>
+            <div class="card">
+                <div class="card-title">更新授权码</div>
+                <div class="form-group"><label>新授权码</label><input type="text" id="newCode" placeholder="例如：MEOW-20251205-ABCD" /></div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="updateCode()">🚀 更新</button>
+                    <button class="btn btn-secondary" onclick="generateCode()">🎲 自动生成</button>
+                </div>
             </div>
-            </div>
-        </div>
-
-        <!-- 禁用的 API 端点列表 -->
-        <div class="card">
-            <h2 onclick="toggleCard('banned-endpoints')">
-                <span class="card-header">🚫 已禁用的 API 端点</span>
-                <span class="collapse-icon" id="banned-endpoints-icon">▼</span>
-            </h2>
-            <div class="card-content" id="banned-endpoints-content">
-            <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
-                ⛔ 这些 API 端点已被禁用，使用这些端点的用户将无法通过授权验证
-            </p>
-            <div id="bannedEndpointsList" style="max-height: 400px; overflow-y: auto;">
-                <p style="color: #888; text-align: center;">加载中...</p>
-            </div>
+            <div class="card">
+                <div class="card-title">� 授权码使用统计</div>
+                <div id="codeUsageList" class="scroll-container"><p style="color: #888; text-align: center;">加载中...</p></div>
             </div>
         </div>
 
-        <!-- API端点统计（用于抓第三方商业化） -->
-        <div class="card">
-            <h2 onclick="toggleCard('api-endpoints')">
-                <span class="card-header">🌐 API端点统计（用于抓第三方）</span>
-                <span class="collapse-icon" id="api-endpoints-icon">▼</span>
-            </h2>
-            <div class="card-content" id="api-endpoints-content">
-            <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
-                📊 追踪用户使用的API服务商，如果某个端点频繁出现，可能是商业化倒卖行为
-            </p>
-            <div id="endpointsList" style="max-height: 500px; overflow-y: auto;">
-                <p style="color: #888; text-align: center;">加载中...</p>
+        <!-- 自动更新 -->
+        <div id="page-auto-update" class="page">
+            <div class="page-header"><h2>🔄 自动更新配置</h2><p>定时自动生成新授权码</p></div>
+            <div class="card">
+                <div class="card-title">配置</div>
+                <div class="switch-container" style="margin-bottom: 14px;">
+                    <div class="switch" id="autoUpdateSwitch" onclick="toggleAutoUpdate()"></div>
+                    <span id="autoUpdateStatusText">未启用</span>
+                </div>
+                <div class="form-group">
+                    <label>📅 更新周期</label>
+                    <select id="autoUpdateDays" style="width: 100%; padding: 10px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 13px;">
+                        <option value="1">每天</option>
+                        <option value="2">每2天</option>
+                        <option value="3">每3天</option>
+                        <option value="5">每5天</option>
+                        <option value="7">每周（7天）</option>
+                        <option value="14">每两周（14天）</option>
+                        <option value="30">每月（30天）</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>⏰ 更新时间（北京时间）</label>
+                    <select id="autoUpdateHour" style="width: 100%; padding: 10px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 13px;">
+                        <option value="0">00:00（午夜）</option>
+                        <option value="1">01:00</option>
+                        <option value="2">02:00</option>
+                        <option value="3">03:00</option>
+                        <option value="4">04:00</option>
+                        <option value="5">05:00</option>
+                        <option value="6">06:00</option>
+                        <option value="7">07:00</option>
+                        <option value="8">08:00</option>
+                        <option value="9">09:00</option>
+                        <option value="10">10:00</option>
+                        <option value="11">11:00</option>
+                        <option value="12">12:00（正午）</option>
+                        <option value="13">13:00</option>
+                        <option value="14">14:00</option>
+                        <option value="15">15:00</option>
+                        <option value="16">16:00</option>
+                        <option value="17">17:00</option>
+                        <option value="18">18:00</option>
+                        <option value="19">19:00</option>
+                        <option value="20">20:00</option>
+                        <option value="21">21:00</option>
+                        <option value="22">22:00</option>
+                        <option value="23">23:00</option>
+                    </select>
+                </div>
+                <p style="color: #888; font-size: 12px; margin-bottom: 14px;">系统会按设定周期在指定时间自动生成新授权码</p>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="saveAutoUpdateConfig()">💾 保存配置</button>
+                    <button class="btn btn-secondary" onclick="triggerAutoUpdate()">⚡ 立即更新</button>
+                </div>
             </div>
+            <div class="card">
+                <div class="card-title">📋 更新日志</div>
+                <div id="autoUpdateLogs" class="scroll-container"><p style="color: #888; text-align: center;">加载中...</p></div>
             </div>
+        </div>
+
+        <!-- API端点 -->
+        <div id="page-endpoints" class="page">
+            <div class="page-header"><h2>🌐 API端点统计</h2><p>追踪用户使用的API服务商</p></div>
+            <div class="card"><div id="endpointsList" class="scroll-container"><p style="color: #888; text-align: center;">加载中...</p></div></div>
         </div>
 
         <!-- 验证日志 -->
-        <div class="card">
-            <h2 onclick="toggleCard('logs')">
-                <span class="card-header">📋 验证日志（最近50条）</span>
-                <span class="collapse-icon" id="logs-icon">▼</span>
-            </h2>
-            <div class="card-content" id="logs-content">
-            <div id="logsList" style="max-height: 500px; overflow-y: auto;">
-                <p style="color: #888; text-align: center;">加载中...</p>
-            </div>
-            </div>
+        <div id="page-logs" class="page">
+            <div class="page-header"><h2>📋 验证日志</h2><p>最近的验证记录</p></div>
+            <div class="card"><div id="logsList" class="scroll-container"><p style="color: #888; text-align: center;">加载中...</p></div></div>
         </div>
 
-        <!-- 历史授权码 -->
-        <div class="card">
-            <h2 onclick="toggleCard('history')">
-                <span class="card-header">📜 历史授权码</span>
-                <span class="collapse-icon" id="history-icon">▼</span>
-            </h2>
-            <div class="card-content" id="history-content">
-            <div id="historyList">
-                <p style="color: #888; text-align: center;">加载中...</p>
-            </div>
-            </div>
+        <!-- 禁用列表 -->
+        <div id="page-banned" class="page">
+            <div class="page-header"><h2>🚫 禁用列表</h2><p>已禁用的API端点</p></div>
+            <div class="card"><div id="bannedEndpointsList" class="scroll-container"><p style="color: #888; text-align: center;">加载中...</p></div></div>
         </div>
 
-    </div>
+        <!-- 插件信息 -->
+        <div id="page-plugin-info" class="page">
+            <div class="page-header"><h2>📦 插件信息管理</h2><p>更新插件版本号和说明</p></div>
+            <div class="card">
+                <div class="form-group"><label>版本号</label><input type="text" id="pluginVersion" placeholder="例如：1.6.2" /></div>
+                <div class="form-group"><label>更新日志 (Markdown)</label><textarea id="pluginChangelog" placeholder="## v1.6.2&#10;- 新增功能&#10;- 修复问题"></textarea></div>
+                <div class="form-group"><label>使用说明 (Markdown)</label><textarea id="pluginUsage" placeholder="## 功能介绍&#10;&#10;### 功能1&#10;说明..."></textarea></div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="updatePluginInfo()">💾 保存</button>
+                    <button class="btn btn-secondary" onclick="loadPluginInfo()">🔄 重新加载</button>
+                </div>
+            </div>
+        </div>
+    </main>
 
     <script>
-        // 折叠/展开卡片功能
-        function toggleCard(cardId) {
-            const content = document.getElementById(cardId + '-content');
-            const icon = document.getElementById(cardId + '-icon');
+        // 页面切换
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+            document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+            document.getElementById('page-' + pageId).classList.add('active');
+            if (event && event.currentTarget) event.currentTarget.classList.add('active');
+            if (pageId === 'dashboard') refreshStats();
+            if (pageId === 'auto-update') loadAutoUpdateConfig();
+            if (pageId === 'plugin-info') loadPluginInfo();
+        }
 
-            if (content.classList.contains('collapsed')) {
-                content.classList.remove('collapsed');
-                icon.classList.remove('collapsed');
-                icon.textContent = '▼';
-                localStorage.setItem('card-' + cardId, 'expanded');
+        // 自动更新开关
+        function toggleAutoUpdate() {
+            var switchEl = document.getElementById('autoUpdateSwitch');
+            var statusText = document.getElementById('autoUpdateStatusText');
+            switchEl.classList.toggle('active');
+            if (switchEl.classList.contains('active')) {
+                statusText.textContent = '已启用';
+                statusText.style.color = '#10b981';
             } else {
-                content.classList.add('collapsed');
-                icon.classList.add('collapsed');
-                icon.textContent = '▶';
-                localStorage.setItem('card-' + cardId, 'collapsed');
+                statusText.textContent = '未启用';
+                statusText.style.color = '#888';
             }
         }
-
-        // 恢复卡片折叠状态
-        function restoreCardStates() {
-            const cardIds = ['plugin-info', 'update-code', 'current-code', 'stats', 'code-usage', 'banned-endpoints', 'api-endpoints', 'logs', 'history'];
-            cardIds.forEach(function(cardId) {
-                const state = localStorage.getItem('card-' + cardId);
-                if (state === 'collapsed') {
-                    const content = document.getElementById(cardId + '-content');
-                    const icon = document.getElementById(cardId + '-icon');
-                    if (content && icon) {
-                        content.classList.add('collapsed');
-                        icon.classList.add('collapsed');
-                        icon.textContent = '▶';
-                    }
-                }
-            });
-        }
-
-        // 页面加载时自动获取统计
+        // 页面加载
         window.onload = function() {
-            restoreCardStates(); // 恢复卡片折叠状态
             const savedKey = localStorage.getItem('adminKey');
             if (savedKey) {
                 document.getElementById('adminKey').value = savedKey;
                 refreshStats();
             }
-            loadPluginInfo(); // 加载插件信息
+            loadPluginInfo();
         };
 
         // 显示提示消息
@@ -1046,7 +931,7 @@ function handleAdmin(env) {
                             const usageColor = isHighUsage ? '#ef4444' : '#10b981';
                             const ipColor = isMultiIP ? '#f59e0b' : '#10b981';
 
-                            return '<div class="history-item" style="border-left-color: ' + borderColor + ';">' +
+                            return '<div class="list-item" style="border-left-color: ' + borderColor + ';">' +
                                 '<div style="flex: 1;">' +
                                     '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
                                         highUsageBadge + multiIPBadge +
@@ -1096,14 +981,14 @@ function handleAdmin(env) {
                             const bannedBadge = isBanned ? '<span style="background: #7c2d12; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;">🚫 已禁用</span>' : '';
                             const highRiskBadge = !isBanned && isHighRisk ? '<span style="background: #ef4444; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;">⚠️ 高风险</span>' : '';
                             const countColor = isHighRisk ? '#ef4444' : '#10b981';
-                            
+
                             // 禁用/解禁按钮 - 使用 data 属性避免转义问题
                             var safeEndpoint = String(endpoint.endpoint || '').split(String.fromCharCode(39)).join('').split(String.fromCharCode(34)).join('');
-                            var banButton = isBanned 
+                            var banButton = isBanned
                                 ? '<button onclick="unbanEndpoint(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 4px 12px; background: #065f46; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px;">✅ 解禁</button>'
                                 : '<button onclick="banEndpoint(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 4px 12px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px;">🚫 禁用</button>';
 
-                            return '<div class="history-item" style="border-left-color: ' + borderColor + '; ' + (isBanned ? 'opacity: 0.7;' : '') + '">' +
+                            return '<div class="list-item" style="border-left-color: ' + borderColor + '; ' + (isBanned ? 'opacity: 0.7;' : '') + '">' +
                                 '<div style="flex: 1;">' +
                                     '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
                                         bannedBadge + highRiskBadge +
@@ -1124,13 +1009,13 @@ function handleAdmin(env) {
                                         '</div>' +
                                     '</details>' +
                                 '</div>' +
-                                '<span class="history-time">' + new Date(endpoint.lastAccess).toLocaleString("zh-CN") + '</span>' +
+                                '<span style="color: #888; font-size: 12px;">' + new Date(endpoint.lastAccess).toLocaleString("zh-CN") + '</span>' +
                             '</div>';
                         }).join('');
                     } else {
                         endpointsList.innerHTML = '<p style="color: #888; text-align: center;">暂无API端点数据</p>';
                     }
-                    
+
                     // 加载禁用列表
                     loadBannedEndpoints();
 
@@ -1143,7 +1028,7 @@ function handleAdmin(env) {
                             const codeColor = log.isValid ? '#10b981' : '#ef4444';
                             const apiEndpoint = log.apiEndpoint || 'unknown';
 
-                            return '<div class="history-item" style="border-left-color: ' + borderColor + ';">' +
+                            return '<div class="list-item" style="border-left-color: ' + borderColor + ';">' +
                                 '<div>' +
                                     '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">' +
                                         '<span style="font-size: 14px;">' + icon + '</span>' +
@@ -1158,7 +1043,7 @@ function handleAdmin(env) {
                                         '🌐 API: ' + apiEndpoint +
                                     '</div>' +
                                 '</div>' +
-                                '<span class="history-time">' + new Date(log.timestamp).toLocaleString("zh-CN") + '</span>' +
+                                '<span style="color: #888; font-size: 12px;">' + new Date(log.timestamp).toLocaleString("zh-CN") + '</span>' +
                             '</div>';
                         }).join('');
                     } else {
@@ -1169,9 +1054,9 @@ function handleAdmin(env) {
                     const historyList = document.getElementById('historyList');
                     if (data.history && data.history.length > 0) {
                         historyList.innerHTML = data.history.map(function(item) {
-                            return '<div class="history-item">' +
-                                '<span class="history-code">' + item.code + '</span>' +
-                                '<span class="history-time">' + new Date(item.replacedAt).toLocaleString("zh-CN") + '</span>' +
+                            return '<div class="list-item" style="display: flex; justify-content: space-between; align-items: center;">' +
+                                '<span style="font-family: Courier New, monospace; font-weight: 700; color: #4a9eff;">' + item.code + '</span>' +
+                                '<span style="color: #888; font-size: 12px;">' + new Date(item.replacedAt).toLocaleString("zh-CN") + '</span>' +
                             '</div>';
                         }).join('');
                     } else {
@@ -1196,26 +1081,131 @@ function handleAdmin(env) {
             showAlert('✅ 授权码已复制到剪贴板！', 'success');
         }
 
+        // 🔄 加载自动更新配置
+        async function loadAutoUpdateConfig() {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) return;
+
+            try {
+                const response = await fetch('/get-auto-update-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const config = result.data.config;
+                    const logs = result.data.logs;
+                    const switchEl = document.getElementById('autoUpdateSwitch');
+                    const statusText = document.getElementById('autoUpdateStatusText');
+                    const hourSelect = document.getElementById('autoUpdateHour');
+
+                    // 更新开关状态
+                    if (config.enabled) {
+                        switchEl.classList.add('active');
+                        statusText.textContent = '已启用';
+                        statusText.style.color = '#10b981';
+                    } else {
+                        switchEl.classList.remove('active');
+                        statusText.textContent = '未启用';
+                        statusText.style.color = '#888';
+                    }
+
+                    // 更新时间选择
+                    hourSelect.value = config.hour !== undefined ? config.hour : 0;
+
+                    // 更新天数选择
+                    const daysSelect = document.getElementById('autoUpdateDays');
+                    daysSelect.value = config.days !== undefined ? config.days : 1;
+
+                    // 更新日志
+                    const logsDiv = document.getElementById('autoUpdateLogs');
+                    if (logs && logs.length > 0) {
+                        logsDiv.innerHTML = logs.map(function(log) {
+                            const triggerIcon = log.trigger === 'cron' ? '⏰' : '⚡';
+                            return '<div class="list-item"><span>' + triggerIcon + '</span> <span style="color: #888;">' + log.oldCode + '</span> → <span style="color: #10b981; font-weight: 700;">' + log.newCode + '</span><div style="color: #666; font-size: 11px; margin-top: 4px;">' + new Date(log.timestamp).toLocaleString('zh-CN') + '</div></div>';
+                        }).join('');
+                    } else {
+                        logsDiv.innerHTML = '<p style="color: #888; text-align: center;">暂无日志</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('加载自动更新配置失败:', error);
+            }
+        }
+
+        // 🔄 保存自动更新配置
+        async function saveAutoUpdateConfig() {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) { showAlert('❌ 请先输入管理员密钥', 'error'); return; }
+
+            const enabled = document.getElementById('autoUpdateSwitch').classList.contains('active');
+            const hour = parseInt(document.getElementById('autoUpdateHour').value, 10);
+            const days = parseInt(document.getElementById('autoUpdateDays').value, 10);
+
+            try {
+                const response = await fetch('/set-auto-update-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, enabled, hour, days })
+                });
+
+                const result = await response.json();
+                showAlert(result.message, result.success ? 'success' : 'error');
+                if (result.success) loadAutoUpdateConfig();
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+
+        // 🔄 手动触发更新
+        async function triggerAutoUpdate() {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) { showAlert('❌ 请先输入管理员密钥', 'error'); return; }
+            if (!confirm('确定要立即生成新的授权码吗？')) return;
+
+            try {
+                const response = await fetch('/trigger-auto-update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showAlert('✅ 新授权码: ' + result.data.newCode, 'success');
+                    refreshStats();
+                    loadAutoUpdateConfig();
+                } else {
+                    showAlert('❌ ' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+
         // 禁用 API 端点
         async function banEndpoint(endpoint) {
             const reason = prompt('请输入禁用原因（可留空）:', '涉嫌商业化倒卖');
             if (reason === null) return; // 用户取消
-            
+
             const adminKey = document.getElementById('adminKey').value;
             if (!adminKey) {
                 showAlert('❌ 请先输入管理员密钥', 'error');
                 return;
             }
-            
+
             try {
                 const response = await fetch('/ban-endpoint', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ adminKey, endpoint, reason: reason || '涉嫌商业化倒卖' })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
                     showAlert('✅ 已禁用: ' + endpoint, 'success');
                     refreshStats();
@@ -1226,26 +1216,26 @@ function handleAdmin(env) {
                 showAlert('❌ 网络错误: ' + error.message, 'error');
             }
         }
-        
+
         // 解禁 API 端点
         async function unbanEndpoint(endpoint) {
             if (!confirm('确定要解禁 ' + endpoint + ' 吗？')) return;
-            
+
             const adminKey = document.getElementById('adminKey').value;
             if (!adminKey) {
                 showAlert('❌ 请先输入管理员密钥', 'error');
                 return;
             }
-            
+
             try {
                 const response = await fetch('/unban-endpoint', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ adminKey, endpoint })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
                     showAlert('✅ 已解禁: ' + endpoint, 'success');
                     refreshStats();
@@ -1256,29 +1246,29 @@ function handleAdmin(env) {
                 showAlert('❌ 网络错误: ' + error.message, 'error');
             }
         }
-        
+
         // 加载禁用列表
         async function loadBannedEndpoints() {
             const adminKey = document.getElementById('adminKey').value;
             if (!adminKey) return;
-            
+
             try {
                 const response = await fetch('/get-banned-endpoints', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ adminKey })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
                     const bannedList = document.getElementById('bannedEndpointsList');
                     const endpoints = result.data || [];
-                    
+
                     if (endpoints.length > 0) {
                         bannedList.innerHTML = endpoints.map(function(item) {
                             var safeEndpoint = String(item.endpoint || '').split(String.fromCharCode(39)).join('').split(String.fromCharCode(34)).join('');
-                            return '<div class="history-item" style="border-left-color: #7c2d12;">' +
+                            return '<div class="list-item" style="border-left-color: #7c2d12;">' +
                                 '<div style="flex: 1;">' +
                                     '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
                                         '<span style="background: #7c2d12; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;">🚫 已禁用</span>' +
@@ -1314,21 +1304,9 @@ function handleAdmin(env) {
                     document.getElementById('pluginVersion').value = data.version || '';
                     document.getElementById('pluginChangelog').value = data.changelog || '';
                     document.getElementById('pluginUsage').value = data.usage || '';
-
-                    // 显示当前信息
-                    const displayDiv = document.getElementById('plugin-info-display');
-                    displayDiv.innerHTML = '<div style="color: #ccc;">' +
-                        '<div style="margin-bottom: 8px;">📌 版本：<strong style="color: #4a9eff;">' + data.version + '</strong></div>' +
-                        '<div style="margin-bottom: 8px;">🕐 最后更新：' + new Date(data.lastUpdated).toLocaleString("zh-CN") + '</div>' +
-                        '<div style="font-size: 12px; color: #888;">💡 插件前端可以通过 /plugin-info 接口获取这些信息</div>' +
-                    '</div>';
-                    document.getElementById('plugin-info-status').style.display = 'block';
-                } else {
-                    showAlert('⚠️ 暂无插件信息，请填写并保存', 'error');
                 }
             } catch (error) {
                 console.error('加载插件信息失败:', error);
-                showAlert('❌ 加载插件信息失败：' + error.message, 'error');
             }
         }
 
@@ -1787,7 +1765,7 @@ async function handleGetBannedEndpoints(request, env, corsHeaders) {
 
     // 转换为数组并按禁用时间排序
     const bannedList = Object.values(bannedEndpoints).sort(
-      (a, b) => new Date(b.bannedAt) - new Date(a.bannedAt),
+      (a, b) => new Date(b.bannedAt).getTime() - new Date(a.bannedAt).getTime(),
     );
 
     return jsonResponse(
@@ -1879,5 +1857,269 @@ async function handleUpdateRegexTemplates(request, env, corsHeaders) {
   } catch (error) {
     console.error('更新正则模板失败:', error);
     return jsonResponse({ success: false, error: error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 获取自动更新配置
+ */
+async function handleGetAutoUpdateConfig(request, env, corsHeaders) {
+  try {
+    const { adminKey } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    const configStr = await redisGet('auto_update_config');
+    const config = configStr
+      ? JSON.parse(configStr)
+      : {
+          enabled: false,
+          updateTime: '00:00',
+          timezone: 'Asia/Shanghai',
+          lastUpdated: null,
+        };
+
+    // 获取自动更新日志
+    const logsStr = await redisGet('auto_update_logs');
+    const logs = logsStr ? JSON.parse(logsStr) : [];
+
+    return jsonResponse(
+      {
+        success: true,
+        data: {
+          config: config,
+          logs: logs.slice(0, 20),
+        },
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('获取自动更新配置失败:', error);
+    return jsonResponse({ success: false, message: '❌ 操作失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 设置自动更新配置
+ */
+async function handleSetAutoUpdateConfig(request, env, corsHeaders) {
+  try {
+    const { adminKey, enabled, hour, days } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    // hour 验证：0-23
+    const validHour = typeof hour === 'number' && hour >= 0 && hour <= 23 ? hour : 0;
+    // days 验证：1-30
+    const validDays = typeof days === 'number' && days >= 1 && days <= 30 ? days : 1;
+
+    const config = {
+      enabled: enabled === true,
+      hour: validHour,
+      days: validDays,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    await redisSet('auto_update_config', JSON.stringify(config));
+
+    const hourStr = String(validHour).padStart(2, '0') + ':00';
+    const daysStr = validDays === 1 ? '每天' : '每' + validDays + '天';
+    return jsonResponse(
+      {
+        success: true,
+        message: enabled ? '✅ 自动更新已启用，' + daysStr + '北京时间 ' + hourStr + ' 更新' : '✅ 自动更新已禁用',
+        data: config,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('设置自动更新配置失败:', error);
+    return jsonResponse({ success: false, message: '❌ 操作失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 手动触发自动更新（测试用）
+ */
+async function handleTriggerAutoUpdate(request, env, corsHeaders) {
+  try {
+    const { adminKey } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    // 生成新的授权码
+    const today = new Date();
+    const dateStr =
+      today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
+
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let random = '';
+    for (let i = 0; i < 4; i++) {
+      random += chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    const newCode = 'MEOW-' + dateStr + '-' + random;
+
+    // 保存旧的授权码到历史
+    const oldCode = await redisGet('current_code');
+    if (oldCode) {
+      const historyStr = await redisGet('history');
+      const history = historyStr ? JSON.parse(historyStr) : [];
+      history.unshift({
+        code: oldCode,
+        replacedAt: new Date().toISOString(),
+        replacedBy: 'manual_trigger',
+      });
+      if (history.length > 30) {
+        history.length = 30;
+      }
+      await redisSet('history', JSON.stringify(history));
+    }
+
+    // 更新当前授权码
+    await redisSet('current_code', newCode);
+    await redisSet('updated_at', new Date().toISOString());
+
+    // 记录自动更新日志
+    const autoUpdateLogsStr = await redisGet('auto_update_logs');
+    const autoUpdateLogs = autoUpdateLogsStr ? JSON.parse(autoUpdateLogsStr) : [];
+    autoUpdateLogs.unshift({
+      oldCode: oldCode || '无',
+      newCode: newCode,
+      timestamp: new Date().toISOString(),
+      trigger: 'manual',
+    });
+    if (autoUpdateLogs.length > 100) {
+      autoUpdateLogs.length = 100;
+    }
+    await redisSet('auto_update_logs', JSON.stringify(autoUpdateLogs));
+
+    return jsonResponse(
+      {
+        success: true,
+        message: '✅ 手动触发更新成功',
+        data: {
+          oldCode: oldCode || '无',
+          newCode: newCode,
+        },
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('手动触发更新失败:', error);
+    return jsonResponse({ success: false, message: '❌ 操作失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * Bot 领取授权码接口
+ */
+async function handleBotClaim(request, env, corsHeaders) {
+  try {
+    const botSecret = request.headers.get('Bot-Secret');
+
+    // 验证 Bot Secret（如果配置了）
+    if (env.BOT_SECRET && botSecret !== env.BOT_SECRET) {
+      return jsonResponse({ success: false, message: 'Bot认证失败' }, 403, corsHeaders);
+    }
+
+    const { user_id } = await request.json();
+
+    if (!user_id) {
+      return jsonResponse({ success: false, message: '缺少用户ID' }, 400, corsHeaders);
+    }
+
+    const currentCode = await redisGet('current_code');
+    const updatedAt = await redisGet('updated_at');
+
+    if (!currentCode) {
+      return jsonResponse({ success: false, message: '暂未设置授权码' }, 200, corsHeaders);
+    }
+
+    // 检查用户今日是否已领取
+    const today = new Date().toISOString().split('T')[0];
+    const claimKey = `claim:${user_id}:${today}`;
+    const hasClaimed = await redisGet(claimKey);
+
+    if (hasClaimed) {
+      return jsonResponse(
+        {
+          success: false,
+          message: '你今天已经领取过了',
+          code: currentCode,
+          expiry: getNextMidnightUTC(),
+        },
+        200,
+        corsHeaders,
+      );
+    }
+
+    // 记录领取（24小时后过期）
+    await redisSet(claimKey, 'claimed');
+
+    return jsonResponse(
+      {
+        success: true,
+        code: currentCode,
+        expiry: getNextMidnightUTC(),
+        message: '领取成功',
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('Bot claim 错误:', error);
+    return jsonResponse({ success: false, message: '服务器错误: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+// 获取下一个 UTC 午夜时间
+function getNextMidnightUTC() {
+  const now = new Date();
+  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+  return tomorrow.toISOString();
+}
+
+/**
+ * 获取当前授权码（Bot 使用）
+ */
+async function handleGetCode(request, env, corsHeaders) {
+  try {
+    const currentCode = await redisGet('current_code');
+    const updatedAt = await redisGet('updated_at');
+
+    if (!currentCode) {
+      return jsonResponse(
+        {
+          success: false,
+          message: '暂未设置授权码',
+          code: null,
+        },
+        200,
+        corsHeaders,
+      );
+    }
+
+    return jsonResponse(
+      {
+        success: true,
+        code: currentCode,
+        updatedAt: updatedAt || new Date().toISOString(),
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('获取授权码失败:', error);
+    return jsonResponse({ success: false, message: '获取失败: ' + error.message }, 500, corsHeaders);
   }
 }
