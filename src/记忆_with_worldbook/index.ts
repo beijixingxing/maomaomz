@@ -281,8 +281,17 @@ $(() => {
                   console.log(`🔄 更新起始楼层为: ${new_start_id}`);
                 }
 
+                // 🔧 重新获取最新设置（异步回调中原有的 settings 可能不是最新值）
+                const currentStore = useSettingsStore();
+                const currentSettings = currentStore.settings;
+                console.log('🔍 自动隐藏检查:', {
+                  auto_hide_after_summary: currentSettings.auto_hide_after_summary,
+                  start_id,
+                  end_id,
+                });
+
                 // 自动隐藏已总结的楼层
-                if (settings.auto_hide_after_summary) {
+                if (currentSettings.auto_hide_after_summary) {
                   try {
                     const hideCommand = `/hide ${start_id}-${end_id}`;
                     console.log(`🙈 执行自动隐藏: ${hideCommand}`);
@@ -290,17 +299,23 @@ $(() => {
                     // 使用 SillyTavern.executeSlashCommandsWithOptions 执行斜杠命令
                     if (typeof SillyTavern !== 'undefined' && SillyTavern.executeSlashCommandsWithOptions) {
                       const result = await SillyTavern.executeSlashCommandsWithOptions(hideCommand);
+                      console.log('🙈 隐藏命令执行结果:', result);
                       if (!result.isError) {
                         window.toastr.info(`🙈 已隐藏楼层 ${start_id}-${end_id}`);
                       } else {
                         console.warn('⚠️ 隐藏命令执行失败:', result.errorMessage);
+                        window.toastr.warning(`⚠️ 隐藏失败: ${result.errorMessage}`);
                       }
                     } else {
                       console.warn('⚠️ 无法执行隐藏命令：找不到 executeSlashCommandsWithOptions');
+                      window.toastr.warning('⚠️ 隐藏功能不可用：酒馆版本可能不支持');
                     }
                   } catch (hideError) {
                     console.error('❌ 自动隐藏失败:', hideError);
+                    window.toastr.error('❌ 自动隐藏失败: ' + (hideError as Error).message);
                   }
+                } else {
+                  console.log('ℹ️ 自动隐藏未启用，跳过隐藏操作');
                 }
 
                 window.toastr.success(`✅ 已自动总结第 ${start_id}-${end_id} 楼，下次将从第 ${new_start_id} 楼开始`);
