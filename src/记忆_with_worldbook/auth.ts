@@ -18,17 +18,17 @@ function getCurrentApiEndpoint(): string {
   try {
     const mainDoc = window.parent?.document || document;
     let apiUrl = '';
-    
+
     // 🔥 方法 1: 从 DOM 读取（最可靠）
     const urlSelectors = [
-      '#reverse_proxy',           // 反代地址（优先）
-      '#openai_reverse_proxy',    // OpenAI 反代
-      '#custom_api_url',          // 自定义 API
-      '#api_url_text',            // API URL 文本框
+      '#reverse_proxy', // 反代地址（优先）
+      '#openai_reverse_proxy', // OpenAI 反代
+      '#custom_api_url', // 自定义 API
+      '#api_url_text', // API URL 文本框
       'input[id*="reverse_proxy"]',
       'input[id*="api_url"]',
     ];
-    
+
     for (const sel of urlSelectors) {
       const el = mainDoc.querySelector(sel) as HTMLInputElement;
       if (el && el.value && el.value.trim()) {
@@ -37,15 +37,17 @@ function getCurrentApiEndpoint(): string {
         break;
       }
     }
-    
+
     // 🔥 方法 2: 从 localStorage 读取 SillyTavern 配置
     if (!apiUrl) {
       try {
         const tavernConfig = JSON.parse(localStorage.getItem('TavernAI_Settings') || '{}');
-        apiUrl = tavernConfig.reverse_proxy || 
-                 tavernConfig.api_url_scale || 
-                 tavernConfig.custom_url ||
-                 tavernConfig.api_url || '';
+        apiUrl =
+          tavernConfig.reverse_proxy ||
+          tavernConfig.api_url_scale ||
+          tavernConfig.custom_url ||
+          tavernConfig.api_url ||
+          '';
         if (apiUrl) {
           console.log('🔍 从 TavernAI_Settings 获取到 API URL:', apiUrl);
         }
@@ -53,12 +55,12 @@ function getCurrentApiEndpoint(): string {
         console.warn('⚠️ 读取 TavernAI_Settings 失败');
       }
     }
-    
+
     // 🔥 方法 3: 从 window 变量读取
     if (!apiUrl) {
       const parentWin = window.parent as any;
       const win = window as any;
-      
+
       // 尝试获取 oai_settings
       const oaiSettings = parentWin?.oai_settings || win?.oai_settings;
       if (oaiSettings) {
@@ -67,7 +69,7 @@ function getCurrentApiEndpoint(): string {
           console.log('🔍 从 oai_settings 获取到 API URL:', apiUrl);
         }
       }
-      
+
       // 尝试 api_server
       if (!apiUrl) {
         let apiServer = parentWin?.api_server || win?.api_server;
@@ -80,7 +82,7 @@ function getCurrentApiEndpoint(): string {
         }
       }
     }
-    
+
     // 🔥 方法 4: 获取 API 类型作为备选
     if (!apiUrl) {
       let apiType = (window.parent as any)?.main_api || (window as any).main_api;
@@ -92,14 +94,14 @@ function getCurrentApiEndpoint(): string {
         return apiType;
       }
     }
-    
+
     // 过滤无效值
     apiUrl = String(apiUrl || '').trim();
     if (apiUrl.startsWith('[object ') || apiUrl === '' || apiUrl === 'undefined' || apiUrl === 'null') {
       console.log('⚠️ 无法获取有效的 API 端点');
       return 'unknown';
     }
-    
+
     // 🔥 返回完整 URL（方便追踪商业化）
     // 移除末尾斜杠以统一格式
     apiUrl = apiUrl.replace(/\/+$/, '');
