@@ -96,7 +96,30 @@ async function fetchLatestCommit(): Promise<{ commit: string; message: string } 
 }
 
 /**
- * 检查更新（基于 commit hash）
+ * 获取远程 manifest.json 的版本号
+ */
+async function fetchRemoteVersion(): Promise<string | null> {
+  const manifestUrls = [
+    `https://raw.githubusercontent.com/${GITHUB_REPO}/main/manifest.json?t=${Date.now()}`,
+    `https://cdn.jsdelivr.net/gh/${GITHUB_REPO}@main/manifest.json?t=${Date.now()}`,
+  ];
+
+  for (const url of manifestUrls) {
+    try {
+      const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+      if (response.ok) {
+        const data = await response.json();
+        return data.version || null;
+      }
+    } catch (e) {
+      console.warn('获取远程版本失败:', e);
+    }
+  }
+  return null;
+}
+
+/**
+ * 检查更新（基于版本号）
  * @param force 是否强制检查（忽略检查间隔）
  */
 export async function checkForUpdates(force: boolean = false): Promise<{
@@ -137,10 +160,19 @@ export async function checkForUpdates(force: boolean = false): Promise<{
     // 保存检查时间
     localStorage.setItem(LAST_CHECK_KEY, Date.now().toString());
 
-    // 比较 commit hash（不同则有更新）
-    const hasUpdate = latest.commit !== CURRENT_COMMIT && CURRENT_COMMIT !== 'unknown';
+    // 获取远程版本号
+    const remoteVersion = await fetchRemoteVersion();
 
-    console.log(`📌 远程 commit: ${latest.commit}, 本地 commit: ${CURRENT_COMMIT}, 有更新: ${hasUpdate}`);
+    // 比较版本号（版本号不同才算有更新）
+    let hasUpdate = false;
+    if (remoteVersion && remoteVersion !== CURRENT_VERSION) {
+      hasUpdate = true;
+      console.log(`📌 版本不同: 本地 ${CURRENT_VERSION} → 远程 ${remoteVersion}`);
+    } else {
+      console.log(`✅ 版本相同: ${CURRENT_VERSION}，无需更新`);
+    }
+
+    console.log(`📌 远程 commit: ${latest.commit}, 本地 commit: ${CURRENT_COMMIT}`);
 
     // 检查是否被忽略
     if (!force) {
@@ -153,12 +185,12 @@ export async function checkForUpdates(force: boolean = false): Promise<{
 
     return {
       hasUpdate,
-      latestVersion: CURRENT_VERSION,
+      latestVersion: remoteVersion || CURRENT_VERSION,
       latestCommit: latest.commit,
       currentVersion: CURRENT_VERSION,
       currentCommit: CURRENT_COMMIT,
       updateUrl: `https://github.com/${GITHUB_REPO}`,
-      notes: `最新提交: ${latest.message}\n\n本地: ${CURRENT_COMMIT} → 远程: ${latest.commit}`,
+      notes: hasUpdate ? `新版本: ${remoteVersion}\n\n本地版本: ${CURRENT_VERSION}` : `已是最新版本 ${CURRENT_VERSION}`,
     };
   } catch (error) {
     console.error('❌ 检查更新失败:', error);
