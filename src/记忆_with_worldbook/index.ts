@@ -293,80 +293,30 @@ $(() => {
                 // 自动隐藏已总结的楼层
                 if (currentSettings.auto_hide_after_summary) {
                   try {
-                    const hideCommand = `/hide ${start_id}-${end_id}`;
-                    console.log(`🙈 执行自动隐藏: ${hideCommand}`);
+                    console.log(`🙈 执行自动隐藏: 楼层 ${start_id}-${end_id}`);
 
-                    // 尝试多种方式执行斜杠命令
-                    let executed = false;
-
-                    // 方式1: SillyTavern.getContext().executeSlashCommands (推荐)
-                    if (!executed && typeof SillyTavern !== 'undefined' && SillyTavern.getContext) {
-                      try {
-                        const context = SillyTavern.getContext();
-                        if (context && typeof context.executeSlashCommands === 'function') {
-                          console.log('🔄 使用 SillyTavern.getContext().executeSlashCommands');
-                          await context.executeSlashCommands(hideCommand);
-                          executed = true;
-                          window.toastr.info(`🙈 已隐藏楼层 ${start_id}-${end_id}`);
-                        }
-                      } catch (e) {
-                        console.warn('⚠️ getContext().executeSlashCommands 失败:', e);
+                    // 使用 TavernHelper.setChatMessages API（与手动隐藏相同的方式）
+                    const TH = (window as any).TavernHelper;
+                    if (TH && typeof TH.setChatMessages === 'function') {
+                      // 构建要隐藏的消息 ID 列表
+                      const messageIds: number[] = [];
+                      for (let i = start_id; i <= end_id; i++) {
+                        messageIds.push(i);
                       }
-                    }
 
-                    // 方式2: SillyTavern.executeSlashCommandsWithOptions
-                    if (!executed && typeof SillyTavern !== 'undefined' && SillyTavern.executeSlashCommandsWithOptions) {
-                      try {
-                        console.log('🔄 使用 SillyTavern.executeSlashCommandsWithOptions');
-                        const result = await SillyTavern.executeSlashCommandsWithOptions(hideCommand);
-                        console.log('🙈 隐藏命令执行结果:', result);
-                        executed = true;
-                        if (!result.isError) {
-                          window.toastr.info(`🙈 已隐藏楼层 ${start_id}-${end_id}`);
-                        } else {
-                          window.toastr.warning(`⚠️ 隐藏失败: ${result.errorMessage}`);
-                        }
-                      } catch (e) {
-                        console.warn('⚠️ executeSlashCommandsWithOptions 失败:', e);
-                      }
-                    }
+                      console.log('🔄 使用 TavernHelper.setChatMessages 隐藏楼层:', messageIds);
 
-                    // 方式3: 全局 executeSlashCommands 函数
-                    if (!executed && typeof (window as any).executeSlashCommands === 'function') {
-                      try {
-                        console.log('🔄 使用全局 executeSlashCommands');
-                        await (window as any).executeSlashCommands(hideCommand);
-                        executed = true;
-                        window.toastr.info(`🙈 已隐藏楼层 ${start_id}-${end_id}`);
-                      } catch (e) {
-                        console.warn('⚠️ 全局 executeSlashCommands 失败:', e);
-                      }
-                    }
+                      // 批量设置消息为隐藏状态
+                      await TH.setChatMessages(
+                        messageIds.map(message_id => ({ message_id, is_hidden: true })),
+                        { refresh: 'all' },
+                      );
 
-                    // 方式4: TavernHelper.executeSlashCommands
-                    if (!executed && typeof (window as any).TavernHelper !== 'undefined') {
-                      const TH = (window as any).TavernHelper;
-                      if (typeof TH.executeSlashCommands === 'function') {
-                        try {
-                          console.log('🔄 使用 TavernHelper.executeSlashCommands');
-                          await TH.executeSlashCommands(hideCommand);
-                          executed = true;
-                          window.toastr.info(`🙈 已隐藏楼层 ${start_id}-${end_id}`);
-                        } catch (e) {
-                          console.warn('⚠️ TavernHelper.executeSlashCommands 失败:', e);
-                        }
-                      }
-                    }
-
-                    if (!executed) {
-                      console.warn('⚠️ 所有斜杠命令执行方式都不可用');
-                      console.log('🔍 可用的 API:', {
-                        SillyTavern: typeof SillyTavern !== 'undefined',
-                        'SillyTavern.getContext': typeof SillyTavern !== 'undefined' && !!SillyTavern.getContext,
-                        'window.executeSlashCommands': typeof (window as any).executeSlashCommands,
-                        TavernHelper: typeof (window as any).TavernHelper !== 'undefined',
-                      });
-                      window.toastr.warning('⚠️ 隐藏功能不可用，请手动执行: ' + hideCommand);
+                      window.toastr.info(`🙈 已隐藏楼层 ${start_id}-${end_id}`);
+                      console.log('✅ 自动隐藏成功');
+                    } else {
+                      console.warn('⚠️ TavernHelper.setChatMessages 不可用');
+                      window.toastr.warning(`⚠️ 隐藏功能不可用，请手动执行: /hide ${start_id}-${end_id}`);
                     }
                   } catch (hideError) {
                     console.error('❌ 自动隐藏失败:', hideError);
