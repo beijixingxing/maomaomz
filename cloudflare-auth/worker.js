@@ -97,6 +97,12 @@ export default {
         return await handleGetRegexTemplates(request, env, corsHeaders);
       } else if (path === '/update-regex-templates') {
         return await handleUpdateRegexTemplates(request, env, corsHeaders);
+      } else if (path === '/ban-endpoint') {
+        return await handleBanEndpoint(request, env, corsHeaders);
+      } else if (path === '/unban-endpoint') {
+        return await handleUnbanEndpoint(request, env, corsHeaders);
+      } else if (path === '/get-banned-endpoints') {
+        return await handleGetBannedEndpoints(request, env, corsHeaders);
       } else if (path === '/admin' || path === '/') {
         return handleAdmin(env);
       } else {
@@ -128,6 +134,35 @@ async function handleVerify(request, env, corsHeaders) {
     let cleanApiEndpoint = 'unknown';
     if (apiEndpoint && typeof apiEndpoint === 'string' && apiEndpoint !== '[object Object]') {
       cleanApiEndpoint = apiEndpoint.trim() || 'unknown';
+    }
+
+    // 🔥 检查 API 端点是否被禁用
+    const bannedEndpointsStr = await redisGet('banned_endpoints');
+    const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
+    
+    if (cleanApiEndpoint !== 'unknown' && bannedEndpoints[cleanApiEndpoint]) {
+      const banInfo = bannedEndpoints[cleanApiEndpoint];
+      console.log(`⛔ 已禁用的 API 端点尝试验证: ${cleanApiEndpoint}`);
+      
+      // 记录被拒绝的访问
+      await logVerification(env, {
+        code,
+        isValid: false,
+        apiEndpoint: cleanApiEndpoint,
+        ip,
+        country,
+        timestamp: timestamp || new Date().toISOString(),
+        reason: 'BANNED_ENDPOINT',
+      });
+      
+      return jsonResponse(
+        {
+          valid: false,
+          message: `❌ 您的 API 端点已被禁用\n\n🚫 禁用原因：${banInfo.reason || '涉嫌商业化倒卖'}\n📅 禁用时间：${new Date(banInfo.bannedAt).toLocaleString('zh-CN')}\n\n如有疑问请联系管理员`,
+        },
+        200,
+        corsHeaders,
+      );
     }
 
     // 获取当前有效的授权码
@@ -291,7 +326,16 @@ async function handleStats(request, env, corsHeaders) {
     // 获取API端点数据 🔥
     const endpointsStr = await redisGet('api_endpoints');
     const endpoints = endpointsStr ? JSON.parse(endpointsStr) : {};
-    const endpointList = Object.values(endpoints);
+    
+    // 获取禁用列表
+    const bannedEndpointsStr = await redisGet('banned_endpoints');
+    const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
+    
+    // 合并禁用状态到端点列表
+    const endpointList = Object.values(endpoints).map(ep => ({
+      ...ep,
+      isBanned: !!bannedEndpoints[ep.endpoint]
+    }));
 
     // 按访问次数排序
     endpointList.sort((a, b) => (b.accessCount || 0) - (a.accessCount || 0));
@@ -769,6 +813,22 @@ function handleAdmin(env) {
             </div>
         </div>
 
+        <!-- 禁用的 API 端点列表 -->
+        <div class="card">
+            <h2 onclick="toggleCard('banned-endpoints')">
+                <span class="card-header">🚫 已禁用的 API 端点</span>
+                <span class="collapse-icon" id="banned-endpoints-icon">▼</span>
+            </h2>
+            <div class="card-content" id="banned-endpoints-content">
+            <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
+                ⛔ 这些 API 端点已被禁用，使用这些端点的用户将无法通过授权验证
+            </p>
+            <div id="bannedEndpointsList" style="max-height: 400px; overflow-y: auto;">
+                <p style="color: #888; text-align: center;">加载中...</p>
+            </div>
+            </div>
+        </div>
+
         <!-- API端点统计（用于抓第三方商业化） -->
         <div class="card">
             <h2 onclick="toggleCard('api-endpoints')">
@@ -811,46 +871,6 @@ function handleAdmin(env) {
             </div>
         </div>
 
-        <!-- 项目模板管理 -->
-        <div class="card">
-            <h2 onclick="toggleCard('templates')">
-                <span class="card-header">📁 项目模板管理</span>
-                <span class="collapse-icon" id="templates-icon">▼</span>
-            </h2>
-            <div class="card-content" id="templates-content">
-                <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
-                    🎨 管理前端项目的模板选项，前端会从这里读取模板列表
-                </p>
-                <div id="templatesList" style="margin-bottom: 20px;">
-                    <p style="color: #888; text-align: center;">加载中...</p>
-                </div>
-                <button class="button" onclick="saveTemplates()" style="width: 100%;">
-                    💾 保存模板配置
-                </button>
-            </div>
-        </div>
-
-        <!-- 正则模板管理 -->
-        <div class="card">
-            <h2 onclick="toggleCard('regex-templates')">
-                <span class="card-header">📖 正则模板管理（翻页状态栏）</span>
-                <span class="collapse-icon" id="regex-templates-icon">▼</span>
-            </h2>
-            <div class="card-content" id="regex-templates-content">
-                <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
-                    🎨 管理翻页状态栏生成器的模板，用户可以从云端加载这些模板
-                </p>
-                <div id="regexTemplatesList" style="margin-bottom: 20px;">
-                    <p style="color: #888; text-align: center;">加载中...</p>
-                </div>
-                <button class="button" onclick="addRegexTemplate()" style="width: 100%; margin-bottom: 10px;">
-                    ➕ 添加新模板
-                </button>
-                <button class="button" onclick="saveRegexTemplates()" style="width: 100%;">
-                    💾 保存正则模板配置
-                </button>
-            </div>
-        </div>
     </div>
 
     <script>
@@ -872,23 +892,9 @@ function handleAdmin(env) {
             }
         }
 
-        // 折叠/展开单个模板卡片
-        function toggleTemplateCard(index) {
-            const content = document.getElementById('template-card-' + index);
-            const icon = document.getElementById('template-collapse-' + index);
-
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                icon.textContent = '▼';
-            } else {
-                content.style.display = 'none';
-                icon.textContent = '▶';
-            }
-        }
-
         // 恢复卡片折叠状态
         function restoreCardStates() {
-            const cardIds = ['plugin-info', 'update-code', 'current-code', 'stats', 'code-usage', 'api-endpoints', 'logs', 'history', 'templates', 'regex-templates'];
+            const cardIds = ['plugin-info', 'update-code', 'current-code', 'stats', 'code-usage', 'banned-endpoints', 'api-endpoints', 'logs', 'history'];
             cardIds.forEach(function(cardId) {
                 const state = localStorage.getItem('card-' + cardId);
                 if (state === 'collapsed') {
@@ -912,7 +918,6 @@ function handleAdmin(env) {
                 refreshStats();
             }
             loadPluginInfo(); // 加载插件信息
-            loadTemplates(); // 加载项目模板
         };
 
         // 显示提示消息
@@ -1071,6 +1076,7 @@ function handleAdmin(env) {
                         endpointsList.innerHTML = data.apiEndpoints.map(function(endpoint) {
                             const ipCount = endpoint.ips ? Object.keys(endpoint.ips).length : 0;
                             const isHighRisk = endpoint.accessCount > 50;
+                            const isBanned = endpoint.isBanned;
 
                             let ipDetails = '无IP数据';
                             let moreIPsText = '';
@@ -1086,17 +1092,25 @@ function handleAdmin(env) {
                                 }
                             }
 
-                            const borderColor = isHighRisk ? '#ef4444' : '#4a9eff';
-                            const highRiskBadge = isHighRisk ? '<span style="background: #ef4444; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;">⚠️ 高风险</span>' : '';
+                            const borderColor = isBanned ? '#7c2d12' : (isHighRisk ? '#ef4444' : '#4a9eff');
+                            const bannedBadge = isBanned ? '<span style="background: #7c2d12; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;">🚫 已禁用</span>' : '';
+                            const highRiskBadge = !isBanned && isHighRisk ? '<span style="background: #ef4444; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;">⚠️ 高风险</span>' : '';
                             const countColor = isHighRisk ? '#ef4444' : '#10b981';
+                            
+                            // 禁用/解禁按钮 - 使用 data 属性避免转义问题
+                            var safeEndpoint = String(endpoint.endpoint || '').split(String.fromCharCode(39)).join('').split(String.fromCharCode(34)).join('');
+                            var banButton = isBanned 
+                                ? '<button onclick="unbanEndpoint(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 4px 12px; background: #065f46; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px;">✅ 解禁</button>'
+                                : '<button onclick="banEndpoint(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 4px 12px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px;">🚫 禁用</button>';
 
-                            return '<div class="history-item" style="border-left-color: ' + borderColor + ';">' +
+                            return '<div class="history-item" style="border-left-color: ' + borderColor + '; ' + (isBanned ? 'opacity: 0.7;' : '') + '">' +
                                 '<div style="flex: 1;">' +
                                     '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
-                                        highRiskBadge +
-                                        '<span style="font-family: Courier New, monospace; font-weight: 700; color: #4a9eff; font-size: 14px;">' +
+                                        bannedBadge + highRiskBadge +
+                                        '<span style="font-family: Courier New, monospace; font-weight: 700; color: ' + (isBanned ? '#666' : '#4a9eff') + '; font-size: 14px;">' +
                                             endpoint.endpoint +
                                         '</span>' +
+                                        banButton +
                                     '</div>' +
                                     '<div style="color: #888; font-size: 13px; margin-bottom: 4px;">' +
                                         '访问次数: <span style="color: ' + countColor + '; font-weight: 700;">' + endpoint.accessCount + '</span> | ' +
@@ -1116,6 +1130,9 @@ function handleAdmin(env) {
                     } else {
                         endpointsList.innerHTML = '<p style="color: #888; text-align: center;">暂无API端点数据</p>';
                     }
+                    
+                    // 加载禁用列表
+                    loadBannedEndpoints();
 
                     // 更新验证日志
                     const logsList = document.getElementById('logsList');
@@ -1179,6 +1196,113 @@ function handleAdmin(env) {
             showAlert('✅ 授权码已复制到剪贴板！', 'success');
         }
 
+        // 禁用 API 端点
+        async function banEndpoint(endpoint) {
+            const reason = prompt('请输入禁用原因（可留空）:', '涉嫌商业化倒卖');
+            if (reason === null) return; // 用户取消
+            
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) {
+                showAlert('❌ 请先输入管理员密钥', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/ban-endpoint', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, endpoint, reason: reason || '涉嫌商业化倒卖' })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('✅ 已禁用: ' + endpoint, 'success');
+                    refreshStats();
+                } else {
+                    showAlert('❌ ' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+        
+        // 解禁 API 端点
+        async function unbanEndpoint(endpoint) {
+            if (!confirm('确定要解禁 ' + endpoint + ' 吗？')) return;
+            
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) {
+                showAlert('❌ 请先输入管理员密钥', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/unban-endpoint', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, endpoint })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('✅ 已解禁: ' + endpoint, 'success');
+                    refreshStats();
+                } else {
+                    showAlert('❌ ' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+        
+        // 加载禁用列表
+        async function loadBannedEndpoints() {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) return;
+            
+            try {
+                const response = await fetch('/get-banned-endpoints', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const bannedList = document.getElementById('bannedEndpointsList');
+                    const endpoints = result.data || [];
+                    
+                    if (endpoints.length > 0) {
+                        bannedList.innerHTML = endpoints.map(function(item) {
+                            var safeEndpoint = String(item.endpoint || '').split(String.fromCharCode(39)).join('').split(String.fromCharCode(34)).join('');
+                            return '<div class="history-item" style="border-left-color: #7c2d12;">' +
+                                '<div style="flex: 1;">' +
+                                    '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
+                                        '<span style="background: #7c2d12; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;">🚫 已禁用</span>' +
+                                        '<span style="font-family: Courier New, monospace; font-weight: 700; color: #ef4444; font-size: 14px;">' +
+                                            item.endpoint +
+                                        '</span>' +
+                                        '<button onclick="unbanEndpoint(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 4px 12px; background: #065f46; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px;">✅ 解禁</button>' +
+                                    '</div>' +
+                                    '<div style="color: #888; font-size: 13px;">' +
+                                        '禁用原因: <span style="color: #f59e0b;">' + item.reason + '</span> | ' +
+                                        '禁用时间: ' + new Date(item.bannedAt).toLocaleString("zh-CN") +
+                                    '</div>' +
+                                '</div>' +
+                            '</div>';
+                        }).join('');
+                    } else {
+                        bannedList.innerHTML = '<p style="color: #10b981; text-align: center;">✅ 暂无禁用的 API 端点</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('加载禁用列表失败:', error);
+            }
+        }
+
         // 加载插件信息
         async function loadPluginInfo() {
             try {
@@ -1240,363 +1364,7 @@ function handleAdmin(env) {
             }
         }
 
-          console.log('✅ Worker.js 已加载最新版本 2024-11-12-05:00 - Upstash Redis Pipeline 版本');
-
-        // 全局存储模板数据
-        let currentTemplates = [];
-
-        // 加载项目模板
-        async function loadTemplates() {
-            try {
-                const response = await fetch('/get-templates');
-                const result = await response.json();
-
-                if (result.success) {
-                    currentTemplates = result.data.templates || [];
-                    renderTemplates();
-                } else {
-                    document.getElementById('templatesList').innerHTML =
-                        '<p style="color: #ef4444; text-align: center;">加载失败</p>';
-                }
-            } catch (error) {
-                console.error('加载模板失败:', error);
-                document.getElementById('templatesList').innerHTML =
-                    '<p style="color: #ef4444; text-align: center;">加载失败：' + error.message + '</p>';
-            }
-        }
-
-        // 渲染模板列表
-        function renderTemplates() {
-            var listHtml = currentTemplates.map(function(template, index) {
-                var borderColor = template.enabled ? '#4a9eff' : '#6b7280';
-                var checkedAttr = template.enabled ? 'checked' : '';
-                var files = template.files || [];
-
-                // 渲染文件列表
-                var filesHtml = files.map(function(file, fileIndex) {
-                    var fileName = (file.name || '').replace(/"/g, '&quot;');
-                    var fileContent = (file.content || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    return '<div style="background: #0a0a0a; padding: 10px; border-radius: 6px; margin-bottom: 8px;">' +
-                        '<div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">' +
-                            '<input type="text" id="template-' + index + '-file-' + fileIndex + '-name" value="' + fileName + '" ' +
-                                   'style="flex: 1; padding: 6px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 4px; color: #4a9eff; font-size: 12px; font-family: monospace;" ' +
-                                   'placeholder="filename.ext" />' +
-                            '<button onclick="removeFile(' + index + ',' + fileIndex + ')" ' +
-                                    'style="padding: 4px 8px; background: #7c2d12; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">Del</button>' +
-                        '</div>' +
-                        '<textarea id="template-' + index + '-file-' + fileIndex + '-content" ' +
-                                  'style="width: 100%; min-height: 150px; padding: 8px; background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 4px; color: #10b981; font-size: 12px; font-family: monospace; line-height: 1.4; resize: vertical;" ' +
-                                  'placeholder="File content...">' + fileContent + '</textarea>' +
-                    '</div>';
-                }).join('');
-
-                return '<div style="background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid ' + borderColor + ';">' +
-                    // 模板标题区域 - 可点击折叠
-                    '<div onclick="toggleTemplateCard(' + index + ')" style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center; cursor: pointer; padding: 8px; background: #252525; border-radius: 6px; transition: background 0.2s;" ' +
-                         'onmouseover="this.style.background=' + "'" + '#2a2a2a' + "'" + '" onmouseout="this.style.background=' + "'" + '#252525' + "'" + '">' +
-                        '<span style="color: #888; font-size: 16px;" id="template-collapse-' + index + '">▶</span>' +
-                        '<span style="font-size: 20px;">' + template.icon + '</span>' +
-                        '<span style="flex: 1; color: #e0e0e0; font-size: 14px; font-weight: 600;">' + template.title + '</span>' +
-                        '<span style="color: #888; font-size: 12px;">' + files.length + ' file(s)</span>' +
-                    '</div>' +
-                    // 可折叠的内容区域
-                    '<div id="template-card-' + index + '" style="display: none; animation: slideDown 0.3s ease-out;">' +
-                        '<div style="display: flex; gap: 10px; margin-bottom: 10px;">' +
-                            '<input type="text" id="template-icon-' + index + '" value="' + template.icon + '" ' +
-                                   'style="width: 60px; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 20px; text-align: center;" ' +
-                                   'placeholder="📁" onclick="event.stopPropagation()" />' +
-                            '<input type="text" id="template-title-' + index + '" value="' + template.title + '" ' +
-                                   'style="flex: 1; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 14px;" ' +
-                                   'placeholder="Template Title" onclick="event.stopPropagation()" />' +
-                        '</div>' +
-                        '<div style="margin-bottom: 10px;">' +
-                            '<input type="text" id="template-desc-' + index + '" value="' + template.description + '" ' +
-                                   'style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 13px;" ' +
-                                   'placeholder="Description" onclick="event.stopPropagation()" />' +
-                        '</div>' +
-                        '<div style="margin-bottom: 10px;">' +
-                            '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
-                                '<label style="display: block; color: #888; font-size: 12px;">Files:</label>' +
-                                '<button onclick="addFile(' + index + ')" ' +
-                                        'style="padding: 4px 12px; background: #065f46; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">+ Add File</button>' +
-                            '</div>' +
-                            '<div id="template-' + index + '-files">' +
-                                filesHtml +
-                            '</div>' +
-                        '</div>' +
-                        '<div style="display: flex; justify-content: space-between; align-items: center;">' +
-                            '<label style="display: flex; align-items: center; cursor: pointer;">' +
-                                '<input type="checkbox" id="template-enabled-' + index + '" ' + checkedAttr + ' ' +
-                                       'style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;" onclick="event.stopPropagation()" />' +
-                                '<span style="color: #888; font-size: 13px;">Enabled</span>' +
-                            '</label>' +
-                            '<button onclick="removeTemplate(' + index + ')" ' +
-                                    'style="padding: 6px 12px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">Delete Template</button>' +
-                        '</div>' +
-                    '</div>' +
-                '</div>';
-            }).join('');
-
-            document.getElementById('templatesList').innerHTML = listHtml +
-                '<button onclick="addTemplate()" ' +
-                        'style="width: 100%; padding: 12px; background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; margin-top: 10px;">' +
-                    '+ Add Template' +
-                '</button>';
-        }
-
-        // 添加新模板
-        function addTemplate() {
-            currentTemplates.push({
-                id: 'template-' + Date.now(),
-                icon: '📁',
-                title: 'New Template',
-                description: 'Description',
-                files: [
-                    { name: 'index.html', content: '' },
-                    { name: 'style.css', content: '' },
-                    { name: 'script.js', content: '' }
-                ],
-                enabled: true
-            });
-            renderTemplates();
-        }
-
-        // 添加文件
-        function addFile(templateIndex) {
-            if (!currentTemplates[templateIndex].files) {
-                currentTemplates[templateIndex].files = [];
-            }
-            currentTemplates[templateIndex].files.push({
-                name: 'newfile.js',
-                content: ''
-            });
-            renderTemplates();
-        }
-
-        // 删除文件
-        function removeFile(templateIndex, fileIndex) {
-            if (confirm('Delete this file?')) {
-                currentTemplates[templateIndex].files.splice(fileIndex, 1);
-                renderTemplates();
-            }
-        }
-
-        // 删除模板
-        function removeTemplate(index) {
-            if (confirm('Delete this template?')) {
-                currentTemplates.splice(index, 1);
-                renderTemplates();
-            }
-        }
-
-        // 保存模板配置
-        async function saveTemplates() {
-            try {
-                var templates = currentTemplates.map(function(template, index) {
-                    var files = (template.files || []).map(function(file, fileIndex) {
-                        var nameElem = document.getElementById('template-' + index + '-file-' + fileIndex + '-name');
-                        var contentElem = document.getElementById('template-' + index + '-file-' + fileIndex + '-content');
-                        return {
-                            name: nameElem ? nameElem.value : file.name,
-                            content: contentElem ? contentElem.value : file.content
-                        };
-                    });
-
-                    return {
-                        id: template.id,
-                        icon: document.getElementById('template-icon-' + index).value.trim(),
-                        title: document.getElementById('template-title-' + index).value.trim(),
-                        description: document.getElementById('template-desc-' + index).value.trim(),
-                        files: files,
-                        enabled: document.getElementById('template-enabled-' + index).checked
-                    };
-                });
-
-                var response = await fetch('/update-templates', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ templates: templates })
-                });
-
-                var result = await response.json();
-
-                if (result.success) {
-                    showAlert('Saved successfully', 'success');
-                    currentTemplates = result.data.templates;
-                    renderTemplates();
-                } else {
-                    showAlert('Save failed', 'error');
-                }
-            } catch (error) {
-                console.error('Save error:', error);
-                showAlert('Save failed: ' + error.message, 'error');
-            }
-        }
-
-        // ========== 正则模板管理 ==========
-        var currentRegexTemplates = [];
-
-        // 加载正则模板
-        async function loadRegexTemplates() {
-            try {
-                const response = await fetch('/get-regex-templates');
-                const result = await response.json();
-
-                if (result.success) {
-                    currentRegexTemplates = result.data.templates || [];
-                    renderRegexTemplates();
-                } else {
-                    document.getElementById('regexTemplatesList').innerHTML =
-                        '<p style="color: #ef4444; text-align: center;">加载失败</p>';
-                }
-            } catch (error) {
-                console.error('加载正则模板失败:', error);
-                document.getElementById('regexTemplatesList').innerHTML =
-                    '<p style="color: #ef4444; text-align: center;">加载失败：' + error.message + '</p>';
-            }
-        }
-
-        // 渲染正则模板列表
-        function renderRegexTemplates() {
-            if (currentRegexTemplates.length === 0) {
-                document.getElementById('regexTemplatesList').innerHTML =
-                    '<p style="color: #888; text-align: center;">暂无模板，点击下方按钮添加</p>';
-                return;
-            }
-
-            var listHtml = currentRegexTemplates.map(function(template, index) {
-                var borderColor = template.enabled ? '#ec4899' : '#6b7280';
-                var checkedAttr = template.enabled ? 'checked' : '';
-                var tags = (template.tags || []).join(', ');
-
-                return '<div style="background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid ' + borderColor + ';">' +
-                    '<div style="display: flex; gap: 10px; margin-bottom: 10px;">' +
-                        '<input type="text" id="regex-template-icon-' + index + '" value="' + (template.icon || '📄') + '" ' +
-                               'style="width: 60px; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 20px; text-align: center;" ' +
-                               'placeholder="📄" />' +
-                        '<input type="text" id="regex-template-name-' + index + '" value="' + (template.name || '') + '" ' +
-                               'style="flex: 1; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 14px;" ' +
-                               'placeholder="模板名称" />' +
-                    '</div>' +
-                    '<div style="margin-bottom: 10px;">' +
-                        '<textarea id="regex-template-desc-' + index + '" ' +
-                                  'style="width: 100%; min-height: 60px; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 13px; resize: vertical;" ' +
-                                  'placeholder="模板描述">' + (template.description || '') + '</textarea>' +
-                    '</div>' +
-                    '<div style="margin-bottom: 10px;">' +
-                        '<input type="text" id="regex-template-tags-' + index + '" value="' + tags + '" ' +
-                               'style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 12px;" ' +
-                               'placeholder="标签（用逗号分隔，如：可爱,粉色,进度条）" />' +
-                    '</div>' +
-                    '<div style="margin-bottom: 10px;">' +
-                        '<label style="display: block; color: #888; font-size: 12px; margin-bottom: 4px;">触发正则:</label>' +
-                        '<input type="text" id="regex-template-trigger-' + index + '" value="' + (template.triggerRegex || '<-STATUS->') + '" ' +
-                               'style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #4a9eff; font-size: 12px; font-family: monospace;" ' +
-                               'placeholder="<-STATUS->" />' +
-                    '</div>' +
-                    '<div style="margin-bottom: 10px;">' +
-                        '<label style="display: block; color: #888; font-size: 12px; margin-bottom: 4px;">主题:</label>' +
-                        '<select id="regex-template-theme-' + index + '" ' +
-                                'style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #e0e0e0; font-size: 12px;">' +
-                            '<option value="默认蓝"' + (template.theme === '默认蓝' ? ' selected' : '') + '>默认蓝</option>' +
-                            '<option value="粉色可爱"' + (template.theme === '粉色可爱' ? ' selected' : '') + '>粉色可爱</option>' +
-                            '<option value="赛博朋克"' + (template.theme === '赛博朋克' ? ' selected' : '') + '>赛博朋克</option>' +
-                            '<option value="紫色梦幻"' + (template.theme === '紫色梦幻' ? ' selected' : '') + '>紫色梦幻</option>' +
-                            '<option value="绿色自然"' + (template.theme === '绿色自然' ? ' selected' : '') + '>绿色自然</option>' +
-                            '<option value="橙色活力"' + (template.theme === '橙色活力' ? ' selected' : '') + '>橙色活力</option>' +
-                            '<option value="深色模式"' + (template.theme === '深色模式' ? ' selected' : '') + '>深色模式</option>' +
-                            '<option value="红色热情"' + (template.theme === '红色热情' ? ' selected' : '') + '>红色热情</option>' +
-                        '</select>' +
-                    '</div>' +
-                    '<div style="display: flex; justify-content: space-between; align-items: center;">' +
-                        '<label style="display: flex; align-items: center; cursor: pointer;">' +
-                            '<input type="checkbox" id="regex-template-enabled-' + index + '" ' + checkedAttr + ' ' +
-                                   'style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;" />' +
-                            '<span style="color: #888; font-size: 13px;">启用</span>' +
-                        '</label>' +
-                        '<button onclick="removeRegexTemplate(' + index + ')" ' +
-                                'style="padding: 6px 12px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">删除</button>' +
-                    '</div>' +
-                    '<div style="margin-top: 10px; padding: 8px; background: #0a0a0a; border-radius: 6px;">' +
-                        '<p style="color: #888; font-size: 11px; margin: 0;">💡 提示：页面和变量数据需要在前端生成器中配置后导出JSON，然后手动添加到这里</p>' +
-                    '</div>' +
-                '</div>';
-            }).join('');
-
-            document.getElementById('regexTemplatesList').innerHTML = listHtml;
-        }
-
-        // 添加新正则模板
-        function addRegexTemplate() {
-            currentRegexTemplates.push({
-                id: 'regex-template-' + Date.now(),
-                name: '新模板',
-                icon: '📄',
-                description: '模板描述',
-                pages: [],
-                variables: [],
-                theme: '默认蓝',
-                triggerRegex: '<-STATUS->',
-                tags: [],
-                enabled: true
-            });
-            renderRegexTemplates();
-        }
-
-        // 删除正则模板
-        function removeRegexTemplate(index) {
-            if (confirm('确定要删除这个模板吗？')) {
-                currentRegexTemplates.splice(index, 1);
-                renderRegexTemplates();
-            }
-        }
-
-        // 保存正则模板配置
-        async function saveRegexTemplates() {
-            try {
-                var templates = currentRegexTemplates.map(function(template, index) {
-                    var tagsStr = document.getElementById('regex-template-tags-' + index).value.trim();
-                    var tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
-
-                    return {
-                        id: template.id,
-                        name: document.getElementById('regex-template-name-' + index).value.trim(),
-                        icon: document.getElementById('regex-template-icon-' + index).value.trim(),
-                        description: document.getElementById('regex-template-desc-' + index).value.trim(),
-                        pages: template.pages || [],
-                        variables: template.variables || [],
-                        theme: document.getElementById('regex-template-theme-' + index).value,
-                        triggerRegex: document.getElementById('regex-template-trigger-' + index).value.trim(),
-                        tags: tags,
-                        enabled: document.getElementById('regex-template-enabled-' + index).checked
-                    };
-                });
-
-                var response = await fetch('/update-regex-templates', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ templates: templates })
-                });
-
-                var result = await response.json();
-
-                if (result.success) {
-                    showAlert('正则模板保存成功！', 'success');
-                    currentRegexTemplates = result.data.templates;
-                    renderRegexTemplates();
-                } else {
-                    showAlert('保存失败', 'error');
-                }
-            } catch (error) {
-                console.error('保存正则模板失败:', error);
-                showAlert('保存失败: ' + error.message, 'error');
-            }
-        }
-
-        // 页面加载时也加载正则模板
-        window.addEventListener('load', function() {
-            loadRegexTemplates();
-        });
+          console.log('Worker.js loaded');
     </script>
 </body>
 </html>`;
@@ -1917,6 +1685,122 @@ async function handleUpdateTemplates(request, env, corsHeaders) {
   } catch (error) {
     console.error('更新项目模板失败:', error);
     return jsonResponse({ success: false, error: error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 禁用 API 端点
+ */
+async function handleBanEndpoint(request, env, corsHeaders) {
+  try {
+    const { adminKey, endpoint, reason } = await request.json();
+
+    // 验证管理员密钥
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    if (!endpoint) {
+      return jsonResponse({ success: false, message: '❌ 端点不能为空' }, 400, corsHeaders);
+    }
+
+    // 获取当前禁用列表
+    const bannedEndpointsStr = await redisGet('banned_endpoints');
+    const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
+
+    // 添加到禁用列表
+    bannedEndpoints[endpoint] = {
+      endpoint: endpoint,
+      reason: reason || '涉嫌商业化倒卖',
+      bannedAt: new Date().toISOString(),
+    };
+
+    await redisSet('banned_endpoints', JSON.stringify(bannedEndpoints));
+
+    return jsonResponse(
+      {
+        success: true,
+        message: `✅ 已禁用 API 端点: ${endpoint}`,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('禁用端点失败:', error);
+    return jsonResponse({ success: false, message: '❌ 操作失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 解禁 API 端点
+ */
+async function handleUnbanEndpoint(request, env, corsHeaders) {
+  try {
+    const { adminKey, endpoint } = await request.json();
+
+    // 验证管理员密钥
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    if (!endpoint) {
+      return jsonResponse({ success: false, message: '❌ 端点不能为空' }, 400, corsHeaders);
+    }
+
+    // 获取当前禁用列表
+    const bannedEndpointsStr = await redisGet('banned_endpoints');
+    const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
+
+    // 从禁用列表移除
+    delete bannedEndpoints[endpoint];
+
+    await redisSet('banned_endpoints', JSON.stringify(bannedEndpoints));
+
+    return jsonResponse(
+      {
+        success: true,
+        message: `✅ 已解禁 API 端点: ${endpoint}`,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('解禁端点失败:', error);
+    return jsonResponse({ success: false, message: '❌ 操作失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 获取禁用的 API 端点列表
+ */
+async function handleGetBannedEndpoints(request, env, corsHeaders) {
+  try {
+    const { adminKey } = await request.json();
+
+    // 验证管理员密钥
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    const bannedEndpointsStr = await redisGet('banned_endpoints');
+    const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
+
+    // 转换为数组并按禁用时间排序
+    const bannedList = Object.values(bannedEndpoints).sort(
+      (a, b) => new Date(b.bannedAt) - new Date(a.bannedAt),
+    );
+
+    return jsonResponse(
+      {
+        success: true,
+        data: bannedList,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    console.error('获取禁用列表失败:', error);
+    return jsonResponse({ success: false, message: '❌ 操作失败: ' + error.message }, 500, corsHeaders);
   }
 }
 

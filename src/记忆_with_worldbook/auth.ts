@@ -16,53 +16,95 @@ const STORAGE_VERIFIED_KEY = 'maomaomz_auth_verified';
  */
 function getCurrentApiEndpoint(): string {
   try {
-    // 尝试从 SillyTavern 配置中获取 API 端点
-    let apiUrl = (window as any).api_server || '';
-    let apiType = (window as any).main_api || 'unknown';
-
-    // 🔥 处理 apiType 如果是 DOM 元素
-    if (apiType && typeof apiType === 'object') {
-      if ('value' in apiType) {
-        apiType = apiType.value || 'unknown';
-      } else {
-        apiType = 'unknown';
+    const mainDoc = window.parent?.document || document;
+    let apiUrl = '';
+    
+    // 🔥 方法 1: 从 DOM 读取（最可靠）
+    const urlSelectors = [
+      '#reverse_proxy',           // 反代地址（优先）
+      '#openai_reverse_proxy',    // OpenAI 反代
+      '#custom_api_url',          // 自定义 API
+      '#api_url_text',            // API URL 文本框
+      'input[id*="reverse_proxy"]',
+      'input[id*="api_url"]',
+    ];
+    
+    for (const sel of urlSelectors) {
+      const el = mainDoc.querySelector(sel) as HTMLInputElement;
+      if (el && el.value && el.value.trim()) {
+        apiUrl = el.value.trim();
+        console.log(`🔍 从 DOM 获取到 API URL (${sel}):`, apiUrl);
+        break;
       }
     }
-    apiType = String(apiType || 'unknown').trim();
-
-    // 🔥 先检查是否是对象类型（在转换为字符串之前）
-    if (apiUrl && typeof apiUrl === 'object') {
-      console.log('🔍 检测到 API端点是对象类型:', apiUrl);
-
-      // 如果是 DOM 元素，尝试获取其 value
-      if ('value' in apiUrl) {
-        console.log('🔍 从 DOM 元素获取 value 属性');
-        apiUrl = apiUrl.value || '';
-      }
-      // 如果还是对象，转为空字符串
-      else {
-        console.warn('⚠️ API端点是对象但无 value 属性，设为空');
-        apiUrl = '';
+    
+    // 🔥 方法 2: 从 localStorage 读取 SillyTavern 配置
+    if (!apiUrl) {
+      try {
+        const tavernConfig = JSON.parse(localStorage.getItem('TavernAI_Settings') || '{}');
+        apiUrl = tavernConfig.reverse_proxy || 
+                 tavernConfig.api_url_scale || 
+                 tavernConfig.custom_url ||
+                 tavernConfig.api_url || '';
+        if (apiUrl) {
+          console.log('🔍 从 TavernAI_Settings 获取到 API URL:', apiUrl);
+        }
+      } catch (e) {
+        console.warn('⚠️ 读取 TavernAI_Settings 失败');
       }
     }
-
-    // 确保是字符串并清理
+    
+    // 🔥 方法 3: 从 window 变量读取
+    if (!apiUrl) {
+      const parentWin = window.parent as any;
+      const win = window as any;
+      
+      // 尝试获取 oai_settings
+      const oaiSettings = parentWin?.oai_settings || win?.oai_settings;
+      if (oaiSettings) {
+        apiUrl = oaiSettings.reverse_proxy || oaiSettings.custom_url || '';
+        if (apiUrl) {
+          console.log('🔍 从 oai_settings 获取到 API URL:', apiUrl);
+        }
+      }
+      
+      // 尝试 api_server
+      if (!apiUrl) {
+        let apiServer = parentWin?.api_server || win?.api_server;
+        if (apiServer && typeof apiServer === 'object' && 'value' in apiServer) {
+          apiServer = apiServer.value;
+        }
+        if (apiServer && typeof apiServer === 'string') {
+          apiUrl = apiServer;
+          console.log('🔍 从 api_server 获取到 API URL:', apiUrl);
+        }
+      }
+    }
+    
+    // 🔥 方法 4: 获取 API 类型作为备选
+    if (!apiUrl) {
+      let apiType = (window.parent as any)?.main_api || (window as any).main_api;
+      if (apiType && typeof apiType === 'object' && 'value' in apiType) {
+        apiType = apiType.value;
+      }
+      if (apiType && typeof apiType === 'string' && apiType !== '[object Object]') {
+        console.log('🔍 使用 API 类型作为标识:', apiType);
+        return apiType;
+      }
+    }
+    
+    // 过滤无效值
     apiUrl = String(apiUrl || '').trim();
-
-    // 过滤掉无效值（包括字符串化后的对象标识）
     if (apiUrl.startsWith('[object ') || apiUrl === '' || apiUrl === 'undefined' || apiUrl === 'null') {
-      console.log('🔄 API端点无效，使用 API 类型:', apiType);
-      return apiType;
+      console.log('⚠️ 无法获取有效的 API 端点');
+      return 'unknown';
     }
-
-    // 只返回域名部分，不要完整URL（保护隐私）
-    try {
-      const url = new URL(apiUrl);
-      return url.hostname || apiUrl;
-    } catch {
-      // 如果不是有效的URL，直接返回（可能是类型名）
-      return apiUrl;
-    }
+    
+    // 🔥 返回完整 URL（方便追踪商业化）
+    // 移除末尾斜杠以统一格式
+    apiUrl = apiUrl.replace(/\/+$/, '');
+    console.log('🔍 最终 API 端点:', apiUrl);
+    return apiUrl;
   } catch (error) {
     console.error('❌ 获取API端点失败:', error);
     return 'unknown';
