@@ -516,6 +516,11 @@ export async function summarizeMessages(start_id: number, end_id: number): Promi
     throw new Error(`没有可总结的消息（范围: ${start_id}-${end_id}）`);
   }
 
+  // 获取角色名称
+  const st = (window as any).SillyTavern;
+  const userName = st?.name1 || '用户';
+  const charName = st?.name2 || 'AI';
+
   // 根据风格生成不同的 prompt
   const stylePrompts = {
     concise: `你是一位专业的剧情总结助手。请对以下对话内容进行**简洁总结**。
@@ -587,7 +592,7 @@ ${stylePrompt}
 - **重要：直接输出总结内容，不要添加任何回复语、问候语或解释性文字**
 
 对话内容：
-${messages.map(msg => `[${msg.role}]: ${preprocessContent(msg.message)}`).join('\n\n')}
+${messages.map(msg => `[${msg.role === 'user' ? userName : charName}]: ${preprocessContent(msg.message)}`).join('\n\n')}
 
 直接输出总结内容，不要任何回复语：`;
 
