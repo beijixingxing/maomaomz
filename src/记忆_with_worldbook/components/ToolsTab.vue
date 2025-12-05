@@ -4170,8 +4170,9 @@ const handleGenerateNpc = async () => {
       const char = tav.getCharData('current');
       if (char) {
         context += `【主角信息】\n角色名：${char.name || '未知'}\n`;
-        if (char.description || char.data?.description) {
-          context += `背景：${(char.description || char.data?.description).substring(0, 500)}...\n`;
+        const desc = char.description || char.data?.description;
+        if (desc) {
+          context += `背景：${desc.substring(0, 500)}...\n`;
         }
       }
     }
