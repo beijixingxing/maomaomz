@@ -1746,14 +1746,30 @@ const taskStore = useTaskStore();
 const isApiConfigValid = () =>
   checkApiConfig(settings.value.api_endpoint, settings.value.api_key, settings.value.api_provider);
 
+// 从偏好设置读取默认展开状态
+const getDefaultExpanded = (): boolean => {
+  try {
+    const prefs = localStorage.getItem('maomaomz_preferences');
+    if (prefs) {
+      const data = JSON.parse(prefs);
+      return data.defaultSectionsExpanded !== undefined ? data.defaultSectionsExpanded : true;
+    }
+  } catch (e) {
+    console.warn('读取偏好设置失败:', e);
+  }
+  return true; // 默认展开
+};
+
+const defaultExpanded = getDefaultExpanded();
+
 // 折叠展开状态
 const expandedSections = ref<Record<string, boolean>>({
   preferences: false,
-  api: true,
-  autoSummary: true,
-  manualSummary: true,
-  tableGeneration: true,
-  messageManagement: true,
+  api: defaultExpanded,
+  autoSummary: defaultExpanded,
+  manualSummary: defaultExpanded,
+  tableGeneration: defaultExpanded,
+  messageManagement: defaultExpanded,
 });
 
 // 切换分类展开/折叠

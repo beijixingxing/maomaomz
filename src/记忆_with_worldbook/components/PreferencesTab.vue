@@ -51,13 +51,25 @@
       </div>
 
       <!-- 显示最小化图标 -->
-      <div class="setting-item" style="margin-bottom: 0">
+      <div class="setting-item">
         <div style="flex: 1">
           <div style="color: #e0e0e0; font-size: 14px; font-weight: 500; margin-bottom: 4px">显示最小化图标</div>
           <div style="color: #888; font-size: 12px">在页面右上角显示猫猫头快捷图标</div>
         </div>
         <label class="toggle-switch">
           <input v-model="preferences.showMinimizeIcon" type="checkbox" @change="savePreferences" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- 设置区块默认展开 -->
+      <div class="setting-item" style="margin-bottom: 0">
+        <div style="flex: 1">
+          <div style="color: #e0e0e0; font-size: 14px; font-weight: 500; margin-bottom: 4px">设置区块默认展开</div>
+          <div style="color: #888; font-size: 12px">打开设置页面时，各功能区块默认展开还是折叠</div>
+        </div>
+        <label class="toggle-switch">
+          <input v-model="preferences.defaultSectionsExpanded" type="checkbox" @change="savePreferences" />
           <span class="toggle-slider"></span>
         </label>
       </div>
@@ -183,6 +195,7 @@ interface Preferences {
   showSuccessToast: boolean;
   showErrorToast: boolean;
   themeColor: string;
+  defaultSectionsExpanded: boolean; // 设置页面折叠区块默认展开
 }
 
 // 主题色预设
@@ -205,6 +218,7 @@ const defaultPreferences: Preferences = {
   showSuccessToast: true,
   showErrorToast: true,
   themeColor: '#4a9eff',
+  defaultSectionsExpanded: true, // 默认展开
 };
 
 // 偏好设置状态
