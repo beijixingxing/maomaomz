@@ -440,73 +440,19 @@ function sourceTotal(s: SourceStats): number {
   return s.c + s.s + s.v;
 }
 
-// 使用 SillyTavern 官方的 token 计算方法
-async function getTokenCountAsync(text: string | null | undefined): Promise<number> {
-  if (!text) return 0;
-  try {
-    const w = window as any;
-    // 1. 优先使用 getContext().getTokenCountAsync
-    if (w.SillyTavern?.getContext) {
-      const ctx = w.SillyTavern.getContext();
-      if (typeof ctx?.getTokenCountAsync === 'function') {
-        return await ctx.getTokenCountAsync(text);
-      }
-      if (typeof ctx?.getTokenCount === 'function') {
-        return ctx.getTokenCount(text);
-      }
-    }
-    // 2. TavernHelper.getTokenCount
-    if (w.TavernHelper && typeof w.TavernHelper.getTokenCount === 'function') {
-      return w.TavernHelper.getTokenCount(text);
-    }
-    // 3. 全局 getTokenCountForString（酒馆内部函数）
-    if (typeof w.getTokenCountForString === 'function') {
-      return w.getTokenCountForString(text);
-    }
-    // 4. 全局 getTokenCount
-    if (typeof w.getTokenCount === 'function') {
-      return w.getTokenCount(text);
-    }
-  } catch (e) {
-    console.warn('getTokenCount 调用失败，使用近似值:', e);
-  }
-  // 粗略估算：中文约 1.5 字符一个 token，英文约 4 字符
-  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-  const otherChars = text.length - chineseChars;
-  return Math.ceil(chineseChars / 1.5 + otherChars / 4);
-}
-
-// 同步版本（兼容旧代码）
+// 使用 SillyTavern.getTokenCount 计算 token（这是酒馆官方方法）
 function getTokenCount(text: string | null | undefined): number {
-  if (!text) return 0;
+  if (!text || typeof text !== 'string') return 0;
   try {
     const w = window as any;
-    // 1. 优先使用 getContext().getTokenCount
-    if (w.SillyTavern?.getContext) {
-      const ctx = w.SillyTavern.getContext();
-      if (typeof ctx?.getTokenCount === 'function') {
-        return ctx.getTokenCount(text);
-      }
-    }
-    // 2. TavernHelper.getTokenCount
-    if (w.TavernHelper && typeof w.TavernHelper.getTokenCount === 'function') {
-      return w.TavernHelper.getTokenCount(text);
-    }
-    // 3. 全局 getTokenCountForString
-    if (typeof w.getTokenCountForString === 'function') {
-      return w.getTokenCountForString(text);
-    }
-    // 4. 全局 getTokenCount
-    if (typeof w.getTokenCount === 'function') {
-      return w.getTokenCount(text);
+    // 直接使用 SillyTavern.getTokenCount - 这是官方方法
+    if (w.SillyTavern && typeof w.SillyTavern.getTokenCount === 'function') {
+      return w.SillyTavern.getTokenCount(text);
     }
   } catch (e) {
-    console.warn('getTokenCount 调用失败，使用近似值:', e);
+    console.warn('SillyTavern.getTokenCount 调用失败:', e);
   }
-  // 粗略估算：中文约 1.5 字符一个 token，英文约 4 字符
-  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-  const otherChars = text.length - chineseChars;
-  return Math.ceil(chineseChars / 1.5 + otherChars / 4);
+  return 0;
 }
 
 function collectPresetPromptTexts(st: any, tav: any): { texts: string[]; details: string } {
@@ -1040,70 +986,93 @@ function handleRefresh() {
   void calculateTokenStats();
 }
 
-// 获取精确 token 统计（调用酒馆 API）
+// 获取精确 token 统计（使用酒馆的 tokenizer）
 async function openPromptInspector() {
+  loading.value = true;
   try {
     const w = window as any;
+    const st = w.SillyTavern;
+    const tav = w.TavernHelper;
 
-    // 尝试获取精确的 token 数
-    let totalTokens = 0;
-
-    // 方法1: 通过 SillyTavern.getContext().getTokenCount 获取整个提示词的 token
-    if (w.SillyTavern?.getContext) {
-      const ctx = w.SillyTavern.getContext();
-
-      // 尝试获取当前提示词的 token 数
-      if (typeof ctx.getPromptForUI === 'function') {
-        try {
-          const prompt = await ctx.getPromptForUI();
-          if (prompt && typeof ctx.getTokenCount === 'function') {
-            totalTokens = ctx.getTokenCount(prompt);
-          }
-        } catch (e) {
-          console.warn('getPromptForUI 失败:', e);
+    // 获取 tokenizer 函数
+    const tokenize = (text: string): number => {
+      if (!text) return 0;
+      // 尝试多种方式获取 tokenizer
+      if (st?.getContext) {
+        const ctx = st.getContext();
+        if (typeof ctx.getTokenCount === 'function') {
+          return ctx.getTokenCount(text);
         }
       }
-
-      // 如果上面的方法失败，尝试其他方式
-      if (!totalTokens && typeof ctx.getCurrentChatTokenCount === 'function') {
-        try {
-          totalTokens = await ctx.getCurrentChatTokenCount();
-        } catch (e) {
-          console.warn('getCurrentChatTokenCount 失败:', e);
-        }
+      if (tav && typeof tav.getTokenCount === 'function') {
+        return tav.getTokenCount(text);
       }
-    }
-
-    // 方法2: 通过 TavernHelper 获取
-    if (!totalTokens && w.TavernHelper) {
-      if (typeof w.TavernHelper.getTokenCount === 'function') {
-        // 获取当前聊天的所有内容
-        const messages = w.TavernHelper.getChatMessages?.('0-{{lastMessageId}}') || [];
-        let allContent = '';
-        for (const m of messages) {
-          if (m.mes) allContent += m.mes + '\n';
-        }
-        if (allContent) {
-          totalTokens = w.TavernHelper.getTokenCount(allContent);
-        }
+      if (typeof w.getTokenCount === 'function') {
+        return w.getTokenCount(text);
       }
+      // 估算
+      const cn = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+      return Math.ceil(cn / 1.5 + (text.length - cn) / 4);
+    };
+
+    const result = {
+      chat: 0,
+      character: 0,
+      worldbook: 0,
+      system: 0,
+      total: 0,
+    };
+
+    // 1. 聊天内容
+    const messages = st?.chat || tav?.getChatMessages?.('0-{{lastMessageId}}') || [];
+    const visibleMsgs = messages.filter((m: any) => !m.is_hidden && !m.hidden);
+    for (const m of visibleMsgs) {
+      const content = m.mes || m.message || '';
+      if (content) result.chat += tokenize(content);
     }
 
-    if (totalTokens > 0) {
-      w.toastr?.success(`📊 精确 Token 数: ${totalTokens.toLocaleString()}`);
-    } else {
-      // 如果无法获取，提示用户手动查看
-      w.toastr?.info('无法自动获取，请按 Ctrl+P 打开提示词查看器');
+    // 2. 角色卡
+    const char = tav?.getCharData?.('current') || st?.characters?.[st?.characterId];
+    if (char) {
+      const fields = [
+        char.description,
+        char.personality,
+        char.scenario,
+        char.first_mes,
+        char.mes_example,
+        char.data?.system_prompt,
+        char.data?.post_history_instructions,
+      ].filter(Boolean);
+      result.character = tokenize(fields.join('\n'));
     }
+
+    // 3. 世界书（蓝灯）
+    result.worldbook = stats.value?.totalConstantTokens || 0;
+
+    // 4. 系统提示
+    result.system = stats.value?.systemPromptTokens || 0;
+
+    // 计算总数
+    result.total = result.chat + result.character + result.worldbook + result.system;
+
+    // 更新显示
+    if (stats.value) {
+      stats.value.chatTokens = result.chat;
+      stats.value.totalTokens = result.total;
+    }
+
+    w.toastr?.success(`📊 精确统计完成！总 Token: ${result.total.toLocaleString()}`);
+    console.log('[TokenStats] 精确统计结果:', result);
   } catch (e) {
-    console.error('获取精确 token 失败:', e);
-    (window as any).toastr?.warning('请手动按 Ctrl+P 打开提示词查看器');
+    console.error('精确统计失败:', e);
+    (window as any).toastr?.error('统计失败: ' + (e as Error).message);
+  } finally {
+    loading.value = false;
   }
 }
 
 // 注：事件监听在此环境不可用，只能使用估算值
 // 精确的 token 数需要使用酒馆的「提示词查看器」
-
 onMounted(() => {
   // 默认不自动计算，避免每次打开面板都扫一次。用户手动点击按钮即可。
   // 注：事件监听在此环境不可用，只能使用估算值
