@@ -187,6 +187,7 @@
               @change="handleProviderChange"
             >
               <option value="openai">OpenAI</option>
+              <option value="deepseek">DeepSeek</option>
               <option value="gemini">Gemini AI Studio</option>
               <option value="local-proxy">本地反代 (无需 API Key)</option>
             </select>
@@ -2187,7 +2188,9 @@ const saveHiddenMessages = () => {
 const initApiProvider = () => {
   if (!settings.value.api_provider || settings.value.api_provider === '') {
     const endpoint = settings.value.api_endpoint || '';
-    if (endpoint.includes('generativelanguage.googleapis.com')) {
+    if (endpoint.includes('api.deepseek.com')) {
+      settings.value.api_provider = 'deepseek';
+    } else if (endpoint.includes('generativelanguage.googleapis.com')) {
       settings.value.api_provider = 'gemini';
     } else if (endpoint.includes('open.bigmodel.cn')) {
       settings.value.api_provider = 'zhipu';
@@ -2254,12 +2257,18 @@ const handleProviderChange = () => {
   const provider = settings.value.api_provider;
   const providerEndpoints: Record<string, string> = {
     openai: 'https://api.openai.com/v1',
+    deepseek: 'https://api.deepseek.com',
     gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
+  };
+  const providerNames: Record<string, string> = {
+    openai: 'OpenAI',
+    deepseek: 'DeepSeek',
+    gemini: 'Gemini AI Studio',
   };
 
   if (providerEndpoints[provider]) {
     settings.value.api_endpoint = providerEndpoints[provider];
-    window.toastr.success(`已切换到 ${provider === 'openai' ? 'OpenAI' : 'Gemini AI Studio'}`);
+    window.toastr.success(`已切换到 ${providerNames[provider] || provider}`);
   }
 };
 
