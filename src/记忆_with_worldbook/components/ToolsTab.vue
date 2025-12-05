@@ -522,13 +522,81 @@
           </p>
         </div>
 
+        <!-- 背景来源选择 -->
+        <div class="form-group" style="margin: 15px 0">
+          <label style="display: block; margin-bottom: 8px; color: #ccc; font-size: 13px; font-weight: 500">
+            读取背景参考（可选）：
+          </label>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <button
+              style="
+                padding: 6px 12px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #17a2b8;
+                font-size: 11px;
+                cursor: pointer;
+              "
+              @click="loadNpcContext('char')"
+            >
+              📝 当前角色卡
+            </button>
+            <select
+              v-model="npcContextWorldbook"
+              style="
+                padding: 6px 10px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #10b981;
+                font-size: 11px;
+              "
+              @change="loadNpcContext('worldbook')"
+            >
+              <option value="">📚 从世界书读取...</option>
+              <option v-for="wb in availableWorldbooks" :key="wb" :value="wb">{{ wb }}</option>
+            </select>
+            <button
+              v-if="npcContext"
+              style="
+                padding: 6px 12px;
+                background: #3a3a3a;
+                border: 1px solid #ff6b6b;
+                border-radius: 4px;
+                color: #ff6b6b;
+                font-size: 11px;
+                cursor: pointer;
+              "
+              @click="npcContext = ''"
+            >
+              ✕ 清除背景
+            </button>
+          </div>
+          <div
+            v-if="npcContext"
+            style="
+              margin-top: 8px;
+              padding: 8px;
+              background: #1a1a1a;
+              border-radius: 4px;
+              max-height: 80px;
+              overflow-y: auto;
+            "
+          >
+            <p style="margin: 0; color: #888; font-size: 11px; white-space: pre-wrap">
+              {{ npcContext.substring(0, 200) }}{{ npcContext.length > 200 ? '...' : '' }}
+            </p>
+          </div>
+        </div>
+
         <div class="form-group" style="margin: 15px 0">
           <label style="display: block; margin-bottom: 8px; color: #ccc; font-size: 13px; font-weight: 500">
             NPC 描述（简短即可）：
           </label>
           <textarea
             v-model="npcDescription"
-            placeholder="例如：酒馆老板，中年男性，健谈，知道很多八卦，对主角有好感"
+            placeholder="例如：酒馆老板，中年男性，健谈，知道很多八卦，对主角有好感&#10;💡 可先点击上方按钮读取角色卡/世界书作为背景参考"
             style="
               width: 100%;
               height: 80px;
@@ -3496,6 +3564,8 @@ const isGeneratingNpc = ref(false);
 const npcProgressPercent = ref(0);
 const enableNpcStreaming = ref(false);
 const npcInsertWorldbook = ref('');
+const npcContext = ref(''); // NPC 生成的背景参考
+const npcContextWorldbook = ref(''); // 选择的世界书
 
 const characterInsertPositions = [
   { value: 'description', label: '📝 角色描述 (Description)', type: 'char' },
@@ -4151,6 +4221,50 @@ const clearAntiClicheModifyRequest = () => {
   window.toastr.success('修改需求已清空');
 };
 
+// 读取 NPC 背景参考
+const loadNpcContext = async (source: 'char' | 'worldbook') => {
+  try {
+    const tav = (window as any).TavernHelper;
+
+    if (source === 'char') {
+      if (tav?.getCharData) {
+        const char = tav.getCharData('current');
+        if (char) {
+          let content = `【角色信息】\n角色名：${char.name || '未知'}\n`;
+          const desc = char.description || char.data?.description;
+          if (desc) content += `描述：${desc}\n`;
+          const personality = char.personality || char.data?.personality;
+          if (personality) content += `性格：${personality}\n`;
+          const scenario = char.scenario || char.data?.scenario;
+          if (scenario) content += `场景：${scenario}\n`;
+          npcContext.value = content;
+          window.toastr.success('已读取角色卡');
+        } else {
+          window.toastr.warning('请先选择一个角色');
+        }
+      }
+    } else if (source === 'worldbook' && npcContextWorldbook.value) {
+      if (tav?.getWorldbook) {
+        const entries = await tav.getWorldbook(npcContextWorldbook.value);
+        if (entries?.length) {
+          const content = entries
+            .filter((e: any) => e.content)
+            .map((e: any) => `【${e.name || e.comment || '条目'}】\n${e.content}`)
+            .join('\n\n');
+          npcContext.value = content;
+          window.toastr.success(`已读取 ${entries.length} 个条目`);
+        } else {
+          window.toastr.warning('世界书没有条目');
+        }
+      }
+      npcContextWorldbook.value = '';
+    }
+  } catch (e) {
+    console.error('读取失败:', e);
+    window.toastr.error('读取失败');
+  }
+};
+
 // NPC 快速生成函数
 const handleGenerateNpc = async () => {
   if (!npcDescription.value.trim()) {
@@ -4163,23 +4277,12 @@ const handleGenerateNpc = async () => {
     npcProgressPercent.value = 0;
     window.toastr.info('正在生成 NPC...');
 
-    // 获取当前角色卡和世界书作为背景
-    let context = '';
-    const tav = (window as any).TavernHelper;
-    if (tav?.getCharData) {
-      const char = tav.getCharData('current');
-      if (char) {
-        context += `【主角信息】\n角色名：${char.name || '未知'}\n`;
-        const desc = char.description || char.data?.description;
-        if (desc) {
-          context += `背景：${desc.substring(0, 500)}...\n`;
-        }
-      }
-    }
+    // 使用用户选择的背景参考
+    const context = npcContext.value;
 
     const systemPrompt = `你是一个专业的配角 NPC 设计师。根据用户的简短描述，生成一个精简但完整的 NPC 设定。
 
-${context ? context + '\n' : ''}要求：
+${context ? '【背景参考】\n' + context + '\n\n' : ''}要求：
 1. 设定要精简，控制在 300 字以内
 2. 包含：姓名、外貌特征、性格特点、与主角的关系/态度、标志性行为或口头禅
 3. 风格自然，避免八股套话
