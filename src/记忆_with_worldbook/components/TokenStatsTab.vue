@@ -860,12 +860,27 @@ async function calculateTokenStats(): Promise<void> {
         console.log('[TokenStats] 总消息数:', messages.length, '可见消息数:', visibleMessages.length);
 
         // 获取上下文限制
-        let maxContext = 128000; // 默认值
+        let maxContext = 8192; // 保守默认值
         try {
+          // 方法1: TavernHelper.getPreset
           if (tav && typeof tav.getPreset === 'function') {
             const preset = tav.getPreset('in_use');
-            if (preset?.settings?.max_context) {
+            if (preset?.settings?.max_context && preset.settings.max_context < 1000000) {
               maxContext = preset.settings.max_context;
+            }
+          }
+          // 方法2: SillyTavern.chatCompletionSettings
+          if (maxContext === 8192 && st?.chatCompletionSettings?.max_context_length) {
+            const ctx = st.chatCompletionSettings.max_context_length;
+            if (ctx > 0 && ctx < 1000000) {
+              maxContext = ctx;
+            }
+          }
+          // 方法3: oai_settings
+          if (maxContext === 8192 && (st as any)?.oai_settings?.max_context_length) {
+            const ctx = (st as any).oai_settings.max_context_length;
+            if (ctx > 0 && ctx < 1000000) {
+              maxContext = ctx;
             }
           }
         } catch (e) {
