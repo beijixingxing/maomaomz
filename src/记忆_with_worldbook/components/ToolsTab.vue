@@ -2530,7 +2530,7 @@
             </button>
           </div>
 
-          <!-- 插入到角色卡 -->
+          <!-- 插入到角色卡/世界书 -->
           <div
             class="insert-section"
             style="
@@ -2543,9 +2543,9 @@
           >
             <h5 style="margin: 0 0 12px 0; color: #17a2b8; font-size: 13px; font-weight: 600">
               <i class="fa-solid fa-file-import" style="margin-right: 6px"></i>
-              插入到当前角色卡
+              插入生成内容
             </h5>
-            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px">
               <select
                 v-model="characterInsertPosition"
                 style="
@@ -2564,7 +2564,9 @@
                 </option>
               </select>
               <button
-                :disabled="isInsertingCharacter"
+                :disabled="
+                  isInsertingCharacter || (characterInsertPosition === 'worldbook' && !characterInsertWorldbook)
+                "
                 style="
                   padding: 8px 16px;
                   background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
@@ -2583,7 +2585,31 @@
                 {{ isInsertingCharacter ? '插入中...' : '插入' }}
               </button>
             </div>
-            <p style="margin: 8px 0 0 0; color: #888; font-size: 11px">⚠️ 插入会覆盖所选位置的原有内容，请谨慎操作</p>
+            <!-- 世界书选择（仅当选择世界书时显示） -->
+            <div v-if="characterInsertPosition === 'worldbook'" style="margin-bottom: 10px">
+              <select
+                v-model="characterInsertWorldbook"
+                style="
+                  width: 100%;
+                  padding: 8px 12px;
+                  background: #1a1a1a;
+                  border: 1px solid #3a3a3a;
+                  border-radius: 6px;
+                  color: #e0e0e0;
+                  font-size: 12px;
+                "
+              >
+                <option value="">选择目标世界书...</option>
+                <option v-for="wb in availableWorldbooks" :key="wb" :value="wb">{{ wb }}</option>
+              </select>
+            </div>
+            <p style="margin: 0; color: #888; font-size: 11px">
+              {{
+                characterInsertPosition === 'worldbook'
+                  ? '📚 将作为新条目插入到所选世界书'
+                  : '⚠️ 插入会覆盖所选位置的原有内容'
+              }}
+            </p>
           </div>
 
           <!-- 角色卡修改区域 -->
@@ -3173,15 +3199,17 @@ const enableCharacterStreaming = ref(false); // 角色卡生成是否启用流�
 const characterProgressPercent = ref(0); // 角色卡生成进度
 const characterInsertPosition = ref('description'); // 角色卡插入位置
 const isInsertingCharacter = ref(false); // 是否正在插入角色卡
+const characterInsertWorldbook = ref(''); // 插入世界书时选择的世界书
 const characterInsertPositions = [
-  { value: 'description', label: '角色描述 (Description)' },
-  { value: 'personality', label: '角色性格 (Personality)' },
-  { value: 'scenario', label: '场景 (Scenario)' },
-  { value: 'first_mes', label: '首条消息 (First Message)' },
-  { value: 'mes_example', label: '示例对话 (Example Messages)' },
-  { value: 'system_prompt', label: '系统提示词 (System Prompt)' },
-  { value: 'post_history_instructions', label: '后历史指令 (Jailbreak)' },
-  { value: 'creator_notes', label: '创作者备注 (Creator Notes)' },
+  { value: 'description', label: '📝 角色描述 (Description)', type: 'char' },
+  { value: 'personality', label: '💭 角色性格 (Personality)', type: 'char' },
+  { value: 'scenario', label: '🎬 场景 (Scenario)', type: 'char' },
+  { value: 'first_mes', label: '💬 首条消息 (First Message)', type: 'char' },
+  { value: 'mes_example', label: '📖 示例对话 (Example Messages)', type: 'char' },
+  { value: 'system_prompt', label: '⚙️ 系统提示词 (System Prompt)', type: 'char' },
+  { value: 'post_history_instructions', label: '🔓 后历史指令 (Jailbreak)', type: 'char' },
+  { value: 'creator_notes', label: '📋 创作者备注 (Creator Notes)', type: 'char' },
+  { value: 'worldbook', label: '📚 世界书条目 (新建)', type: 'worldbook' },
 ];
 
 // 开场白生成工具相关
@@ -4226,7 +4254,8 @@ const handleGenerateCharacterCard = async () => {
       characterProgressPercent.value = 100;
     }
 
-    characterCardOutput.value = generatedText;
+    // 清理 AI 输出中的废话和代码块标记
+    characterCardOutput.value = cleanCharacterCardOutput(generatedText);
     saveToolsDataImmediate(); // 立即保存结果
 
     window.toastr.success('角色卡生成完成！');
@@ -4237,6 +4266,35 @@ const handleGenerateCharacterCard = async () => {
     isGeneratingCharacter.value = false;
     characterProgressPercent.value = 0;
   }
+};
+
+// 清理角色卡输出中的废话和代码块标记
+const cleanCharacterCardOutput = (text: string): string => {
+  let cleaned = text;
+
+  // 移除开头的 AI 废话（如 "好的，我将为你创造..." "以下是..." 等）
+  const prefixPatterns = [
+    /^.*?(?:好的|当然|没问题|以下是|我将|我来|让我)[^]*?(?:角色|创造|设计|生成)[^]*?[:：。\n]/i,
+    /^.*?(?:根据你的要求|按照你的描述)[^]*?[:：。\n]/i,
+    /^[^]*?---\s*\n/, // 移除分隔线之前的内容
+  ];
+
+  for (const pattern of prefixPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+
+  // 移除 markdown 代码块标记
+  cleaned = cleaned.replace(/^```(?:yaml|yml|json|markdown|md)?\s*\n?/gim, '');
+  cleaned = cleaned.replace(/\n?```\s*$/gim, '');
+  cleaned = cleaned.replace(/```/g, '');
+
+  // 移除开头的空行
+  cleaned = cleaned.replace(/^\s*\n+/, '');
+
+  // 移除结尾的空行
+  cleaned = cleaned.replace(/\n+\s*$/, '');
+
+  return cleaned.trim();
 };
 
 const clearCharacterForm = () => {
@@ -4257,7 +4315,7 @@ const copyCharacterCard = () => {
   copyToClipboard(characterCardOutput.value, '角色卡已复制到剪贴板');
 };
 
-// 插入角色卡到当前角色
+// 插入角色卡到当前角色或世界书
 const insertCharacterCard = async () => {
   if (!characterCardOutput.value) {
     window.toastr.warning('没有可插入的内容');
@@ -4268,11 +4326,40 @@ const insertCharacterCard = async () => {
     isInsertingCharacter.value = true;
     const position = characterInsertPosition.value;
     const positionLabel = characterInsertPositions.find(p => p.value === position)?.label || position;
+    const tav = (window as any).TavernHelper;
+
+    // 如果是世界书，走世界书插入逻辑
+    if (position === 'worldbook') {
+      if (!characterInsertWorldbook.value) {
+        window.toastr.warning('请先选择目标世界书');
+        return;
+      }
+
+      window.toastr.info(`正在插入到世界书「${characterInsertWorldbook.value}」...`);
+
+      if (!tav?.createWorldbookEntries) {
+        throw new Error('TavernHelper.createWorldbookEntries 不可用');
+      }
+
+      // 创建世界书条目
+      const newEntry = {
+        content: characterCardOutput.value,
+        comment: '角色卡生成 - ' + new Date().toLocaleString(),
+        keys: ['角色设定'],
+        enabled: true,
+      };
+
+      await tav.createWorldbookEntries(characterInsertWorldbook.value, [newEntry], {
+        render: 'immediate',
+      });
+
+      window.toastr.success(`已插入到世界书「${characterInsertWorldbook.value}」`);
+      return;
+    }
 
     window.toastr.info(`正在插入到「${positionLabel}」...`);
 
     // 获取当前角色
-    const tav = (window as any).TavernHelper;
     const st = (window as any).SillyTavern || (window as any).parent?.SillyTavern;
 
     // 方式1: 使用 TavernHelper.setCharData (如果可用)
@@ -4456,7 +4543,8 @@ ${modifyRequest.value}`,
       characterProgressPercent.value = 100;
     }
 
-    characterCardOutput.value = modifiedCard;
+    // 清理输出中的废话和代码块标记
+    characterCardOutput.value = cleanCharacterCardOutput(modifiedCard);
     modifyRequest.value = ''; // 清空修改需求
     saveToolsDataImmediate(); // 立即保存结果
 
