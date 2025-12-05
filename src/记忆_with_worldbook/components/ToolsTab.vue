@@ -397,6 +397,253 @@
       </div>
     </div>
 
+    <!-- 开场白生成工具 -->
+    <div class="tool-section">
+      <div
+        class="section-header"
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 15px 20px;
+          background: linear-gradient(
+            135deg,
+            rgba(30, 30, 30, 0.95) 0%,
+            rgba(38, 38, 38, 0.9) 50%,
+            rgba(30, 30, 30, 0.95) 100%
+          );
+          backdrop-filter: blur(12px);
+          border-radius: 12px;
+          margin-bottom: 15px;
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          box-shadow:
+            0 3px 12px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+          cursor: pointer;
+          transition: all 0.3s ease;
+        "
+        @click="toggleToolExpanded('greetingGen')"
+        @mouseenter="(e: any) => (e.currentTarget.style.transform = 'translateY(-1px)')"
+        @mouseleave="(e: any) => (e.currentTarget.style.transform = 'translateY(0)')"
+      >
+        <h4
+          style="
+            margin: 0;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          "
+        >
+          <i class="fa-solid fa-comment-dots" style="color: #10b981; font-size: 18px"></i>
+          开场白生成工具
+        </h4>
+        <i
+          :class="isToolExpanded('greetingGen') ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"
+          style="color: #ccc; transition: transform 0.3s ease; font-size: 14px"
+        ></i>
+      </div>
+
+      <div v-if="isToolExpanded('greetingGen')" class="tool-content">
+        <div class="tool-instructions">
+          <p style="margin: 0 0 8px 0; color: #ccc; font-size: 12px">
+            <i class="fa-solid fa-info-circle" style="margin-right: 6px; color: #10b981"></i>
+            根据角色卡和用户人设，AI 自动生成高质量的开场白文字。
+          </p>
+          <p
+            style="
+              margin: 0 0 6px 0;
+              color: #4a9eff;
+              font-size: 11px;
+              background: #1a1a1a;
+              padding: 6px;
+              border-radius: 4px;
+              border-left: 3px solid #10b981;
+            "
+          >
+            💡 会自动读取当前角色卡的描述、性格、场景设定和用户人设
+          </p>
+        </div>
+
+        <!-- 当前角色信息 -->
+        <div style="background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; padding: 12px; margin: 15px 0">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px">
+            <i class="fa-solid fa-user" style="color: #10b981"></i>
+            <span style="color: #e0e0e0; font-size: 13px; font-weight: 500">当前角色信息</span>
+          </div>
+          <div style="color: #888; font-size: 12px">
+            <p style="margin: 4px 0">📌 角色：{{ greetingCharName || '未选择角色' }}</p>
+            <p style="margin: 4px 0">
+              👤 用户人设：{{ greetingUserPersona ? greetingUserPersona.substring(0, 40) + '...' : '无' }}
+            </p>
+          </div>
+          <button
+            style="
+              margin-top: 8px;
+              padding: 4px 10px;
+              background: #3a3a3a;
+              border: 1px solid #4a4a4a;
+              border-radius: 4px;
+              color: #ccc;
+              font-size: 11px;
+              cursor: pointer;
+            "
+            @click="refreshGreetingCharInfo"
+          >
+            <i class="fa-solid fa-refresh" style="margin-right: 4px"></i>
+            刷新角色信息
+          </button>
+        </div>
+
+        <div class="form-group" style="margin: 15px 0">
+          <label style="display: block; margin-bottom: 8px; color: #ccc; font-size: 13px; font-weight: 500">
+            生成需求：
+          </label>
+          <textarea
+            v-model="greetingGenRequest"
+            placeholder="描述你想要的开场白场景，例如：在咖啡厅初次见面、雨天的偶遇、深夜的酒吧相遇..."
+            style="
+              width: 100%;
+              height: 80px;
+              padding: 12px;
+              background: #2a2a2a;
+              border: 1px solid #3a3a3a;
+              border-radius: 6px;
+              color: #e0e0e0;
+              font-size: 13px;
+              resize: vertical;
+              font-family: inherit;
+            "
+          ></textarea>
+        </div>
+
+        <!-- 流式传输开关 -->
+        <div class="form-group" style="margin: 15px 0">
+          <label style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 13px; cursor: pointer">
+            <input v-model="enableGreetingStreaming" type="checkbox" style="cursor: pointer" />
+            启用流式传输（可查看生成进度）
+          </label>
+        </div>
+
+        <!-- 进度条 -->
+        <div
+          v-if="isGeneratingGreeting && greetingProgressPercent > 0"
+          class="progress-bar-container"
+          style="margin: 15px 0"
+        >
+          <div
+            class="progress-bar"
+            style="
+              position: relative;
+              width: 100%;
+              height: 12px;
+              background: rgba(16, 185, 129, 0.1);
+              border-radius: 12px;
+              overflow: hidden;
+            "
+          >
+            <div
+              class="progress-fill"
+              :style="{
+                width: greetingProgressPercent + '%',
+                height: '100%',
+                background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                transition: 'width 0.5s ease',
+                borderRadius: '12px',
+              }"
+            ></div>
+          </div>
+          <div style="display: flex; justify-content: center; margin-top: 8px">
+            <span style="color: #10b981; font-size: 13px"> 生成中... {{ greetingProgressPercent.toFixed(0) }}% </span>
+          </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div style="display: flex; gap: 10px; margin: 15px 0">
+          <button
+            style="
+              flex: 1;
+              padding: 12px 20px;
+              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+              border: none;
+              border-radius: 8px;
+              color: white;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.3s;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 8px;
+            "
+            :disabled="isGeneratingGreeting"
+            @click="handleGenerateGreeting"
+          >
+            <i :class="isGeneratingGreeting ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-wand-magic-sparkles'"></i>
+            {{ isGeneratingGreeting ? '生成中...' : '生成开场白' }}
+          </button>
+          <button
+            style="
+              padding: 12px 20px;
+              background: #dc2626;
+              border: none;
+              border-radius: 8px;
+              color: white;
+              font-size: 14px;
+              cursor: pointer;
+            "
+            @click="clearGreetingForm"
+          >
+            <i class="fa-solid fa-eraser"></i>
+          </button>
+        </div>
+
+        <!-- 生成结果 -->
+        <div v-if="greetingGenOutput" class="form-group" style="margin: 15px 0">
+          <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+            <span style="color: #ccc; font-size: 13px; font-weight: 500">生成结果：</span>
+            <button
+              style="
+                padding: 4px 10px;
+                background: #10b981;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                font-size: 11px;
+                cursor: pointer;
+              "
+              @click="copyGreetingOutput"
+            >
+              <i class="fa-solid fa-copy" style="margin-right: 4px"></i>
+              复制
+            </button>
+          </label>
+          <div
+            style="
+              width: 100%;
+              min-height: 150px;
+              max-height: 400px;
+              padding: 12px;
+              background: #1a1a1a;
+              border: 1px solid #3a3a3a;
+              border-radius: 6px;
+              color: #e0e0e0;
+              font-size: 13px;
+              line-height: 1.8;
+              overflow-y: auto;
+              white-space: pre-wrap;
+            "
+          >
+            {{ greetingGenOutput }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 世界书条目生成工具 -->
     <div class="tool-section">
       <div
@@ -2780,6 +3027,15 @@ const isModifyingCharacter = ref(false);
 const enableCharacterStreaming = ref(false); // 角色卡生成是否启用流式传输
 const characterProgressPercent = ref(0); // 角色卡生成进度
 
+// 开场白生成工具相关
+const greetingGenRequest = ref('');
+const greetingGenOutput = ref('');
+const isGeneratingGreeting = ref(false);
+const enableGreetingStreaming = ref(false);
+const greetingProgressPercent = ref(0);
+const greetingCharName = ref('');
+const greetingUserPersona = ref('');
+
 // 世界书条目生成工具相关
 const worldbookDescription = ref('');
 const worldbookEntryOutput = ref<Partial<WorldbookEntry> | null>(null);
@@ -2880,6 +3136,14 @@ const loadToolsData = () => {
       });
     }
 
+    // 加载开场白生成数据
+    if (savedData.tools_greetingGen) {
+      greetingGenRequest.value = savedData.tools_greetingGen.request || '';
+      greetingGenOutput.value = savedData.tools_greetingGen.output || '';
+      enableGreetingStreaming.value = savedData.tools_greetingGen.enableStreaming || false;
+      console.log('✅ 已恢复开场白生成数据');
+    }
+
     // 加载世界书条目数据
     if (savedData.tools_worldbookEntry) {
       worldbookDescription.value = savedData.tools_worldbookEntry.description || '';
@@ -2966,6 +3230,11 @@ const saveToolsDataImmediate = () => {
         output: characterCardOutput.value,
         modifyRequest: modifyRequest.value,
         enableStreaming: enableCharacterStreaming.value,
+      },
+      tools_greetingGen: {
+        request: greetingGenRequest.value,
+        output: greetingGenOutput.value,
+        enableStreaming: enableGreetingStreaming.value,
       },
       tools_worldbookEntry: {
         description: worldbookDescription.value,
@@ -3312,6 +3581,163 @@ const clearAntiClicheModifyRequest = () => {
   antiClicheModifyRequest.value = '';
   saveToolsDataImmediate();
   window.toastr.success('修改需求已清空');
+};
+
+// 开场白生成工具相关函数
+const refreshGreetingCharInfo = () => {
+  try {
+    const tav = (window as any).TavernHelper;
+    if (tav?.getCharData) {
+      const char = tav.getCharData('current');
+      greetingCharName.value = char?.name || '';
+    }
+    if (tav?.getPersona) {
+      greetingUserPersona.value = tav.getPersona() || '';
+    }
+    window.toastr.success('角色信息已刷新');
+  } catch {
+    window.toastr.warning('无法获取角色信息');
+  }
+};
+
+const handleGenerateGreeting = async () => {
+  if (!greetingGenRequest.value.trim()) {
+    window.toastr.warning('请输入生成需求');
+    return;
+  }
+
+  // 获取角色信息
+  let charInfo = { name: '', description: '', personality: '', scenario: '', first_mes: '', mes_example: '' };
+  let persona = '';
+
+  try {
+    const tav = (window as any).TavernHelper;
+    if (tav?.getCharData) {
+      const char = tav.getCharData('current');
+      if (char) {
+        charInfo = {
+          name: char.name || '',
+          description: char.description || char.data?.description || '',
+          personality: char.personality || char.data?.personality || '',
+          scenario: char.scenario || char.data?.scenario || '',
+          first_mes: char.first_mes || char.data?.first_mes || '',
+          mes_example: char.mes_example || char.data?.mes_example || '',
+        };
+        greetingCharName.value = charInfo.name;
+      }
+    }
+    if (tav?.getPersona) {
+      persona = tav.getPersona() || '';
+      greetingUserPersona.value = persona;
+    }
+  } catch {
+    console.warn('获取角色信息失败');
+  }
+
+  if (!charInfo.name) {
+    window.toastr.warning('请先选择一个角色');
+    return;
+  }
+
+  try {
+    isGeneratingGreeting.value = true;
+    greetingProgressPercent.value = 0;
+    window.toastr.info('AI正在生成开场白...');
+
+    const systemPrompt = `你是一个专业的角色扮演开场白编写专家。根据角色设定和用户人设，创作一段高质量的开场白。
+
+【角色信息】
+角色名：${charInfo.name}
+角色描述：${charInfo.description || '无'}
+角色性格：${charInfo.personality || '无'}
+场景设定：${charInfo.scenario || '无'}
+${charInfo.mes_example ? `对话示例（参考语气）：${charInfo.mes_example.substring(0, 500)}` : ''}
+
+【用户人设】
+${persona || '无特定人设'}
+
+【参考开场白风格】
+${charInfo.first_mes ? charInfo.first_mes.substring(0, 800) : '无'}
+
+【写作要求】
+1. 开场白要符合角色性格和场景设定
+2. 要自然地引入用户（{{user}}），让用户有参与感
+3. 描写要生动，有画面感，注重氛围营造
+4. 长度适中，300-600字左右
+5. 对话用「」包裹，动作和心理用自然叙述
+6. 直接输出开场白内容，不要任何解释或标记`;
+
+    const requestPayload = {
+      model: settings.value.model || 'gpt-3.5-turbo',
+      max_tokens: settings.value.max_tokens || 4000,
+      temperature: 0.85,
+      stream: enableGreetingStreaming.value,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: `请根据以上角色设定，生成一个新的开场白。\n\n用户的具体要求：${greetingGenRequest.value}\n\n请直接输出开场白内容：`,
+        },
+      ],
+    };
+
+    let generatedText: string;
+
+    if (settings.value.use_tavern_api) {
+      generatedText = await callAIWithTavernSupport(requestPayload.messages, settings.value, {
+        onProgress: p => (greetingProgressPercent.value = p),
+      });
+    } else if (enableGreetingStreaming.value) {
+      generatedText = await generateWithStreaming(requestPayload, greetingProgressPercent);
+    } else {
+      const apiUrl = normalizeApiEndpoint(settings.value.api_endpoint);
+      const filteredPayload = filterApiParams(requestPayload, settings.value.api_endpoint);
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${settings.value.api_key}`,
+        },
+        body: JSON.stringify(filteredPayload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 请求失败: ${response.status}`);
+      }
+
+      const data = await response.json();
+      generatedText = data.choices?.[0]?.message?.content?.trim() || '';
+      greetingProgressPercent.value = 100;
+    }
+
+    // 清理内容
+    generatedText = generatedText.replace(/^```.*?\n?|```$/gm, '').trim();
+
+    greetingGenOutput.value = generatedText;
+    saveToolsDataImmediate();
+    window.toastr.success('开场白生成完成！');
+  } catch (error) {
+    console.error('开场白生成失败:', error);
+    window.toastr.error(translateError(error, '生成'));
+  } finally {
+    isGeneratingGreeting.value = false;
+    greetingProgressPercent.value = 0;
+  }
+};
+
+const clearGreetingForm = () => {
+  greetingGenRequest.value = '';
+  greetingGenOutput.value = '';
+  saveToolsDataImmediate();
+  window.toastr.success('已清空');
+};
+
+const copyGreetingOutput = () => {
+  if (!greetingGenOutput.value) {
+    window.toastr.warning('没有可复制的内容');
+    return;
+  }
+  copyToClipboard(greetingGenOutput.value, '开场白已复制到剪贴板');
 };
 
 // 角色卡生成工具相关函数
