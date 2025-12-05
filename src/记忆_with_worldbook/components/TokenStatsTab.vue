@@ -1040,28 +1040,63 @@ function handleRefresh() {
   void calculateTokenStats();
 }
 
-// 打开酒馆的提示词查看器
-function openPromptInspector() {
+// 获取精确 token 统计（调用酒馆 API）
+async function openPromptInspector() {
   try {
     const w = window as any;
-    // 尝试多种方式打开提示词查看器
-    // 1. 直接调用 showPromptInspector
-    if (typeof w.showPromptInspector === 'function') {
-      w.showPromptInspector();
-      return;
-    }
-    // 2. 通过 jQuery 点击按钮
-    if (w.jQuery) {
-      const btn = w.jQuery('#option_prompt_manager');
-      if (btn.length) {
-        btn.click();
-        return;
+
+    // 尝试获取精确的 token 数
+    let totalTokens = 0;
+
+    // 方法1: 通过 SillyTavern.getContext().getTokenCount 获取整个提示词的 token
+    if (w.SillyTavern?.getContext) {
+      const ctx = w.SillyTavern.getContext();
+
+      // 尝试获取当前提示词的 token 数
+      if (typeof ctx.getPromptForUI === 'function') {
+        try {
+          const prompt = await ctx.getPromptForUI();
+          if (prompt && typeof ctx.getTokenCount === 'function') {
+            totalTokens = ctx.getTokenCount(prompt);
+          }
+        } catch (e) {
+          console.warn('getPromptForUI 失败:', e);
+        }
+      }
+
+      // 如果上面的方法失败，尝试其他方式
+      if (!totalTokens && typeof ctx.getCurrentChatTokenCount === 'function') {
+        try {
+          totalTokens = await ctx.getCurrentChatTokenCount();
+        } catch (e) {
+          console.warn('getCurrentChatTokenCount 失败:', e);
+        }
       }
     }
-    // 3. 直接模拟快捷键 Ctrl+P（可能不生效）
-    w.toastr?.info('请按 Ctrl+P 打开提示词查看器');
+
+    // 方法2: 通过 TavernHelper 获取
+    if (!totalTokens && w.TavernHelper) {
+      if (typeof w.TavernHelper.getTokenCount === 'function') {
+        // 获取当前聊天的所有内容
+        const messages = w.TavernHelper.getChatMessages?.('0-{{lastMessageId}}') || [];
+        let allContent = '';
+        for (const m of messages) {
+          if (m.mes) allContent += m.mes + '\n';
+        }
+        if (allContent) {
+          totalTokens = w.TavernHelper.getTokenCount(allContent);
+        }
+      }
+    }
+
+    if (totalTokens > 0) {
+      w.toastr?.success(`📊 精确 Token 数: ${totalTokens.toLocaleString()}`);
+    } else {
+      // 如果无法获取，提示用户手动查看
+      w.toastr?.info('无法自动获取，请按 Ctrl+P 打开提示词查看器');
+    }
   } catch (e) {
-    console.error('打开提示词查看器失败:', e);
+    console.error('获取精确 token 失败:', e);
     (window as any).toastr?.warning('请手动按 Ctrl+P 打开提示词查看器');
   }
 }
