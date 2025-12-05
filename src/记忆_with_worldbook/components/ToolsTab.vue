@@ -476,9 +476,6 @@
           </div>
           <div style="color: #888; font-size: 12px">
             <p style="margin: 4px 0">📌 角色：{{ greetingCharName || '未选择角色' }}</p>
-            <p style="margin: 4px 0">
-              👤 用户人设：{{ greetingUserPersona ? greetingUserPersona.substring(0, 40) + '...' : '无' }}
-            </p>
           </div>
           <button
             style="
@@ -496,6 +493,98 @@
             <i class="fa-solid fa-refresh" style="margin-right: 4px"></i>
             刷新角色信息
           </button>
+        </div>
+
+        <!-- 用户人设来源选择 -->
+        <div style="background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; padding: 12px; margin: 15px 0">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px">
+            <i class="fa-solid fa-id-card" style="color: #4a9eff"></i>
+            <span style="color: #e0e0e0; font-size: 13px; font-weight: 500">用户人设来源</span>
+          </div>
+
+          <!-- 来源选择 -->
+          <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap">
+            <label
+              v-for="src in greetingPersonaSources"
+              :key="src.value"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                background: #1a1a1a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                color: #ccc;
+              "
+              :style="{
+                borderColor: greetingPersonaSource === src.value ? '#4a9eff' : '#3a3a3a',
+                color: greetingPersonaSource === src.value ? '#4a9eff' : '#ccc',
+              }"
+            >
+              <input
+                v-model="greetingPersonaSource"
+                type="radio"
+                :value="src.value"
+                style="cursor: pointer"
+                @change="onPersonaSourceChange"
+              />
+              {{ src.label }}
+            </label>
+          </div>
+
+          <!-- 世界书选择（仅当来源为世界书时显示） -->
+          <div v-if="greetingPersonaSource === 'worldbook'" style="margin-bottom: 10px">
+            <select
+              v-model="greetingPersonaWorldbook"
+              style="
+                width: 100%;
+                padding: 8px;
+                background: #1a1a1a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #e0e0e0;
+                font-size: 12px;
+                margin-bottom: 8px;
+              "
+              @change="loadPersonaFromWorldbook"
+            >
+              <option value="">选择世界书...</option>
+              <option v-for="wb in availableWorldbooks" :key="wb" :value="wb">{{ wb }}</option>
+            </select>
+            <select
+              v-if="greetingPersonaWorldbook"
+              v-model="greetingPersonaEntry"
+              style="
+                width: 100%;
+                padding: 8px;
+                background: #1a1a1a;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                color: #e0e0e0;
+                font-size: 12px;
+              "
+              @change="onPersonaEntryChange"
+            >
+              <option value="">选择用户人设条目...</option>
+              <option v-for="entry in greetingPersonaEntries" :key="entry.uid" :value="entry.uid">
+                {{ entry.comment || entry.key?.join(', ') || '无标题' }}
+              </option>
+            </select>
+          </div>
+
+          <!-- 当前用户人设预览 -->
+          <div style="color: #888; font-size: 12px; margin-top: 8px">
+            <p style="margin: 4px 0">
+              👤 用户人设：{{
+                greetingUserPersona
+                  ? greetingUserPersona.substring(0, 60) + (greetingUserPersona.length > 60 ? '...' : '')
+                  : '无'
+              }}
+            </p>
+          </div>
         </div>
 
         <div class="form-group" style="margin: 15px 0">
@@ -3035,6 +3124,14 @@ const enableGreetingStreaming = ref(false);
 const greetingProgressPercent = ref(0);
 const greetingCharName = ref('');
 const greetingUserPersona = ref('');
+const greetingPersonaSource = ref<'tavern' | 'worldbook'>('tavern');
+const greetingPersonaSources = [
+  { value: 'tavern', label: '酒馆用户设定' },
+  { value: 'worldbook', label: '世界书条目' },
+];
+const greetingPersonaWorldbook = ref('');
+const greetingPersonaEntry = ref('');
+const greetingPersonaEntries = ref<any[]>([]);
 
 // 世界书条目生成工具相关
 const worldbookDescription = ref('');
@@ -3141,7 +3238,20 @@ const loadToolsData = () => {
       greetingGenRequest.value = savedData.tools_greetingGen.request || '';
       greetingGenOutput.value = savedData.tools_greetingGen.output || '';
       enableGreetingStreaming.value = savedData.tools_greetingGen.enableStreaming || false;
+      greetingPersonaSource.value = savedData.tools_greetingGen.personaSource || 'tavern';
+      greetingPersonaWorldbook.value = savedData.tools_greetingGen.personaWorldbook || '';
+      greetingPersonaEntry.value = savedData.tools_greetingGen.personaEntry || '';
       console.log('✅ 已恢复开场白生成数据');
+      // 恢复后加载用户人设
+      if (greetingPersonaSource.value === 'tavern') {
+        loadPersonaFromTavern();
+      } else if (greetingPersonaWorldbook.value) {
+        loadPersonaFromWorldbook().then(() => {
+          if (greetingPersonaEntry.value) {
+            onPersonaEntryChange();
+          }
+        });
+      }
     }
 
     // 加载世界书条目数据
@@ -3235,6 +3345,9 @@ const saveToolsDataImmediate = () => {
         request: greetingGenRequest.value,
         output: greetingGenOutput.value,
         enableStreaming: enableGreetingStreaming.value,
+        personaSource: greetingPersonaSource.value,
+        personaWorldbook: greetingPersonaWorldbook.value,
+        personaEntry: greetingPersonaEntry.value,
       },
       tools_worldbookEntry: {
         description: worldbookDescription.value,
@@ -3591,13 +3704,85 @@ const refreshGreetingCharInfo = () => {
       const char = tav.getCharData('current');
       greetingCharName.value = char?.name || '';
     }
-    if (tav?.getPersona) {
-      greetingUserPersona.value = tav.getPersona() || '';
+    // 根据来源刷新用户人设
+    if (greetingPersonaSource.value === 'tavern') {
+      loadPersonaFromTavern();
     }
     window.toastr.success('角色信息已刷新');
   } catch {
     window.toastr.warning('无法获取角色信息');
   }
+};
+
+// 从酒馆用户设定加载人设
+const loadPersonaFromTavern = () => {
+  try {
+    const tav = (window as any).TavernHelper;
+    if (tav?.getPersona) {
+      greetingUserPersona.value = tav.getPersona() || '';
+      return;
+    }
+    // 降级：从 SillyTavern 获取
+    const st = (window as any).SillyTavern;
+    if (st?.getContext) {
+      const ctx = st.getContext();
+      greetingUserPersona.value = ctx?.persona || ctx?.user_persona || '';
+      return;
+    }
+    // 再降级：从 parent 获取
+    const pst = (window as any).parent?.SillyTavern;
+    if (pst?.getContext) {
+      const ctx = pst.getContext();
+      greetingUserPersona.value = ctx?.persona || ctx?.user_persona || '';
+    }
+  } catch {
+    console.warn('获取酒馆用户人设失败');
+  }
+};
+
+// 用户人设来源切换
+const onPersonaSourceChange = () => {
+  greetingUserPersona.value = '';
+  if (greetingPersonaSource.value === 'tavern') {
+    loadPersonaFromTavern();
+  } else {
+    // 清空世界书选择
+    greetingPersonaWorldbook.value = '';
+    greetingPersonaEntry.value = '';
+    greetingPersonaEntries.value = [];
+  }
+  saveToolsDataImmediate();
+};
+
+// 从世界书加载条目列表
+const loadPersonaFromWorldbook = async () => {
+  if (!greetingPersonaWorldbook.value) {
+    greetingPersonaEntries.value = [];
+    return;
+  }
+  try {
+    const tav = (window as any).TavernHelper;
+    if (tav?.getWorldBookEntries) {
+      const entries = await tav.getWorldBookEntries(greetingPersonaWorldbook.value);
+      greetingPersonaEntries.value = entries || [];
+    }
+  } catch (error) {
+    console.error('加载世界书条目失败:', error);
+    greetingPersonaEntries.value = [];
+  }
+};
+
+// 选择世界书条目作为用户人设
+const onPersonaEntryChange = () => {
+  if (!greetingPersonaEntry.value) {
+    greetingUserPersona.value = '';
+    return;
+  }
+  const entry = greetingPersonaEntries.value.find(e => e.uid === greetingPersonaEntry.value);
+  if (entry) {
+    greetingUserPersona.value = entry.content || '';
+  }
+  saveToolsDataImmediate();
 };
 
 const handleGenerateGreeting = async () => {
@@ -3608,7 +3793,6 @@ const handleGenerateGreeting = async () => {
 
   // 获取角色信息
   let charInfo = { name: '', description: '', personality: '', scenario: '', first_mes: '', mes_example: '' };
-  let persona = '';
 
   try {
     const tav = (window as any).TavernHelper;
@@ -3626,10 +3810,6 @@ const handleGenerateGreeting = async () => {
         greetingCharName.value = charInfo.name;
       }
     }
-    if (tav?.getPersona) {
-      persona = tav.getPersona() || '';
-      greetingUserPersona.value = persona;
-    }
   } catch {
     console.warn('获取角色信息失败');
   }
@@ -3638,6 +3818,9 @@ const handleGenerateGreeting = async () => {
     window.toastr.warning('请先选择一个角色');
     return;
   }
+
+  // 使用已选择的用户人设
+  const persona = greetingUserPersona.value;
 
   try {
     isGeneratingGreeting.value = true;
