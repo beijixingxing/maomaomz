@@ -4,7 +4,7 @@ import TaskManager from './components/TaskManager.vue';
 import { globalPinia } from './globalPinia';
 import { useSettingsStore, useSummaryHistoryStore } from './settings';
 import { getChatIdSafe, getScriptIdSafe, setGlobalScriptId } from './utils';
-import { autoCheckUpdates, CURRENT_VERSION, manualCheckUpdates } from './versionCheck';
+import { manualCheckUpdates } from './versionCheck';
 import { summarizeMessages } from './总结功能';
 // 🔐 UI模块改为动态导入，授权通过后才加载
 // import './浮动面板';
@@ -45,9 +45,29 @@ $(() => {
       return;
     }
 
-    console.log('✅ 授权验证通过，初始化插件功能...');
+    console.log('✅ 授权验证通过，检查版本更新...');
 
-    // 🔐 授权通过后才加载 UI 模块
+    // 🔄 强制检查更新（每次启动都检查）
+    const { checkForUpdates, showUpdateDialog, CURRENT_VERSION } = await import('./versionCheck');
+    const updateResult = await checkForUpdates(true); // 强制检查
+
+    if (updateResult && updateResult.hasUpdate) {
+      console.log(`🚨 发现新版本，必须更新才能使用: ${updateResult.currentVersion} → ${updateResult.latestVersion}`);
+      showUpdateDialog({
+        latestVersion: updateResult.latestVersion || CURRENT_VERSION,
+        latestCommit: updateResult.latestCommit || '',
+        currentVersion: updateResult.currentVersion,
+        currentCommit: updateResult.currentCommit,
+        updateUrl: updateResult.updateUrl || '',
+        notes: updateResult.notes || '',
+      });
+      // 🚫 有更新时不加载 UI，强制用户更新
+      return;
+    }
+
+    console.log('✅ 版本已是最新，初始化插件功能...');
+
+    // 🔐 授权通过且版本最新后才加载 UI 模块
     await import('./浮动面板');
     await import('./添加导航按钮');
     console.log('✅ UI 模块已加载');
@@ -1014,13 +1034,7 @@ $(() => {
       console.log(`📦 猫猫的小破烂 v${CURRENT_VERSION} 已加载`);
       window.toastr.success(`🐱 猫猫的小破烂 v${CURRENT_VERSION} 已加载 | 授权验证成功`);
 
-      // 🔄 自动检查更新（延迟3秒，避免影响启动速度）
-      setTimeout(() => {
-        console.log('🔍 开始自动检查更新...');
-        autoCheckUpdates().catch(err => {
-          console.warn('⚠️ 自动检查更新失败:', err);
-        });
-      }, 3000);
+      // 🔄 版本检查已在授权后强制执行，这里不再重复检查
     }, 200);
   }, 300); // 延迟300ms加载，确保DOM准备好
 });
