@@ -4,7 +4,6 @@
   "requires": [],
   "optional": [],
   "js": "dist/index.js",
-  "css": "dist/index.css",
   "author": "猫猫 (mzrodyu)",
   "version": "1.9.5",
   "homePage": "https://github.com/mzrodyu/maomaomz",
