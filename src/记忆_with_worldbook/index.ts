@@ -6,9 +6,9 @@ import { useSettingsStore, useSummaryHistoryStore } from './settings';
 import { getChatIdSafe, getScriptIdSafe, setGlobalScriptId } from './utils';
 import { autoCheckUpdates, CURRENT_VERSION, manualCheckUpdates } from './versionCheck';
 import { summarizeMessages } from './总结功能';
-// 直接导入UI模块，不再延迟加载
-import './浮动面板';
-import './添加导航按钮';
+// 🔐 UI模块改为动态导入，授权通过后才加载
+// import './浮动面板';
+// import './添加导航按钮';
 // 导入 zod 并立即暴露到全局作用域，避免与其他插件（如 QuickReply）冲突
 // 这必须在其他插件初始化之前执行
 import { z } from 'zod';
@@ -46,6 +46,11 @@ $(() => {
     }
 
     console.log('✅ 授权验证通过，初始化插件功能...');
+
+    // 🔐 授权通过后才加载 UI 模块
+    await import('./浮动面板');
+    await import('./添加导航按钮');
+    console.log('✅ UI 模块已加载');
 
     // 延迟一下确保UI完全加载
     setTimeout(() => {
