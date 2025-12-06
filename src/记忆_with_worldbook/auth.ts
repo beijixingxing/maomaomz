@@ -21,7 +21,7 @@ function getCurrentApiEndpoint(): string {
 
     // 🔥 方法 0: 优先从插件自己的设置中获取（最准确）
     try {
-      const pluginSettings = JSON.parse(localStorage.getItem('maomaomz_settings') || '{}');
+      const pluginSettings = JSON.parse(localStorage.getItem('tavern_helper_settings') || '{}');
       if (pluginSettings.api_endpoint && pluginSettings.api_endpoint.trim()) {
         apiUrl = pluginSettings.api_endpoint.trim().replace(/\/+$/, '');
         if (apiUrl && !apiUrl.startsWith('[object ')) {
