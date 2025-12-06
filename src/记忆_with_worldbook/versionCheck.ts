@@ -259,6 +259,20 @@ ${updateInfo.notes}
           " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(74, 158, 255, 0.4)';" onmouseout="this.style.transform=''; this.style.boxShadow='0 4px 12px rgba(74, 158, 255, 0.3)';">
             🚀 立即更新（必须更新才能继续使用）
           </button>
+          <button id="maomaomz-refresh-only" style="
+            width: 100%;
+            padding: 12px;
+            margin-top: 12px;
+            background: transparent;
+            border: 1px solid #4a9eff;
+            border-radius: 8px;
+            color: #4a9eff;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+          " onmouseover="this.style.background='rgba(74, 158, 255, 0.1)';" onmouseout="this.style.background='transparent';">
+            🔄 已手动更新？点此刷新页面
+          </button>
           <p style="color: #888; font-size: 12px; margin-top: 12px;">
             ⚠️ 检测到新版本，请先更新后再使用插件
           </p>
@@ -364,6 +378,11 @@ ${updateInfo.notes}
         { timeOut: 0, extendedTimeOut: 0, closeButton: true },
       );
     }
+  });
+
+  // 仅刷新页面按钮
+  document.getElementById('maomaomz-refresh-only')?.addEventListener('click', () => {
+    window.location.reload();
   });
 
   // 强制更新：不提供跳过选项
