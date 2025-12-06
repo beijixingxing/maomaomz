@@ -116,7 +116,7 @@ function getCurrentApiEndpoint(): string {
 /**
  * 验证授权码（带API端点追踪）
  */
-async function verifyAuthCode(code: string): Promise<{ valid: boolean; message: string }> {
+async function verifyAuthCode(code: string): Promise<{ valid: boolean; message: string; banned?: boolean }> {
   try {
     // 获取当前使用的 API 端点
     const apiEndpoint = getCurrentApiEndpoint();
@@ -165,6 +165,69 @@ async function verifyAuthCode(code: string): Promise<{ valid: boolean; message: 
       message: '❌ 网络错误: ' + (error as Error).message,
     };
   }
+}
+
+/**
+ * 显示端点被禁用对话框（无法关闭，强制阻止使用）
+ */
+function showBannedDialog(message: string): void {
+  // 创建遮罩层
+  const overlay = document.createElement('div');
+  overlay.id = 'maomaomz-banned-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(139, 0, 0, 0.95);
+    z-index: 9999999 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+  `;
+
+  const dialog = document.createElement('div');
+  dialog.style.cssText = `
+    background: linear-gradient(135deg, #1a0a0a 0%, #2a0a0a 100%);
+    border: 3px solid #dc2626;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(220, 38, 38, 0.5);
+    color: #e0e0e0;
+    text-align: center;
+  `;
+
+  dialog.innerHTML = `
+    <div style="font-size: 80px; margin-bottom: 20px;">🚫</div>
+    <h2 style="
+      margin: 0 0 20px 0;
+      font-size: 28px;
+      color: #ef4444;
+    ">
+      插件已被禁用
+    </h2>
+    <div style="
+      background: rgba(220, 38, 38, 0.2);
+      border: 1px solid #dc2626;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+      font-size: 14px;
+      line-height: 1.8;
+      white-space: pre-line;
+      text-align: left;
+    ">${message}</div>
+    <p style="color: #888; font-size: 13px; margin-top: 20px;">
+      此页面无法关闭，请刷新页面或更换 API 端点后重试
+    </p>
+  `;
+
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
 }
 
 /**
@@ -384,6 +447,13 @@ export async function checkAuthorization(): Promise<boolean> {
         localStorage.setItem(STORAGE_VERIFIED_KEY, 'true');
         // 静默成功，不弹提示（避免每次刷新都弹窗）
         return true;
+      } else if (result.banned) {
+        // 🔥 API 端点被禁用 - 直接阻止，不允许重试
+        console.error('⛔ API 端点已被禁用！');
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_VERIFIED_KEY);
+        showBannedDialog(result.message);
+        return false;
       } else {
         // 服务器明确返回验证失败，清除授权码
         console.warn('⚠️ 授权码已失效，需要重新输入');
@@ -440,6 +510,11 @@ export async function checkAuthorization(): Promise<boolean> {
         timeOut: 3000,
       });
       return true;
+    } else if (result.banned) {
+      // 🔥 API 端点被禁用 - 直接阻止，不允许重试
+      console.error('⛔ API 端点已被禁用！');
+      showBannedDialog(result.message);
+      return false;
     } else {
       console.warn(`❌ 授权验证失败 (尝试 ${attempts}/${MAX_ATTEMPTS}):`, result.message);
       (window as any).toastr?.error(result.message, `验证失败 (${attempts}/${MAX_ATTEMPTS})`, {
