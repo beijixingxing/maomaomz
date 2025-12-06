@@ -19,6 +19,19 @@ function getCurrentApiEndpoint(): string {
     const mainDoc = window.parent?.document || document;
     let apiUrl = '';
 
+    // 🔥 方法 0: 优先从插件自己的设置中获取（最准确）
+    try {
+      const pluginSettings = JSON.parse(localStorage.getItem('maomaomz_settings') || '{}');
+      if (pluginSettings.api_endpoint && pluginSettings.api_endpoint.trim()) {
+        apiUrl = pluginSettings.api_endpoint.trim().replace(/\/+$/, '');
+        if (apiUrl && !apiUrl.startsWith('[object ')) {
+          return apiUrl;
+        }
+      }
+    } catch {
+      // 忽略
+    }
+
     // 🔥 方法 1: 从 DOM 读取（最可靠）
     const urlSelectors = [
       '#reverse_proxy', // 反代地址（优先）
