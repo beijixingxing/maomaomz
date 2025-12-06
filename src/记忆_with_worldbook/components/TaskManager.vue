@@ -390,7 +390,6 @@
           </div>
           <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
             <button
-              @click="previewTable(task)"
               :style="{
                 background: '#4a9eff',
                 border: 'none',
@@ -401,13 +400,13 @@
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }"
+              @click="previewTable(task)"
               @mouseenter="e => (e.target.style.background = '#3a8edf')"
               @mouseleave="e => (e.target.style.background = '#4a9eff')"
             >
               <i class="fa-solid fa-eye" style="margin-right: 4px"></i>预览
             </button>
             <button
-              @click="copyTable(task)"
               :style="{
                 background: '#51cf66',
                 border: 'none',
@@ -418,13 +417,13 @@
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }"
+              @click="copyTable(task)"
               @mouseenter="e => (e.target.style.background = '#40c057')"
               @mouseleave="e => (e.target.style.background = '#51cf66')"
             >
               <i class="fa-solid fa-copy" style="margin-right: 4px"></i>复制
             </button>
             <button
-              @click="downloadTable(task)"
               :style="{
                 background: '#ffa500',
                 border: 'none',
@@ -435,6 +434,7 @@
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }"
+              @click="downloadTable(task)"
               @mouseenter="e => (e.target.style.background = '#ff8c00')"
               @mouseleave="e => (e.target.style.background = '#ffa500')"
             >
@@ -477,7 +477,6 @@
           </div>
           <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
             <button
-              @click="viewSummary(task)"
               :style="{
                 background: '#4a9eff',
                 border: 'none',
@@ -488,13 +487,13 @@
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }"
+              @click="viewSummary(task)"
               @mouseenter="e => (e.target.style.background = '#3a8edf')"
               @mouseleave="e => (e.target.style.background = '#4a9eff')"
             >
               <i class="fa-solid fa-eye" style="margin-right: 4px"></i>查看全文
             </button>
             <button
-              @click="copySummary(task)"
               :style="{
                 background: '#51cf66',
                 border: 'none',
@@ -505,6 +504,7 @@
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }"
+              @click="copySummary(task)"
               @mouseenter="e => (e.target.style.background = '#40c057')"
               @mouseleave="e => (e.target.style.background = '#51cf66')"
             >

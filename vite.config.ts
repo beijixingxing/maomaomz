@@ -100,6 +100,9 @@ export default defineConfig(({ mode }) => ({
     outDir: 'dist',
     emptyOutDir: false,
 
+    // 🔥 将所有 CSS 合并到主入口，避免动态导入时 CSS 路径问题
+    cssCodeSplit: false,
+
     sourcemap: mode === 'production' ? true : 'inline',
 
     minify: mode === 'production' ? 'terser' : false,

@@ -328,7 +328,7 @@ $(() => {
                       try {
                         const currentCharacter = TH.getCharData?.('current');
                         if (currentCharacter?.name) {
-                          characterName = currentCharacter.name.replace(/[<>:"\/\\|?*]/g, '_').trim();
+                          characterName = currentCharacter.name.replace(/[<>:"/\\|?*]/g, '_').trim();
                         }
                       } catch (e) {
                         console.warn('获取角色信息失败:', e);
