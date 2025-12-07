@@ -112,6 +112,12 @@ export default {
         return await handleGetBlacklist(request, env, corsHeaders);
       } else if (path === '/remove-blacklist') {
         return await handleRemoveBlacklist(request, env, corsHeaders);
+      } else if (path === '/edit-blacklist') {
+        return await handleEditBlacklist(request, env, corsHeaders);
+      } else if (path === '/report-models') {
+        return await handleReportModels(request, env, corsHeaders);
+      } else if (path === '/get-model-reports') {
+        return await handleGetModelReports(request, env, corsHeaders);
       } else if (path === '/whitelist-endpoint') {
         return await handleWhitelistEndpoint(request, env, corsHeaders);
       } else if (path === '/unwhitelist-endpoint') {
@@ -697,6 +703,7 @@ function handleAdmin(env) {
                 <div class="nav-item" onclick="showPage('suspicious')"><span class="icon">⚠️</span><span class="label">可疑列表</span></div>
                 <div class="nav-item" onclick="showPage('whitelist')"><span class="icon">✅</span><span class="label">白名单</span></div>
                 <div class="nav-item" onclick="showPage('blacklist')"><span class="icon">☠️</span><span class="label">黑名单</span></div>
+                <div class="nav-item" onclick="showPage('model-reports')"><span class="icon">🤖</span><span class="label">模型记录</span></div>
             </div>
             <div class="nav-group">
                 <div class="nav-group-title">设置</div>
@@ -897,6 +904,17 @@ function handleAdmin(env) {
                 </div>
             </div>
             <div id="blacklistGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;"><p style="color: #888; text-align: center;">加载中...</p></div>
+        </div>
+
+        <!-- 模型记录 -->
+        <div id="page-model-reports" class="page">
+            <div class="page-header"><h2>🤖 模型记录</h2><p>用户API端点返回的模型列表</p></div>
+            <div class="card" style="margin-bottom: 16px; padding: 16px;">
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="loadModelReports()">🔄 刷新</button>
+                </div>
+            </div>
+            <div id="modelReportsGrid" style="display: grid; grid-template-columns: 1fr; gap: 16px;"><p style="color: #888; text-align: center;">点击刷新加载数据</p></div>
         </div>
 
         <!-- 插件信息 -->
@@ -1760,6 +1778,10 @@ function handleAdmin(env) {
                     const titleData = await titleRes.json();
                     if (titleData.success && titleData.title) {
                         siteName = titleData.title;
+                        // 如果是 New API，改成不知名贩子
+                        if (siteName.toLowerCase().includes('new api') || siteName === 'New API') {
+                            siteName = '不知名贩子';
+                        }
                     }
                 } catch (e) {
                     console.log('获取标题失败，使用域名');
@@ -1840,7 +1862,10 @@ function handleAdmin(env) {
                         '</div>' +
                         '<a href="' + linkUrl + '" target="_blank" style="display: block; font-family: Courier New, monospace; font-weight: 600; color: #4a9eff; font-size: 15px; word-break: break-all; margin-bottom: 12px; text-decoration: underline; cursor: pointer;">' + displayUrl + '</a>' +
                         '<div style="color: #666; font-size: 12px; margin-bottom: 14px;">添加时间: ' + (item.addedAt ? new Date(item.addedAt).toLocaleString("zh-CN") : '-') + '</div>' +
-                        '<button onclick="removeBlacklist(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 8px 16px; background: #374151; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">🗑️ 移除</button>' +
+                        '<div style="display: flex; gap: 8px;">' +
+                            '<button onclick="editBlacklist(this.dataset.ep, this.dataset.name)" data-ep="' + safeEndpoint + '" data-name="' + (item.siteName || '') + '" style="padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">✏️ 编辑</button>' +
+                            '<button onclick="removeBlacklist(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 8px 16px; background: #374151; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">🗑️ 移除</button>' +
+                        '</div>' +
                     '</div>';
                 }).join('');
             } else {
@@ -1885,6 +1910,81 @@ function handleAdmin(env) {
                 if (result.success) loadBlacklist();
             } catch (error) {
                 showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+
+        // 编辑黑名单
+        async function editBlacklist(endpoint, currentName) {
+            const newName = prompt('编辑站点名称:', currentName);
+            if (newName === null || newName === currentName) return;
+
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) {
+                showAlert('❌ 请先输入管理员密钥', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/edit-blacklist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, endpoint, siteName: newName })
+                });
+                const result = await response.json();
+                showAlert(result.message, result.success ? 'success' : 'error');
+                if (result.success) loadBlacklist();
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+
+        // 加载模型记录
+        async function loadModelReports() {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) {
+                showAlert('❌ 请先输入管理员密钥', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/get-model-reports', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    renderModelReports(result.data || []);
+                } else {
+                    showAlert(result.message || '加载失败', 'error');
+                }
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+
+        // 渲染模型记录
+        function renderModelReports(data) {
+            const grid = document.getElementById('modelReportsGrid');
+
+            if (data && data.length > 0) {
+                grid.innerHTML = data.map(function(item) {
+                    const modelsHtml = (item.models || []).map(function(m) {
+                        return '<span style="display: inline-block; background: #1f2937; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin: 2px;">' + m + '</span>';
+                    }).join('');
+
+                    return '<div style="background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 12px; padding: 20px;">' +
+                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
+                            '<a href="' + (item.endpoint.startsWith('http') ? item.endpoint : 'https://' + item.endpoint) + '" target="_blank" style="font-family: monospace; color: #4a9eff; font-size: 14px; word-break: break-all; text-decoration: underline;">' + item.endpoint + '</a>' +
+                            '<span style="color: #888; font-size: 12px;">上报 ' + (item.reportCount || 1) + ' 次</span>' +
+                        '</div>' +
+                        '<div style="color: #666; font-size: 12px; margin-bottom: 10px;">最后上报: ' + (item.lastReport ? new Date(item.lastReport).toLocaleString("zh-CN") : '-') + '</div>' +
+                        '<div style="display: flex; flex-wrap: wrap; gap: 4px;">' + modelsHtml + '</div>' +
+                    '</div>';
+                }).join('');
+            } else {
+                grid.innerHTML = '<p style="color: #888; text-align: center;">暂无模型记录</p>';
             }
         }
 
@@ -3059,6 +3159,39 @@ async function handleRemoveBlacklist(request, env, corsHeaders) {
 }
 
 /**
+ * 编辑黑名单
+ */
+async function handleEditBlacklist(request, env, corsHeaders) {
+  try {
+    const { adminKey, endpoint, siteName } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    if (!endpoint) {
+      return jsonResponse({ success: false, message: '❌ 端点不能为空' }, 400, corsHeaders);
+    }
+
+    const blacklistStr = await redisGet('blacklist_endpoints');
+    const blacklist = blacklistStr ? JSON.parse(blacklistStr) : {};
+
+    if (!blacklist[endpoint]) {
+      return jsonResponse({ success: false, message: '❌ 该端点不在黑名单中' }, 404, corsHeaders);
+    }
+
+    // 更新站点名称
+    blacklist[endpoint].siteName = siteName;
+
+    await redisSet('blacklist_endpoints', JSON.stringify(blacklist));
+
+    return jsonResponse({ success: true, message: '✅ 黑名单已更新' }, 200, corsHeaders);
+  } catch (error) {
+    return jsonResponse({ success: false, message: '❌ 操作失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
  * 获取网页标题（用于自动填充黑名单站点名）
  */
 async function handleFetchSiteTitle(request, env, corsHeaders) {
@@ -3140,5 +3273,76 @@ async function handleSetBlockMessage(request, env, corsHeaders) {
     return jsonResponse({ success: true, message: '✅ 封禁提示已保存' }, 200, corsHeaders);
   } catch (error) {
     return jsonResponse({ success: false, message: '❌ 保存失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 接收模型列表上报
+ */
+async function handleReportModels(request, env, corsHeaders) {
+  try {
+    const { endpoint, models, timestamp } = await request.json();
+
+    if (!endpoint || !models) {
+      return jsonResponse({ success: false }, 200, corsHeaders);
+    }
+
+    // 读取现有记录
+    const reportsStr = await redisGet('model_reports');
+    const reports = reportsStr ? JSON.parse(reportsStr) : {};
+
+    // 更新或新增记录
+    reports[endpoint] = {
+      models: models,
+      lastReport: timestamp || new Date().toISOString(),
+      reportCount: (reports[endpoint]?.reportCount || 0) + 1,
+    };
+
+    // 只保留最近100条记录
+    const keys = Object.keys(reports);
+    if (keys.length > 100) {
+      const sortedKeys = keys.sort(
+        (a, b) => new Date(reports[b].lastReport).getTime() - new Date(reports[a].lastReport).getTime(),
+      );
+      const newReports = {};
+      sortedKeys.slice(0, 100).forEach(k => (newReports[k] = reports[k]));
+      await redisSet('model_reports', JSON.stringify(newReports));
+    } else {
+      await redisSet('model_reports', JSON.stringify(reports));
+    }
+
+    return jsonResponse({ success: true }, 200, corsHeaders);
+  } catch (error) {
+    return jsonResponse({ success: false }, 200, corsHeaders);
+  }
+}
+
+/**
+ * 获取模型上报记录（管理员）
+ */
+async function handleGetModelReports(request, env, corsHeaders) {
+  try {
+    const { adminKey } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    const reportsStr = await redisGet('model_reports');
+    const reports = reportsStr ? JSON.parse(reportsStr) : {};
+
+    // 转换为数组格式
+    const data = Object.entries(reports)
+      .map(([endpoint, info]) => ({
+        endpoint,
+        models: info.models,
+        lastReport: info.lastReport,
+        reportCount: info.reportCount,
+      }))
+      .sort((a, b) => new Date(b.lastReport).getTime() - new Date(a.lastReport).getTime());
+
+    return jsonResponse({ success: true, data }, 200, corsHeaders);
+  } catch (error) {
+    return jsonResponse({ success: false, message: '❌ 获取失败: ' + error.message }, 500, corsHeaders);
   }
 }
