@@ -296,9 +296,18 @@ async function handleVerify(request, env, corsHeaders) {
 
     let matchedBanned = null;
     if (cleanApiEndpoint !== 'unknown') {
-      const lowerEndpoint = cleanApiEndpoint.toLowerCase().replace(/\/v1\/?$/, '');
+      // 🔥 更激进的清理：去掉协议、/v1、尾部斜杠
+      const lowerEndpoint = cleanApiEndpoint
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/v1\/?$/, '')
+        .replace(/\/$/, '');
       for (const key of Object.keys(bannedEndpoints)) {
-        const lowerKey = key.toLowerCase().replace(/\/v1\/?$/, '');
+        const lowerKey = key
+          .toLowerCase()
+          .replace(/^https?:\/\//, '')
+          .replace(/\/v1\/?$/, '')
+          .replace(/\/$/, '');
         if (lowerEndpoint.includes(lowerKey) || lowerKey.includes(lowerEndpoint)) {
           matchedBanned = bannedEndpoints[key];
           matchedBanned.matchedKey = key;
@@ -338,12 +347,21 @@ async function handleVerify(request, env, corsHeaders) {
     const blacklistStr = await redisGet('blacklist_endpoints');
     const blacklist = blacklistStr ? JSON.parse(blacklistStr) : {};
 
-    // 模糊匹配：检查用户端点是否包含黑名单中的任何关键词（兼容带/不带 /v1）
+    // 模糊匹配：检查用户端点是否包含黑名单中的任何关键词（兼容带/不带 /v1、https://）
     let matchedBlacklist = null;
     if (cleanApiEndpoint !== 'unknown') {
-      const lowerEndpoint = cleanApiEndpoint.toLowerCase().replace(/\/v1\/?$/, '');
+      // 🔥 更激进的清理：去掉协议、/v1、尾部斜杠
+      const lowerEndpoint = cleanApiEndpoint
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/v1\/?$/, '')
+        .replace(/\/$/, '');
       for (const key of Object.keys(blacklist)) {
-        const lowerKey = key.toLowerCase().replace(/\/v1\/?$/, '');
+        const lowerKey = key
+          .toLowerCase()
+          .replace(/^https?:\/\//, '')
+          .replace(/\/v1\/?$/, '')
+          .replace(/\/$/, '');
         // 检查是否包含（支持 www.xxx.com、api.xxx.com、xxx.com/v1 等各种形式）
         if (lowerEndpoint.includes(lowerKey) || lowerKey.includes(lowerEndpoint)) {
           matchedBlacklist = blacklist[key];

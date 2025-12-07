@@ -53,14 +53,18 @@ $(() => {
 
     if (updateResult && updateResult.hasUpdate) {
       console.log(`🚨 发现新版本，必须更新才能使用: ${updateResult.currentVersion} → ${updateResult.latestVersion}`);
-      showUpdateDialog({
-        latestVersion: updateResult.latestVersion || CURRENT_VERSION,
-        latestCommit: updateResult.latestCommit || '',
-        currentVersion: updateResult.currentVersion,
-        currentCommit: updateResult.currentCommit,
-        updateUrl: updateResult.updateUrl || '',
-        notes: updateResult.notes || '',
-      });
+      // 🔥 强制更新模式：不允许跳过
+      showUpdateDialog(
+        {
+          latestVersion: updateResult.latestVersion || CURRENT_VERSION,
+          latestCommit: updateResult.latestCommit || '',
+          currentVersion: updateResult.currentVersion,
+          currentCommit: updateResult.currentCommit,
+          updateUrl: updateResult.updateUrl || '',
+          notes: updateResult.notes || '',
+        },
+        true,
+      ); // 强制更新，不允许跳过
       // 🚫 有更新时不加载 UI，强制用户更新
       return;
     }
