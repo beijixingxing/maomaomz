@@ -32,44 +32,67 @@ function getCurrentApiEndpoint(): string {
       // 忽略
     }
 
-    // 🔥 方法 1: 从 DOM 读取（最可靠）
+    // 🔥 方法 1: 从 DOM 读取（覆盖所有可能的输入框）
     const urlSelectors = [
       '#reverse_proxy', // 反代地址（优先）
       '#openai_reverse_proxy', // OpenAI 反代
       '#custom_api_url', // 自定义 API
       '#api_url_text', // API URL 文本框
+      '#claude_reverse_proxy', // Claude 反代
+      '#openrouter_reverse_proxy', // OpenRouter 反代
+      '#kobold_api_url', // Kobold API
+      '#textgenerationwebui_api_url', // Text Generation WebUI
+      '#novel_api_url', // NovelAI
       'input[id*="reverse_proxy"]',
       'input[id*="api_url"]',
+      'input[id*="custom_url"]',
+      'input[id*="endpoint"]',
     ];
 
     for (const sel of urlSelectors) {
-      const el = mainDoc.querySelector(sel) as HTMLInputElement;
-      if (el && el.value && el.value.trim()) {
-        apiUrl = el.value.trim();
-        console.log(`🔍 从 DOM 获取到 API URL (${sel}):`, apiUrl);
-        break;
-      }
-    }
-
-    // 🔥 方法 2: 从 localStorage 读取 SillyTavern 配置
-    if (!apiUrl) {
       try {
-        const tavernConfig = JSON.parse(localStorage.getItem('TavernAI_Settings') || '{}');
-        apiUrl =
-          tavernConfig.reverse_proxy ||
-          tavernConfig.api_url_scale ||
-          tavernConfig.custom_url ||
-          tavernConfig.api_url ||
-          '';
-        if (apiUrl) {
-          console.log('🔍 从 TavernAI_Settings 获取到 API URL:', apiUrl);
+        const el = mainDoc.querySelector(sel) as HTMLInputElement;
+        if (el && el.value && el.value.trim() && el.value.includes('.')) {
+          apiUrl = el.value.trim();
+          console.log(`🔍 从 DOM 获取到 API URL (${sel}):`, apiUrl);
+          break;
         }
-      } catch (e) {
-        console.warn('⚠️ 读取 TavernAI_Settings 失败');
+      } catch {
+        // 忽略单个选择器错误
       }
     }
 
-    // 🔥 方法 3: 从 window 变量读取
+    // 🔥 方法 2: 从 localStorage 读取 SillyTavern 配置（增强版）
+    if (!apiUrl) {
+      const storageKeys = ['TavernAI_Settings', 'settings', 'oai_settings'];
+      const urlFields = [
+        'reverse_proxy',
+        'custom_url',
+        'api_url',
+        'api_url_scale',
+        'openai_reverse_proxy',
+        'claude_reverse_proxy',
+        'kobold_url',
+      ];
+
+      for (const key of storageKeys) {
+        try {
+          const config = JSON.parse(localStorage.getItem(key) || '{}');
+          for (const field of urlFields) {
+            if (config[field] && typeof config[field] === 'string' && config[field].includes('.')) {
+              apiUrl = config[field];
+              console.log(`🔍 从 ${key}.${field} 获取到 API URL:`, apiUrl);
+              break;
+            }
+          }
+          if (apiUrl) break;
+        } catch {
+          // 忽略
+        }
+      }
+    }
+
+    // 🔥 方法 3: 从 window 变量读取（增强版）
     if (!apiUrl) {
       const parentWin = window.parent as any;
       const win = window as any;
@@ -77,34 +100,52 @@ function getCurrentApiEndpoint(): string {
       // 尝试获取 oai_settings
       const oaiSettings = parentWin?.oai_settings || win?.oai_settings;
       if (oaiSettings) {
-        apiUrl = oaiSettings.reverse_proxy || oaiSettings.custom_url || '';
-        if (apiUrl) {
+        const possibleUrls = [
+          oaiSettings.reverse_proxy,
+          oaiSettings.custom_url,
+          oaiSettings.chat_completion_source === 'custom' ? oaiSettings.custom_url : null,
+        ].filter(u => u && typeof u === 'string' && u.includes('.'));
+        if (possibleUrls.length > 0) {
+          apiUrl = possibleUrls[0];
           console.log('🔍 从 oai_settings 获取到 API URL:', apiUrl);
         }
       }
 
-      // 尝试 api_server
+      // 尝试 api_server 和其他全局变量
       if (!apiUrl) {
-        let apiServer = parentWin?.api_server || win?.api_server;
-        if (apiServer && typeof apiServer === 'object' && 'value' in apiServer) {
-          apiServer = apiServer.value;
-        }
-        if (apiServer && typeof apiServer === 'string') {
-          apiUrl = apiServer;
-          console.log('🔍 从 api_server 获取到 API URL:', apiUrl);
+        const globalVars = ['api_server', 'api_server_textgenerationwebui'];
+        for (const varName of globalVars) {
+          let value = parentWin?.[varName] || win?.[varName];
+          if (value && typeof value === 'object' && 'value' in value) {
+            value = value.value;
+          }
+          if (value && typeof value === 'string' && value.includes('.')) {
+            apiUrl = value;
+            console.log(`🔍 从 window.${varName} 获取到 API URL:`, apiUrl);
+            break;
+          }
         }
       }
     }
 
-    // 🔥 方法 4: 获取 API 类型作为备选
+    // 🔥 方法 4: 获取 API 类型 + 聊天补全源作为标识
     if (!apiUrl) {
-      let apiType = (window.parent as any)?.main_api || (window as any).main_api;
+      const parentWin = window.parent as any;
+      const win = window as any;
+
+      let apiType = parentWin?.main_api || win?.main_api;
       if (apiType && typeof apiType === 'object' && 'value' in apiType) {
         apiType = apiType.value;
       }
+
+      // 同时获取聊天补全源
+      const oaiSettings = parentWin?.oai_settings || win?.oai_settings;
+      const chatSource = oaiSettings?.chat_completion_source;
+
       if (apiType && typeof apiType === 'string' && apiType !== '[object Object]') {
-        console.log('🔍 使用 API 类型作为标识:', apiType);
-        return apiType;
+        const identifier = chatSource ? `[${apiType}:${chatSource}]` : `[API:${apiType}]`;
+        console.log('🔍 使用 API 类型作为标识:', identifier);
+        return identifier;
       }
     }
 

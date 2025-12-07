@@ -118,6 +118,8 @@ export default {
         return await handleReportModels(request, env, corsHeaders);
       } else if (path === '/get-model-reports') {
         return await handleGetModelReports(request, env, corsHeaders);
+      } else if (path === '/get-endpoint-detail') {
+        return await handleGetEndpointDetail(request, env, corsHeaders);
       } else if (path === '/whitelist-endpoint') {
         return await handleWhitelistEndpoint(request, env, corsHeaders);
       } else if (path === '/unwhitelist-endpoint') {
@@ -358,15 +360,6 @@ async function handleVerify(request, env, corsHeaders) {
       );
     }
 
-    // 🔥 无论验证成功还是失败，都记录 API 端点（用于抓商业化）
-    if (cleanApiEndpoint !== 'unknown' && cleanApiEndpoint !== '[object HTMLSelectElement]') {
-      try {
-        await recordApiEndpoint(env, cleanApiEndpoint);
-      } catch (logError) {
-        console.warn('记录API端点失败:', logError);
-      }
-    }
-
     // 获取当前有效的授权码
     const currentCode = await redisGet('current_code');
 
@@ -396,6 +389,15 @@ async function handleVerify(request, env, corsHeaders) {
       // 记录失败统计
       await incrementStats(env, 'failed');
 
+      // 🔥 记录端点（失败）
+      if (cleanApiEndpoint !== 'unknown' && cleanApiEndpoint !== '[object HTMLSelectElement]') {
+        try {
+          await recordApiEndpoint(env, cleanApiEndpoint, 'failed', code);
+        } catch (logError) {
+          console.warn('记录API端点失败:', logError);
+        }
+      }
+
       return jsonResponse(
         {
           valid: false,
@@ -411,6 +413,15 @@ async function handleVerify(request, env, corsHeaders) {
       await incrementStats(env, 'success');
     } catch (logError) {
       console.warn('记录统计失败:', logError);
+    }
+
+    // 🔥 记录端点（成功）
+    if (cleanApiEndpoint !== 'unknown' && cleanApiEndpoint !== '[object HTMLSelectElement]') {
+      try {
+        await recordApiEndpoint(env, cleanApiEndpoint, 'success', code);
+      } catch (logError) {
+        console.warn('记录API端点失败:', logError);
+      }
     }
 
     return jsonResponse(
@@ -1386,6 +1397,9 @@ function handleAdmin(env) {
                     // 删除按钮
                     var deleteButton = '<button onclick="deleteEndpoint(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 6px 14px; background: #374151; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ 删除</button>';
 
+                    // 详情按钮
+                    var detailButton = '<button onclick="showEndpointDetail(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 6px 14px; background: #6366f1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">📋 详情</button>';
+
                     return '<div style="background: #1a1a1a; border: 2px solid ' + borderColor + '; border-radius: 12px; padding: 20px; ' + (isBanned ? 'opacity: 0.6;' : '') + '" data-endpoint="' + safeEndpoint + '">' +
                         '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">' +
                             bannedBadge + whitelistBadge + suspiciousBadge +
@@ -1408,7 +1422,7 @@ function handleAdmin(env) {
                             '</div>' +
                         '</div>' +
                         '<div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap;">' +
-                            banButton + suspiciousButton + whitelistButton + deleteButton +
+                            detailButton + banButton + suspiciousButton + whitelistButton + deleteButton +
                         '</div>' +
                     '</div>';
                 }).join('');
@@ -1941,6 +1955,126 @@ function handleAdmin(env) {
             }
         }
 
+        // 显示端点详情弹窗
+        async function showEndpointDetail(endpoint) {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) {
+                showAlert('❌ 请先输入管理员密钥', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/get-endpoint-detail', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, endpoint })
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    showAlert(result.message || '获取失败', 'error');
+                    return;
+                }
+
+                const data = result.data;
+
+                // 构建状态标签
+                let statusBadges = '';
+                if (data.isBanned) statusBadges += '<span style="background:#7c2d12;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;margin-right:6px;">🚫 已禁用</span>';
+                if (data.isBlacklisted) statusBadges += '<span style="background:#dc2626;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;margin-right:6px;">☠️ 黑名单</span>';
+                if (data.isWhitelisted) statusBadges += '<span style="background:#065f46;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;margin-right:6px;">✅ 白名单</span>';
+                if (data.isSuspicious) statusBadges += '<span style="background:#f59e0b;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;margin-right:6px;">⚠️ 可疑</span>';
+
+                // 构建验证历史
+                let historyHtml = '<p style="color:#666;font-size:13px;">暂无验证历史</p>';
+                if (data.verifyHistory && data.verifyHistory.length > 0) {
+                    historyHtml = '<div style="max-height:200px;overflow-y:auto;">' + data.verifyHistory.map(function(h) {
+                        const color = h.success ? '#10b981' : '#ef4444';
+                        const icon = h.success ? '✅' : '❌';
+                        return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2a2a2a;font-size:12px;">' +
+                            '<span style="color:' + color + ';">' + icon + ' ' + (h.result || '-') + '</span>' +
+                            '<span style="color:#666;">' + (h.code || '-') + '</span>' +
+                            '<span style="color:#888;">' + (h.timestamp ? new Date(h.timestamp).toLocaleString("zh-CN") : '-') + '</span>' +
+                        '</div>';
+                    }).join('') + '</div>';
+                }
+
+                // 构建模型列表
+                let modelsHtml = '<p style="color:#666;font-size:13px;">暂无模型记录</p>';
+                if (data.models && data.models.length > 0) {
+                    modelsHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;max-height:150px;overflow-y:auto;">' +
+                        data.models.map(function(m) {
+                            return '<span style="background:#1f2937;padding:4px 8px;border-radius:4px;font-size:11px;">' + m + '</span>';
+                        }).join('') + '</div>';
+                }
+
+                // 构建证据文本
+                const evidenceText = '【端点证据收集】\\n' +
+                    '端点: ' + data.endpoint + '\\n' +
+                    '首次访问: ' + (data.firstAccess ? new Date(data.firstAccess).toLocaleString("zh-CN") : '-') + '\\n' +
+                    '最后访问: ' + (data.lastAccess ? new Date(data.lastAccess).toLocaleString("zh-CN") : '-') + '\\n' +
+                    '访问次数: ' + data.accessCount + '\\n' +
+                    '状态: ' + (data.isBanned ? '已禁用 ' : '') + (data.isBlacklisted ? '黑名单 ' : '') + (data.isWhitelisted ? '白名单 ' : '') + (data.isSuspicious ? '可疑 ' : '') + '\\n' +
+                    '模型列表: ' + (data.models && data.models.length > 0 ? data.models.join(', ') : '无') + '\\n' +
+                    '验证历史: ' + (data.verifyHistory ? data.verifyHistory.length + '条记录' : '无');
+
+                // 弹窗HTML
+                const modalHtml = '<div id="endpointDetailModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:10000;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)this.remove()">' +
+                    '<div style="background:#1a1a1a;border:1px solid #3a3a3a;border-radius:12px;padding:24px;max-width:700px;width:90%;max-height:85vh;overflow-y:auto;">' +
+                        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+                            '<h3 style="margin:0;color:#fff;">📋 端点详情</h3>' +
+                            '<button onclick="document.getElementById(\'endpointDetailModal\').remove()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;">✕</button>' +
+                        '</div>' +
+                        '<div style="background:#0f0f0f;padding:12px;border-radius:8px;margin-bottom:16px;">' +
+                            '<code style="color:#4a9eff;word-break:break-all;">' + data.endpoint + '</code>' +
+                        '</div>' +
+                        '<div style="margin-bottom:16px;">' + statusBadges + '</div>' +
+                        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">' +
+                            '<div style="background:#0f0f0f;padding:12px;border-radius:8px;">' +
+                                '<div style="color:#888;font-size:12px;margin-bottom:4px;">访问次数</div>' +
+                                '<div style="color:#10b981;font-size:24px;font-weight:700;">' + data.accessCount + '</div>' +
+                            '</div>' +
+                            '<div style="background:#0f0f0f;padding:12px;border-radius:8px;">' +
+                                '<div style="color:#888;font-size:12px;margin-bottom:4px;">模型数量</div>' +
+                                '<div style="color:#6366f1;font-size:24px;font-weight:700;">' + (data.models ? data.models.length : 0) + '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div style="background:#0f0f0f;padding:12px;border-radius:8px;margin-bottom:16px;">' +
+                            '<div style="color:#888;font-size:12px;margin-bottom:8px;">📅 时间信息</div>' +
+                            '<div style="display:flex;justify-content:space-between;color:#ccc;font-size:13px;margin-bottom:4px;"><span>首次访问</span><span>' + (data.firstAccess ? new Date(data.firstAccess).toLocaleString("zh-CN") : '-') + '</span></div>' +
+                            '<div style="display:flex;justify-content:space-between;color:#ccc;font-size:13px;"><span>最后访问</span><span>' + (data.lastAccess ? new Date(data.lastAccess).toLocaleString("zh-CN") : '-') + '</span></div>' +
+                        '</div>' +
+                        '<div style="background:#0f0f0f;padding:12px;border-radius:8px;margin-bottom:16px;">' +
+                            '<div style="color:#888;font-size:12px;margin-bottom:8px;">📜 验证历史 (' + (data.verifyHistory ? data.verifyHistory.length : 0) + '条)</div>' +
+                            historyHtml +
+                        '</div>' +
+                        '<div style="background:#0f0f0f;padding:12px;border-radius:8px;margin-bottom:16px;">' +
+                            '<div style="color:#888;font-size:12px;margin-bottom:8px;">🤖 模型列表 (' + (data.models ? data.models.length : 0) + '个)</div>' +
+                            modelsHtml +
+                        '</div>' +
+                        '<div style="display:flex;gap:8px;">' +
+                            '<button onclick="copyEvidence(\'' + evidenceText.replace(/'/g, "\\'") + '\')" style="flex:1;padding:10px;background:#6366f1;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">📋 一键复制证据</button>' +
+                            '<button onclick="document.getElementById(\'endpointDetailModal\').remove()" style="padding:10px 20px;background:#374151;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">关闭</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+
+        // 复制证据
+        function copyEvidence(text) {
+            const realText = text.replace(/\\n/g, '\\n');
+            navigator.clipboard.writeText(realText).then(function() {
+                showAlert('✅ 证据已复制到剪贴板', 'success');
+            }).catch(function() {
+                showAlert('❌ 复制失败', 'error');
+            });
+        }
+
         // 加载模型记录
         async function loadModelReports() {
             const adminKey = document.getElementById('adminKey').value;
@@ -2220,23 +2354,39 @@ async function recordCodeUsage(env, code, apiEndpoint) {
  * 记录API端点使用情况（用于抓第三方商业化）
  * 不记录IP，只记录端点使用统计
  */
-async function recordApiEndpoint(env, apiEndpoint) {
+async function recordApiEndpoint(env, apiEndpoint, verifyResult = null, code = null) {
   try {
     const endpointsStr = await redisGet('api_endpoints');
     const endpoints = endpointsStr ? JSON.parse(endpointsStr) : {};
 
+    const now = new Date().toISOString();
+
     if (endpoints[apiEndpoint]) {
       // API端点已存在，更新统计
-      endpoints[apiEndpoint].lastAccess = new Date().toISOString();
+      endpoints[apiEndpoint].lastAccess = now;
       endpoints[apiEndpoint].accessCount = (endpoints[apiEndpoint].accessCount || 0) + 1;
     } else {
       // 新的API端点
       endpoints[apiEndpoint] = {
         endpoint: apiEndpoint,
-        firstAccess: new Date().toISOString(),
-        lastAccess: new Date().toISOString(),
+        firstAccess: now,
+        lastAccess: now,
         accessCount: 1,
       };
+    }
+
+    // 记录验证历史（最多保留50条）
+    if (!endpoints[apiEndpoint].verifyHistory) {
+      endpoints[apiEndpoint].verifyHistory = [];
+    }
+    endpoints[apiEndpoint].verifyHistory.unshift({
+      timestamp: now,
+      success: verifyResult === 'success',
+      code: code ? code.substring(0, 8) + '****' : null, // 脱敏
+      result: verifyResult || 'unknown',
+    });
+    if (endpoints[apiEndpoint].verifyHistory.length > 50) {
+      endpoints[apiEndpoint].verifyHistory.length = 50;
     }
 
     await redisSet('api_endpoints', JSON.stringify(endpoints));
@@ -3343,6 +3493,85 @@ async function handleGetModelReports(request, env, corsHeaders) {
         reportCount: info.reportCount,
       }))
       .sort((a, b) => new Date(b.lastReport).getTime() - new Date(a.lastReport).getTime());
+
+    return jsonResponse({ success: true, data }, 200, corsHeaders);
+  } catch (error) {
+    return jsonResponse({ success: false, message: '❌ 获取失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 获取端点详情（管理员）- 包含验证历史、模型列表等
+ */
+async function handleGetEndpointDetail(request, env, corsHeaders) {
+  try {
+    const { adminKey, endpoint } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    if (!endpoint) {
+      return jsonResponse({ success: false, message: '❌ 请提供端点地址' }, 400, corsHeaders);
+    }
+
+    // 获取端点基本信息
+    const endpointsStr = await redisGet('api_endpoints');
+    const endpoints = endpointsStr ? JSON.parse(endpointsStr) : {};
+    const endpointInfo = endpoints[endpoint] || null;
+
+    // 获取模型记录
+    const reportsStr = await redisGet('model_reports');
+    const reports = reportsStr ? JSON.parse(reportsStr) : {};
+    const modelInfo = reports[endpoint] || null;
+
+    // 获取黑名单状态
+    const blacklistStr = await redisGet('blacklist_endpoints');
+    const blacklist = blacklistStr ? JSON.parse(blacklistStr) : {};
+    let isBlacklisted = false;
+    let blacklistInfo = null;
+    for (const key of Object.keys(blacklist)) {
+      if (endpoint.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(endpoint.toLowerCase())) {
+        isBlacklisted = true;
+        blacklistInfo = blacklist[key];
+        break;
+      }
+    }
+
+    // 获取禁用状态
+    const bannedStr = await redisGet('banned_endpoints');
+    const banned = bannedStr ? JSON.parse(bannedStr) : [];
+    const isBanned = banned.includes(endpoint);
+
+    // 获取白名单状态
+    const whitelistStr = await redisGet('whitelist_endpoints');
+    const whitelist = whitelistStr ? JSON.parse(whitelistStr) : [];
+    const isWhitelisted = whitelist.includes(endpoint);
+
+    // 获取可疑状态
+    const suspiciousStr = await redisGet('suspicious_endpoints');
+    const suspicious = suspiciousStr ? JSON.parse(suspiciousStr) : [];
+    const isSuspicious = suspicious.includes(endpoint);
+
+    const data = {
+      endpoint,
+      // 基本信息
+      firstAccess: endpointInfo?.firstAccess || null,
+      lastAccess: endpointInfo?.lastAccess || null,
+      accessCount: endpointInfo?.accessCount || 0,
+      // 验证历史
+      verifyHistory: endpointInfo?.verifyHistory || [],
+      // 模型列表
+      models: modelInfo?.models || [],
+      lastModelReport: modelInfo?.lastReport || null,
+      modelReportCount: modelInfo?.reportCount || 0,
+      // 状态
+      isBanned,
+      isBlacklisted,
+      blacklistInfo,
+      isWhitelisted,
+      isSuspicious,
+    };
 
     return jsonResponse({ success: true, data }, 200, corsHeaders);
   } catch (error) {
