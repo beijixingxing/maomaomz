@@ -320,6 +320,19 @@ async function handleVerify(request, env, corsHeaders) {
       cleanApiEndpoint = apiEndpoint.trim() || 'unknown';
     }
 
+    // 🔥 提取主域名函数（去掉子域名）
+    const getMainDomain = domain => {
+      const parts = domain.split('.');
+      if (parts.length <= 2) return domain;
+      // 处理特殊后缀如 .com.cn, .co.uk 等
+      const specialTlds = ['com.cn', 'net.cn', 'org.cn', 'co.uk', 'co.jp', 'com.au'];
+      const lastTwo = parts.slice(-2).join('.');
+      if (specialTlds.includes(lastTwo)) {
+        return parts.slice(-3).join('.');
+      }
+      return parts.slice(-2).join('.');
+    };
+
     // 🔥 检查 API 端点是否被禁用（支持模糊匹配，兼容带/不带 /v1）
     const bannedEndpointsStr = await redisGet('banned_endpoints');
     const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
@@ -332,13 +345,22 @@ async function handleVerify(request, env, corsHeaders) {
         .replace(/^https?:\/\//, '')
         .replace(/\/v1\/?$/, '')
         .replace(/\/$/, '');
+      const endpointMainDomain = getMainDomain(lowerEndpoint.split('/')[0]);
+
       for (const key of Object.keys(bannedEndpoints)) {
         const lowerKey = key
           .toLowerCase()
           .replace(/^https?:\/\//, '')
           .replace(/\/v1\/?$/, '')
           .replace(/\/$/, '');
-        if (lowerEndpoint.includes(lowerKey) || lowerKey.includes(lowerEndpoint)) {
+        const keyMainDomain = getMainDomain(lowerKey.split('/')[0]);
+
+        // 🔥 三重匹配：完整包含 OR 主域名相同
+        if (
+          lowerEndpoint.includes(lowerKey) ||
+          lowerKey.includes(lowerEndpoint) ||
+          endpointMainDomain === keyMainDomain
+        ) {
           matchedBanned = bannedEndpoints[key];
           matchedBanned.matchedKey = key;
           break;
@@ -387,14 +409,22 @@ async function handleVerify(request, env, corsHeaders) {
         .replace(/^https?:\/\//, '')
         .replace(/\/v1\/?$/, '')
         .replace(/\/$/, '');
+      const endpointMainDomain = getMainDomain(lowerEndpoint.split('/')[0]);
+
       for (const key of Object.keys(blacklist)) {
         const lowerKey = key
           .toLowerCase()
           .replace(/^https?:\/\//, '')
           .replace(/\/v1\/?$/, '')
           .replace(/\/$/, '');
-        // 检查是否包含（支持 www.xxx.com、api.xxx.com、xxx.com/v1 等各种形式）
-        if (lowerEndpoint.includes(lowerKey) || lowerKey.includes(lowerEndpoint)) {
+        const keyMainDomain = getMainDomain(lowerKey.split('/')[0]);
+
+        // 🔥 三重匹配：完整包含 OR 主域名相同
+        if (
+          lowerEndpoint.includes(lowerKey) ||
+          lowerKey.includes(lowerEndpoint) ||
+          endpointMainDomain === keyMainDomain
+        ) {
           matchedBlacklist = blacklist[key];
           matchedBlacklist.matchedKey = key;
           break;
