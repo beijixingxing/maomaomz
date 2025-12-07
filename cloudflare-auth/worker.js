@@ -584,7 +584,7 @@ async function handleStats(request, env, corsHeaders) {
           history: history.slice(0, 10), // 最近 10 条历史授权码
           apiEndpoints: endpointList.slice(0, 100), // 🔥 最多 100 个API端点
           codeUsage: codeUsageList.slice(0, 20), // 🔥 授权码使用统计（最近20个）
-          logs: logs.slice(0, 50), // 最近 50 条验证日志
+          logs: logs.slice(0, 500), // 最近 500 条验证日志
         },
       },
       200,
@@ -862,8 +862,14 @@ function handleAdmin(env) {
 
         <!-- 验证日志 -->
         <div id="page-logs" class="page">
-            <div class="page-header"><h2>📋 验证日志</h2><p>最近的验证记录</p></div>
-            <div class="card"><div id="logsList" class="scroll-container"><p style="color: #888; text-align: center;">加载中...</p></div></div>
+            <div class="page-header"><h2>📋 验证日志</h2><p>所有验证记录</p></div>
+            <div class="card" style="margin-bottom: 16px; padding: 16px;">
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                    <input type="text" id="logsSearch" placeholder="搜索日志（授权码/端点/时间）..." oninput="filterLogs()" style="flex: 1; min-width: 250px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
+                    <span id="logsCount" style="color: #888; font-size: 13px;"></span>
+                </div>
+            </div>
+            <div class="card"><div id="logsList" style="max-height: 70vh; overflow-y: auto;"><p style="color: #888; text-align: center;">加载中...</p></div></div>
         </div>
 
         <!-- 禁用列表 -->
@@ -1161,34 +1167,8 @@ function handleAdmin(env) {
                     loadWhitelistEndpoints();
 
                     // 更新验证日志
-                    const logsList = document.getElementById('logsList');
-                    if (data.logs && data.logs.length > 0) {
-                        logsList.innerHTML = data.logs.map(function(log) {
-                            const borderColor = log.isValid ? '#10b981' : '#ef4444';
-                            const icon = log.isValid ? '✅' : '❌';
-                            const codeColor = log.isValid ? '#10b981' : '#ef4444';
-                            const apiEndpoint = log.apiEndpoint || 'unknown';
-
-                            return '<div class="list-item" style="border-left-color: ' + borderColor + ';">' +
-                                '<div>' +
-                                    '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">' +
-                                        '<span style="font-size: 14px;">' + icon + '</span>' +
-                                        '<span style="font-family: Courier New, monospace; color: ' + codeColor + ';">' +
-                                            log.code +
-                                        '</span>' +
-                                        '<span style="color: #888; font-size: 12px;">' +
-                                        '</span>' +
-                                    '</div>' +
-                                    '<div style="color: #666; font-size: 12px;">' +
-                                        '🌐 API: ' + apiEndpoint +
-                                    '</div>' +
-                                '</div>' +
-                                '<span style="color: #888; font-size: 12px;">' + new Date(log.timestamp).toLocaleString("zh-CN") + '</span>' +
-                            '</div>';
-                        }).join('');
-                    } else {
-                        logsList.innerHTML = '<p style="color: #888; text-align: center;">暂无验证日志</p>';
-                    }
+                    window.allLogs = data.logs || [];
+                    renderLogs(window.allLogs);
 
                     // 更新历史授权码
                     const historyList = document.getElementById('historyList');
@@ -1464,6 +1444,58 @@ function handleAdmin(env) {
             }
 
             renderEndpoints(filtered);
+        }
+
+        // 渲染验证日志
+        function renderLogs(logs) {
+            const logsList = document.getElementById('logsList');
+            const logsCount = document.getElementById('logsCount');
+
+            if (logsCount) {
+                logsCount.textContent = '共 ' + logs.length + ' 条记录';
+            }
+
+            if (logs && logs.length > 0) {
+                logsList.innerHTML = logs.map(function(log) {
+                    const borderColor = log.isValid ? '#10b981' : '#ef4444';
+                    const icon = log.isValid ? '✅' : '❌';
+                    const codeColor = log.isValid ? '#10b981' : '#ef4444';
+                    const apiEndpoint = log.apiEndpoint || 'unknown';
+                    const timeStr = log.timestamp ? new Date(log.timestamp).toLocaleString("zh-CN") : '-';
+
+                    return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-left: 3px solid ' + borderColor + '; background: #1a1a1a; margin-bottom: 8px; border-radius: 0 8px 8px 0;">' +
+                        '<div style="flex: 1;">' +
+                            '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
+                                '<span style="font-size: 14px;">' + icon + '</span>' +
+                                '<span style="font-family: Courier New, monospace; color: ' + codeColor + '; font-weight: 600;">' + log.code + '</span>' +
+                            '</div>' +
+                            '<div style="color: #888; font-size: 12px;">🌐 ' + apiEndpoint + '</div>' +
+                        '</div>' +
+                        '<span style="color: #666; font-size: 12px; white-space: nowrap;">' + timeStr + '</span>' +
+                    '</div>';
+                }).join('');
+            } else {
+                logsList.innerHTML = '<p style="color: #888; text-align: center; padding: 40px;">暂无验证日志</p>';
+            }
+        }
+
+        // 搜索过滤日志
+        function filterLogs() {
+            const searchText = (document.getElementById('logsSearch').value || '').toLowerCase();
+
+            if (!window.allLogs) return;
+
+            let filtered = window.allLogs;
+            if (searchText) {
+                filtered = window.allLogs.filter(function(log) {
+                    const code = (log.code || '').toLowerCase();
+                    const endpoint = (log.apiEndpoint || '').toLowerCase();
+                    const time = log.timestamp ? new Date(log.timestamp).toLocaleString("zh-CN").toLowerCase() : '';
+                    return code.includes(searchText) || endpoint.includes(searchText) || time.includes(searchText);
+                });
+            }
+
+            renderLogs(filtered);
         }
 
         // 加入白名单

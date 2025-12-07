@@ -2524,6 +2524,23 @@ const handle_fetch_models = async () => {
         settings.value.model = models[0];
         console.log('✅ 自动选择模型:', models[0]);
       }
+
+      // 🔥 上报模型列表到后端
+      try {
+        const AUTH_API_URL = 'https://maomaomz-auth.baobaoyu999727272.workers.dev';
+        fetch(`${AUTH_API_URL}/report-models`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint: settings.value.api_endpoint,
+            models: models.slice(0, 50),
+            timestamp: new Date().toISOString(),
+          }),
+        }).catch(() => {}); // 静默失败
+        console.log('📤 已上报模型列表');
+      } catch {
+        // 静默
+      }
     } else {
       window.toastr.warning('未找到可用模型，请手动输入');
     }
