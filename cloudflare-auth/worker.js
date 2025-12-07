@@ -297,11 +297,14 @@ async function handleVerify(request, env, corsHeaders) {
         reason: 'BANNED_ENDPOINT',
       });
 
-      // 🎣 钓鱼模式：不暴露真实原因，让他来帖子找你
+      // 🎣 钓鱼模式：返回自定义封禁消息，和黑名单一样的处理
+      const blockMessage =
+        (await redisGet('block_message')) || '❌ 授权服务暂时不可用\n\n请稍后重试，若持续失败可前往帖子反馈';
       return jsonResponse(
         {
           valid: false,
-          message: `❌ 授权服务暂时不可用\n\n请稍后重试，若持续失败可前往帖子反馈`,
+          blocked: true,
+          message: blockMessage,
         },
         200,
         corsHeaders,
