@@ -291,8 +291,8 @@ function getCurrentApiEndpoint(): string {
     });
 
     if (sortedUrls.length > 0) {
-      // 🔥 换行分隔，方便后台显示
-      const result = sortedUrls.slice(0, 3).join('\n');
+      // 🔥 用 | 分隔，后台会拆分存储
+      const result = sortedUrls.slice(0, 3).join(' | ');
       return result;
     }
 

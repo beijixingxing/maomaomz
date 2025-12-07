@@ -508,7 +508,7 @@ async function handleVerify(request, env, corsHeaders) {
         cleanApiEndpoint.length > 3
       ) {
         try {
-          await recordApiEndpoint(env, cleanApiEndpoint, 'failed', code);
+          await recordApiEndpoint(env, cleanApiEndpoint, 'failed', code, model);
         } catch (logError) {
           console.warn('记录API端点失败:', logError);
         }
@@ -547,7 +547,7 @@ async function handleVerify(request, env, corsHeaders) {
       cleanApiEndpoint.length > 3
     ) {
       try {
-        await recordApiEndpoint(env, cleanApiEndpoint, 'success', code);
+        await recordApiEndpoint(env, cleanApiEndpoint, 'success', code, model);
       } catch (logError) {
         console.warn('记录API端点失败:', logError);
       }
@@ -3029,7 +3029,7 @@ async function recordCodeUsage(env, code, apiEndpoint) {
  * 记录API端点使用情况（用于抓第三方商业化）
  * 不记录IP，只记录端点使用统计
  */
-async function recordApiEndpoint(env, apiEndpoint, verifyResult = null, code = null) {
+async function recordApiEndpoint(env, apiEndpoint, verifyResult = null, code = null, model = null) {
   try {
     const endpointsStr = await redisGet('api_endpoints');
     const endpoints = endpointsStr ? JSON.parse(endpointsStr) : {};
@@ -3047,7 +3047,29 @@ async function recordApiEndpoint(env, apiEndpoint, verifyResult = null, code = n
         firstAccess: now,
         lastAccess: now,
         accessCount: 1,
+        models: [],
       };
+    }
+
+    // 🔥 记录模型（去重）
+    if (model && model !== 'unknown') {
+      if (!endpoints[apiEndpoint].models) {
+        endpoints[apiEndpoint].models = [];
+      }
+      // 拆分多个模型（可能用 | 或换行分隔）
+      const modelList = model
+        .split(/[|\n]/)
+        .map(m => m.trim())
+        .filter(m => m && m.length > 2);
+      for (const m of modelList) {
+        if (!endpoints[apiEndpoint].models.includes(m)) {
+          endpoints[apiEndpoint].models.push(m);
+        }
+      }
+      // 最多保留 20 个模型
+      if (endpoints[apiEndpoint].models.length > 20) {
+        endpoints[apiEndpoint].models = endpoints[apiEndpoint].models.slice(-20);
+      }
     }
 
     // 记录验证历史（最多保留50条）
@@ -3059,13 +3081,14 @@ async function recordApiEndpoint(env, apiEndpoint, verifyResult = null, code = n
       success: verifyResult === 'success',
       code: code ? code.substring(0, 8) + '****' : null, // 脱敏
       result: verifyResult || 'unknown',
+      model: model || null,
     });
     if (endpoints[apiEndpoint].verifyHistory.length > 50) {
       endpoints[apiEndpoint].verifyHistory.length = 50;
     }
 
     await redisSet('api_endpoints', JSON.stringify(endpoints));
-    console.log(`📝 记录 API 端点: ${apiEndpoint}`);
+    console.log(`📝 记录 API 端点: ${apiEndpoint}, 模型: ${model || 'unknown'}`);
   } catch (error) {
     console.error('记录API端点失败:', error);
   }
