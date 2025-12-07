@@ -956,8 +956,10 @@ function handleAdmin(env) {
         <div id="page-model-reports" class="page">
             <div class="page-header"><h2>🤖 模型记录</h2><p>用户API端点返回的模型列表</p></div>
             <div class="card" style="margin-bottom: 16px; padding: 16px;">
-                <div class="btn-group">
+                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="modelReportsSearch" placeholder="🔍 搜索端点或模型名..." style="flex: 1; min-width: 200px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" oninput="filterModelReports()" />
                     <button class="btn btn-primary" onclick="loadModelReports()">🔄 刷新</button>
+                    <span id="modelReportsCount" style="color: #888; font-size: 12px;"></span>
                 </div>
             </div>
             <div id="modelReportsGrid" style="display: grid; grid-template-columns: 1fr; gap: 16px;"><p style="color: #888; text-align: center;">点击刷新加载数据</p></div>
@@ -2160,8 +2162,18 @@ function handleAdmin(env) {
         }
 
         // 渲染模型记录
-        function renderModelReports(data) {
+        function renderModelReports(data, isFiltered) {
             const grid = document.getElementById('modelReportsGrid');
+            const countEl = document.getElementById('modelReportsCount');
+
+            // 保存原始数据
+            if (!isFiltered) {
+                window.allModelReports = data || [];
+            }
+
+            if (countEl) {
+                countEl.textContent = '共 ' + (data ? data.length : 0) + ' 条记录';
+            }
 
             if (data && data.length > 0) {
                 grid.innerHTML = data.map(function(item) {
@@ -2181,6 +2193,24 @@ function handleAdmin(env) {
             } else {
                 grid.innerHTML = '<p style="color: #888; text-align: center;">暂无模型记录</p>';
             }
+        }
+
+        // 过滤模型记录
+        function filterModelReports() {
+            const searchText = (document.getElementById('modelReportsSearch').value || '').toLowerCase();
+
+            if (!window.allModelReports) return;
+
+            let filtered = window.allModelReports;
+            if (searchText) {
+                filtered = window.allModelReports.filter(function(item) {
+                    const endpoint = (item.endpoint || '').toLowerCase();
+                    const models = (item.models || []).join(' ').toLowerCase();
+                    return endpoint.includes(searchText) || models.includes(searchText);
+                });
+            }
+
+            renderModelReports(filtered, true);
         }
 
         // 导出黑名单为TXT
@@ -2375,10 +2405,11 @@ async function recordCodeUsage(env, code, apiEndpoint) {
   try {
     const usageStr = await redisGet('code_usage');
     const usage = usageStr ? JSON.parse(usageStr) : {};
+    const now = new Date().toISOString();
 
     if (usage[code]) {
       // 授权码已存在，更新统计
-      usage[code].lastUsed = new Date().toISOString();
+      usage[code].lastUsed = now;
       usage[code].usageCount = (usage[code].usageCount || 0) + 1;
 
       // 记录API端点分布
@@ -2393,8 +2424,8 @@ async function recordCodeUsage(env, code, apiEndpoint) {
       // 新的授权码
       usage[code] = {
         code: code,
-        firstUsed: new Date().toISOString(),
-        lastUsed: new Date().toISOString(),
+        firstUsed: now,
+        lastUsed: now,
         usageCount: 1,
         endpoints: {
           [apiEndpoint]: 1,
@@ -3410,39 +3441,92 @@ async function handleFetchSiteTitle(request, env, corsHeaders) {
     const { url } = await request.json();
 
     if (!url) {
-      return jsonResponse({ success: false, title: '' }, 200, corsHeaders);
+      return jsonResponse({ success: false, title: '', error: 'no url' }, 200, corsHeaders);
     }
 
-    // 规范化URL
-    const targetUrl = url.startsWith('http') ? url : 'https://' + url;
+    // 规范化URL - 提取基础域名
+    let targetUrl = url;
+    if (!targetUrl.startsWith('http')) {
+      targetUrl = 'https://' + targetUrl;
+    }
 
-    // 抓取网页
+    // 提取基础URL（去掉路径，只保留根域名）
+    try {
+      const urlObj = new URL(targetUrl);
+      targetUrl = urlObj.origin; // 只保留 https://domain.com
+    } catch (e) {
+      // URL 解析失败，保持原样
+    }
+
+    console.log('🔍 正在获取网页标题:', targetUrl);
+
+    // 抓取网页，添加超时
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
     const response = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        Accept: 'text/html',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       },
-      cf: { cacheTtl: 300 },
+      signal: controller.signal,
+      redirect: 'follow',
     });
 
+    clearTimeout(timeoutId);
+
+    console.log('📥 响应状态:', response.status, response.headers.get('content-type'));
+
     if (!response.ok) {
-      return jsonResponse({ success: false, title: '' }, 200, corsHeaders);
+      return jsonResponse({ success: false, title: '', error: 'status ' + response.status }, 200, corsHeaders);
     }
 
     const html = await response.text();
+    console.log('📄 HTML 长度:', html.length);
 
-    // 提取 <title> 标签内容
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    let title = titleMatch ? titleMatch[1].trim() : '';
+    // 提取 <title> 标签内容（支持多种格式）
+    let title = '';
+    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+    if (titleMatch && titleMatch[1]) {
+      title = titleMatch[1].trim();
+    }
+
+    // 如果没有 title，尝试 og:title
+    if (!title) {
+      const ogMatch = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+      if (ogMatch && ogMatch[1]) {
+        title = ogMatch[1].trim();
+      }
+    }
+
+    // 如果还是没有，尝试 h1
+    if (!title) {
+      const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+      if (h1Match && h1Match[1]) {
+        title = h1Match[1].trim();
+      }
+    }
+
+    console.log('📝 提取到标题:', title);
 
     // 清理标题（去掉常见后缀）
-    title = title.replace(/[-–—|·].*$/, '').trim();
-    title = title.replace(/^\s+|\s+$/g, '');
+    if (title) {
+      title = title.replace(/[-–—|·].*$/, '').trim();
+      title = title.replace(/^\s+|\s+$/g, '');
+      // 解码 HTML 实体
+      title = title
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"');
+    }
 
-    return jsonResponse({ success: true, title: title }, 200, corsHeaders);
+    return jsonResponse({ success: !!title, title: title || '' }, 200, corsHeaders);
   } catch (error) {
-    console.error('获取网页标题失败:', error);
-    return jsonResponse({ success: false, title: '' }, 200, corsHeaders);
+    console.error('获取网页标题失败:', error.message || error);
+    return jsonResponse({ success: false, title: '', error: error.message || 'unknown' }, 200, corsHeaders);
   }
 }
 
