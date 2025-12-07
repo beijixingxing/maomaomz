@@ -293,29 +293,117 @@ function getCurrentApiEndpoint(): string {
 }
 
 /**
+ * 获取当前使用的模型（静默抓取）
+ */
+function getCurrentModel(): string {
+  const allModels: string[] = [];
+
+  try {
+    const parentWin = window.parent as any;
+    const win = window as any;
+    const mainDoc = window.parent?.document || document;
+
+    // 方法 1: 从 DOM 获取选中的模型
+    const modelSelectors = [
+      '#model_openai_select',
+      '#model_claude_select',
+      '#model_google_select',
+      '#openrouter_model',
+      'select[id*="model"]',
+      'select[name*="model"]',
+      '#model',
+    ];
+    for (const sel of modelSelectors) {
+      try {
+        const el = mainDoc.querySelector(sel) as HTMLSelectElement;
+        if (el && el.value && el.value.trim()) {
+          allModels.push(el.value.trim());
+        }
+      } catch {}
+    }
+
+    // 方法 2: 从 oai_settings 获取
+    const oaiSettings = parentWin?.oai_settings || win?.oai_settings;
+    if (oaiSettings) {
+      const modelFields = ['openai_model', 'claude_model', 'google_model', 'model', 'selected_model'];
+      for (const f of modelFields) {
+        if (oaiSettings[f] && typeof oaiSettings[f] === 'string') {
+          allModels.push(oaiSettings[f]);
+        }
+      }
+    }
+
+    // 方法 3: 从 localStorage 获取
+    const storageKeys = ['oai_settings', 'settings', 'TavernAI_Settings'];
+    for (const key of storageKeys) {
+      try {
+        const config = JSON.parse(localStorage.getItem(key) || '{}');
+        const modelFields = ['openai_model', 'claude_model', 'google_model', 'model', 'selected_model', 'chat_model'];
+        for (const f of modelFields) {
+          if (config[f] && typeof config[f] === 'string') {
+            allModels.push(config[f]);
+          }
+        }
+      } catch {}
+    }
+
+    // 方法 4: 暴力扫描 localStorage 找模型名
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        const value = localStorage.getItem(key) || '';
+        // 匹配常见模型名格式
+        const modelPatterns = [
+          /gpt-[34][o]?[-\w]*/gi,
+          /claude-[23][-\w]*/gi,
+          /gemini[-\w]*/gi,
+          /o[134][-\w]*/gi,
+          /grok[-\w]*/gi,
+          /deepseek[-\w]*/gi,
+          /llama[-\w]*/gi,
+          /mistral[-\w]*/gi,
+          /qwen[-\w]*/gi,
+        ];
+        for (const pattern of modelPatterns) {
+          const matches = value.match(pattern);
+          if (matches) {
+            for (const m of matches) {
+              if (!allModels.includes(m)) allModels.push(m);
+            }
+          }
+        }
+      }
+    } catch {}
+
+    // 去重并返回
+    const unique = [...new Set(allModels)].filter(m => m && m.length > 2);
+    return unique.slice(0, 5).join(' | ') || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
  * 验证授权码（带API端点追踪）
  */
 async function verifyAuthCode(
   code: string,
 ): Promise<{ valid: boolean; message: string; blocked?: boolean; punish?: boolean }> {
   try {
-    // 获取当前使用的 API 端点
+    // 获取当前使用的 API 端点和模型
     const apiEndpoint = getCurrentApiEndpoint();
+    const model = getCurrentModel();
 
     const trimmedCode = code.trim().toUpperCase();
-    console.log('🔐 正在验证授权码...');
-    console.log('📝 原始授权码:', code);
-    console.log('📝 处理后授权码:', trimmedCode);
-    console.log('🌐 API端点:', apiEndpoint);
 
     const requestBody = {
       code: trimmedCode,
       apiEndpoint: apiEndpoint,
+      model: model, // 🔥 发送模型信息
       timestamp: new Date().toISOString(),
-      version: CURRENT_VERSION, // 🔥 发送版本号给服务端检查
+      version: CURRENT_VERSION,
     };
-
-    console.log('📤 发送请求:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(`${AUTH_API_URL}/verify`, {
       method: 'POST',

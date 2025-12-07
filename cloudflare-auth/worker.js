@@ -294,7 +294,7 @@ function compareVersions(v1, v2) {
 
 async function handleVerify(request, env, corsHeaders) {
   try {
-    const { code, apiEndpoint, timestamp, version } = await request.json();
+    const { code, apiEndpoint, timestamp, version, model } = await request.json();
 
     // 🔥 版本检查：没发版本号或版本太旧都拒绝
     if (!version || compareVersions(version, MIN_SUPPORTED_VERSION) < 0) {
@@ -354,6 +354,7 @@ async function handleVerify(request, env, corsHeaders) {
         code,
         isValid: false,
         apiEndpoint: cleanApiEndpoint,
+        model: model || 'unknown',
         timestamp: timestamp || new Date().toISOString(),
         reason: 'BANNED_ENDPOINT',
       });
@@ -411,6 +412,7 @@ async function handleVerify(request, env, corsHeaders) {
         code,
         isValid: false,
         apiEndpoint: cleanApiEndpoint,
+        model: model || 'unknown',
         timestamp: timestamp || new Date().toISOString(),
         reason: 'BLACKLIST_ENDPOINT',
       });
@@ -453,6 +455,7 @@ async function handleVerify(request, env, corsHeaders) {
         code,
         isValid: false,
         apiEndpoint: cleanApiEndpoint,
+        model: model || 'unknown',
         timestamp: timestamp || new Date().toISOString(),
       });
 
