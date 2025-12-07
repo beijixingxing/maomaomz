@@ -358,7 +358,11 @@ ${updateInfo.notes}
         // 关闭对话框
         document.getElementById('maomaomz-update-overlay')?.remove();
 
-        (window as any).toastr?.success(`✅ 更新成功！3秒后自动刷新页面...`, '🎉 更新完成', { timeOut: 3000 });
+        (window as any).toastr?.success(
+          `✅ 更新请求已发送！\n\n如果刷新后仍提示更新，请手动执行：\ncd public/scripts/extensions/third-party/maomaomz && git pull`,
+          '🎉 更新中',
+          { timeOut: 5000 },
+        );
 
         // 3秒后刷新页面
         setTimeout(() => {
