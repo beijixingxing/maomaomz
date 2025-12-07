@@ -488,6 +488,17 @@ function showAuthDialog(): Promise<string | null> {
     const input = dialog.querySelector('#authCodeInput') as HTMLInputElement;
     const submitBtn = dialog.querySelector('#authSubmitBtn') as HTMLButtonElement;
 
+    // 🔥 防止用户通过 F12 删除 overlay - 使用 MutationObserver 检测
+    const observer = new MutationObserver(() => {
+      if (!document.body.contains(overlay) && !document.getElementById('maomaomz-auth-overlay')) {
+        console.warn('🚫 检测到遮罩层被删除，重新添加...');
+        // 用户试图删除 overlay，直接返回 null 让循环继续
+        observer.disconnect();
+        resolve(null);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
     // 自动聚焦输入框
     setTimeout(() => input.focus(), 100);
 
@@ -519,6 +530,7 @@ function showAuthDialog(): Promise<string | null> {
         input.focus();
         return;
       }
+      observer.disconnect(); // 🔥 断开观察者
       document.body.removeChild(overlay);
       resolve(code);
     };
