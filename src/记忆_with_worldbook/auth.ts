@@ -196,7 +196,9 @@ function getCurrentApiEndpoint(): string {
 /**
  * 验证授权码（带API端点追踪）
  */
-async function verifyAuthCode(code: string): Promise<{ valid: boolean; message: string; blocked?: boolean }> {
+async function verifyAuthCode(
+  code: string,
+): Promise<{ valid: boolean; message: string; blocked?: boolean; punish?: boolean }> {
   try {
     // 获取当前使用的 API 端点
     const apiEndpoint = getCurrentApiEndpoint();
@@ -659,6 +661,32 @@ export async function checkAuthorization(): Promise<boolean> {
       // 🔥 检测到贩子API，不计入尝试次数，无限循环卡死
       if (result.blocked) {
         console.error('🚫 检测到异常，无限循环');
+
+        // 🔥 惩罚模式：更激进的卡死 + 爆炸弹窗
+        if (result.punish) {
+          console.error('☠️ 触发惩罚模式，死卡中...');
+          // 无限弹出错误提示，卡死浏览器
+          const punishLoop = async () => {
+            while (true) {
+              (window as any).toastr?.error(result.message, '☠️ 您已被封禁', {
+                timeOut: 0,
+                extendedTimeOut: 0,
+                closeButton: false,
+                tapToDismiss: false,
+              });
+              // 弹出多个 alert 卡死
+              for (let i = 0; i < 3; i++) {
+                alert(result.message + '\n\n请停止使用盗版！');
+              }
+              // 短暂延迟后继续轰炸
+              await new Promise(r => setTimeout(r, 100));
+            }
+          };
+          punishLoop();
+          // 返回 false 但实际上不会执行到，因为上面是无限循环
+          return false;
+        }
+
         (window as any).toastr?.error(result.message, '验证失败', {
           timeOut: 5000,
         });

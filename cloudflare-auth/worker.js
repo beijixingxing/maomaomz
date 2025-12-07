@@ -134,6 +134,14 @@ export default {
         return await handleGetSuspiciousEndpoints(request, env, corsHeaders);
       } else if (path === '/fetch-site-title') {
         return await handleFetchSiteTitle(request, env, corsHeaders);
+      } else if (path === '/merge-blacklist') {
+        return await handleMergeBlacklist(request, env, corsHeaders);
+      } else if (path === '/merge-whitelist') {
+        return await handleMergeWhitelist(request, env, corsHeaders);
+      } else if (path === '/toggle-reseller') {
+        return await handleToggleReseller(request, env, corsHeaders);
+      } else if (path === '/toggle-public') {
+        return await handleTogglePublic(request, env, corsHeaders);
       } else if (path === '/get-block-message') {
         return await handleGetBlockMessage(request, env, corsHeaders);
       } else if (path === '/set-block-message') {
@@ -282,13 +290,25 @@ async function handleVerify(request, env, corsHeaders) {
       cleanApiEndpoint = apiEndpoint.trim() || 'unknown';
     }
 
-    // 🔥 检查 API 端点是否被禁用
+    // 🔥 检查 API 端点是否被禁用（支持模糊匹配，兼容带/不带 /v1）
     const bannedEndpointsStr = await redisGet('banned_endpoints');
     const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
 
-    if (cleanApiEndpoint !== 'unknown' && bannedEndpoints[cleanApiEndpoint]) {
-      const banInfo = bannedEndpoints[cleanApiEndpoint];
-      console.log(`⛔ 已禁用的 API 端点尝试验证: ${cleanApiEndpoint}`);
+    let matchedBanned = null;
+    if (cleanApiEndpoint !== 'unknown') {
+      const lowerEndpoint = cleanApiEndpoint.toLowerCase().replace(/\/v1\/?$/, '');
+      for (const key of Object.keys(bannedEndpoints)) {
+        const lowerKey = key.toLowerCase().replace(/\/v1\/?$/, '');
+        if (lowerEndpoint.includes(lowerKey) || lowerKey.includes(lowerEndpoint)) {
+          matchedBanned = bannedEndpoints[key];
+          matchedBanned.matchedKey = key;
+          break;
+        }
+      }
+    }
+
+    if (matchedBanned) {
+      console.log(`⛔ 已禁用的 API 端点尝试验证: ${cleanApiEndpoint} (匹配: ${matchedBanned.matchedKey})`);
 
       // 记录被拒绝的访问
       await logVerification(env, {
@@ -306,6 +326,7 @@ async function handleVerify(request, env, corsHeaders) {
         {
           valid: false,
           blocked: true,
+          punish: true,
           message: blockMessage,
         },
         200,
@@ -317,12 +338,12 @@ async function handleVerify(request, env, corsHeaders) {
     const blacklistStr = await redisGet('blacklist_endpoints');
     const blacklist = blacklistStr ? JSON.parse(blacklistStr) : {};
 
-    // 模糊匹配：检查用户端点是否包含黑名单中的任何关键词
+    // 模糊匹配：检查用户端点是否包含黑名单中的任何关键词（兼容带/不带 /v1）
     let matchedBlacklist = null;
     if (cleanApiEndpoint !== 'unknown') {
-      const lowerEndpoint = cleanApiEndpoint.toLowerCase();
+      const lowerEndpoint = cleanApiEndpoint.toLowerCase().replace(/\/v1\/?$/, '');
       for (const key of Object.keys(blacklist)) {
-        const lowerKey = key.toLowerCase();
+        const lowerKey = key.toLowerCase().replace(/\/v1\/?$/, '');
         // 检查是否包含（支持 www.xxx.com、api.xxx.com、xxx.com/v1 等各种形式）
         if (lowerEndpoint.includes(lowerKey) || lowerKey.includes(lowerEndpoint)) {
           matchedBlacklist = blacklist[key];
@@ -353,6 +374,7 @@ async function handleVerify(request, env, corsHeaders) {
         {
           valid: false,
           blocked: true,
+          punish: true,
           message: blockMessage,
         },
         200,
@@ -915,36 +937,48 @@ function handleAdmin(env) {
             <div class="page-header"><h2>⚠️ 可疑列表</h2><p>需要关注的API端点</p></div>
             <div class="card" style="margin-bottom: 16px; padding: 16px;">
                 <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-                    <input type="text" id="manualSuspiciousEndpoint" placeholder="输入端点名称或URL..." style="flex: 1; min-width: 250px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
+                    <input type="text" id="suspiciousSiteName" placeholder="站点名称（留空自动获取）" style="flex: 0 0 180px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
+                    <input type="text" id="manualSuspiciousEndpoint" placeholder="输入端点URL..." style="flex: 1; min-width: 250px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
                     <button onclick="manualSuspicious()" style="padding: 10px 20px; background: #f59e0b; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">⚠️ 添加可疑</button>
                 </div>
             </div>
-            <div class="card"><div id="suspiciousEndpointsList" class="scroll-container"><p style="color: #888; text-align: center;">加载中...</p></div></div>
+            <div id="suspiciousEndpointsList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;"><p style="color: #888; text-align: center;">加载中...</p></div>
         </div>
 
         <!-- 白名单 -->
         <div id="page-whitelist" class="page">
             <div class="page-header"><h2>✅ 白名单</h2><p>受信任的API端点</p></div>
             <div class="card" style="margin-bottom: 16px; padding: 16px;">
-                <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-                    <input type="text" id="manualWhitelistEndpoint" placeholder="输入端点名称或URL..." style="flex: 1; min-width: 250px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+                    <input type="text" id="whitelistSiteName" placeholder="站点名称（留空自动获取）" style="flex: 0 0 180px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
+                    <input type="text" id="manualWhitelistEndpoint" placeholder="输入端点URL..." style="flex: 1; min-width: 250px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
                     <button onclick="manualWhitelist()" style="padding: 10px 20px; background: #059669; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">✅ 添加白名单</button>
                 </div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <input type="text" id="whitelistSearch" placeholder="🔍 搜索白名单..." style="flex: 1; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" oninput="filterWhitelist()" />
+                    <button onclick="mergeWhitelist()" style="padding: 10px 16px; background: #854d0e; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">🔄 合并重复</button>
+                    <span id="whitelistCount" style="color: #888; font-size: 13px;"></span>
+                </div>
             </div>
-            <div class="card"><div id="whitelistEndpointsList" class="scroll-container"><p style="color: #888; text-align: center;">加载中...</p></div></div>
+            <div id="whitelistEndpointsList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;"><p style="color: #888; text-align: center;">加载中...</p></div>
         </div>
 
         <!-- 黑名单（贩子API端点） -->
         <div id="page-blacklist" class="page">
-            <div class="page-header"><h2>☠️ 黑名单</h2><p>已知贩子API端点（手动添加，支持模糊匹配）</p></div>
+            <div class="page-header"><h2>☠️ 黑名单</h2><p>已知贩子API端点（支持主域名匹配所有子域名）</p></div>
             <div class="card" style="margin-bottom: 16px; padding: 16px;">
                 <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
                     <input type="text" id="blacklistSiteName" placeholder="站点名称（如：某某API站）" style="flex: 0 0 200px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
-                    <input type="text" id="blacklistEndpoint" placeholder="端点URL或域名关键词（支持完整URL）" style="flex: 1; min-width: 250px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
+                    <input type="text" id="blacklistEndpoint" placeholder="输入完整URL（自动提取主域名）" oninput="previewBlacklistDomain()" style="flex: 1; min-width: 250px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" />
                     <button onclick="addBlacklist()" style="padding: 10px 20px; background: #7c2d12; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">☠️ 添加黑名单</button>
+                </div>
+                <div id="blacklistPreview" style="display: none; margin-bottom: 12px; padding: 10px; background: #1a1a1a; border: 1px dashed #7c2d12; border-radius: 6px;">
+                    <div style="color: #f97316; font-size: 12px; margin-bottom: 6px;">📌 将拦截以下匹配：</div>
+                    <div id="blacklistPreviewContent" style="font-family: Courier New, monospace; color: #fbbf24; font-size: 13px;"></div>
                 </div>
                 <div style="display: flex; gap: 12px; align-items: center;">
                     <input type="text" id="blacklistSearch" placeholder="🔍 搜索黑名单..." style="flex: 1; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" oninput="filterBlacklist()" />
+                    <button onclick="mergeBlacklist()" style="padding: 10px 16px; background: #854d0e; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">🔄 合并重复</button>
                     <button onclick="exportBlacklist()" style="padding: 10px 16px; background: #374151; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">📥 导出TXT</button>
                     <span id="blacklistCount" style="color: #888; font-size: 13px;"></span>
                 </div>
@@ -958,6 +992,7 @@ function handleAdmin(env) {
             <div class="card" style="margin-bottom: 16px; padding: 16px;">
                 <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                     <input type="text" id="modelReportsSearch" placeholder="🔍 搜索端点或模型名..." style="flex: 1; min-width: 200px; padding: 10px 14px; background: #0f0f0f; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px;" oninput="filterModelReports()" />
+                    <button id="resellerFilterBtn" onclick="toggleResellerFilter()" style="padding: 10px 16px; background: #374151; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">🏪 只看贩子</button>
                     <button class="btn btn-primary" onclick="loadModelReports()">🔄 刷新</button>
                     <span id="modelReportsCount" style="color: #888; font-size: 12px;"></span>
                 </div>
@@ -1527,7 +1562,7 @@ function handleAdmin(env) {
         }
 
         // 加入白名单
-        async function whitelistEndpoint(endpoint) {
+        async function whitelistEndpoint(endpoint, siteName) {
             const adminKey = document.getElementById('adminKey').value;
             if (!adminKey) { showAlert('❌ 请先输入管理员密钥', 'error'); return; }
 
@@ -1535,11 +1570,11 @@ function handleAdmin(env) {
                 const response = await fetch('/whitelist-endpoint', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ adminKey, endpoint })
+                    body: JSON.stringify({ adminKey, endpoint, siteName: siteName || '' })
                 });
                 const result = await response.json();
                 showAlert(result.message, result.success ? 'success' : 'error');
-                if (result.success) refreshStats();
+                if (result.success) { refreshStats(); loadWhitelistEndpoints(); }
             } catch (error) {
                 showAlert('❌ 网络错误: ' + error.message, 'error');
             }
@@ -1577,22 +1612,154 @@ function handleAdmin(env) {
                 });
                 const result = await response.json();
 
-                const listDiv = document.getElementById('whitelistEndpointsList');
-                if (result.success && result.data && result.data.length > 0) {
-                    listDiv.innerHTML = result.data.map(function(item) {
-                        return '<div class="list-item success" style="display: flex; justify-content: space-between; align-items: center;">' +
-                            '<div>' +
-                                '<div style="font-family: Courier New, monospace; color: #10b981; font-weight: 700; font-size: 14px; margin-bottom: 4px;">' + item.endpoint + '</div>' +
-                                '<div style="color: #666; font-size: 11px;">添加时间: ' + new Date(item.addedAt).toLocaleString('zh-CN') + '</div>' +
-                            '</div>' +
-                            '<button onclick="unwhitelistEndpoint(this.dataset.ep)" data-ep="' + item.endpoint + '" style="padding: 4px 10px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">移除</button>' +
-                        '</div>';
-                    }).join('');
+                if (result.success && result.data) {
+                    window.allWhitelist = result.data;
+                    renderWhitelist(result.data);
                 } else {
-                    listDiv.innerHTML = '<p style="color: #888; text-align: center;">暂无白名单</p>';
+                    window.allWhitelist = [];
+                    renderWhitelist([]);
                 }
             } catch (error) {
                 console.error('加载白名单失败:', error);
+            }
+        }
+
+        // 渲染白名单
+        function renderWhitelist(list) {
+            const listDiv = document.getElementById('whitelistEndpointsList');
+            const countSpan = document.getElementById('whitelistCount');
+
+            if (list && list.length > 0) {
+                countSpan.textContent = '共 ' + list.length + ' 个';
+                listDiv.innerHTML = list.map(function(item) {
+                    var siteName = item.siteName || '受信任站点';
+                    var safeEndpoint = String(item.endpoint || '').split(String.fromCharCode(39)).join('').split(String.fromCharCode(34)).join('');
+                    var mergedInfo = item.mergedFrom && item.mergedFrom.length > 1 ?
+                        '<div style="color: #666; font-size: 10px; margin-bottom: 8px;">📦 合并自: ' + item.mergedFrom.join(', ') + '</div>' : '';
+                    return '<div style="background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%); border: 1px solid #2d5a47; border-radius: 12px; padding: 16px; border-left: 4px solid #3d7a5a;">' +
+                        '<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">' +
+                            '<div style="font-size: 16px; font-weight: 700; color: #6cb88c;">✅ ' + siteName + '</div>' +
+                        '</div>' +
+                        '<div style="font-family: Courier New, monospace; color: #7dba9a; font-size: 13px; margin-bottom: 8px; word-break: break-all;">' + item.endpoint + '</div>' +
+                        mergedInfo +
+                        '<div style="color: #888; font-size: 11px; margin-bottom: 12px;">添加时间: ' + new Date(item.addedAt).toLocaleString('zh-CN') + '</div>' +
+                        '<div style="display: flex; gap: 8px;">' +
+                            '<button onclick="pingWhitelist(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 6px 14px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">📡 详情</button>' +
+                            '<button onclick="unwhitelistEndpoint(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 6px 14px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">🗑️ 移除</button>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            } else {
+                countSpan.textContent = '';
+                listDiv.innerHTML = '<p style="color: #888; text-align: center;">暂无白名单</p>';
+            }
+        }
+
+        // 搜索白名单
+        function filterWhitelist() {
+            const searchText = document.getElementById('whitelistSearch').value.toLowerCase();
+            let filtered = window.allWhitelist || [];
+
+            if (searchText) {
+                filtered = filtered.filter(function(item) {
+                    return (item.siteName || '').toLowerCase().includes(searchText) ||
+                           (item.endpoint || '').toLowerCase().includes(searchText);
+                });
+            }
+
+            renderWhitelist(filtered);
+        }
+
+        // Ping 白名单域名查看详情
+        async function pingWhitelist(endpoint) {
+            showAlert('📡 正在 Ping ' + endpoint + ' ...', 'info');
+
+            try {
+                const response = await fetch('/fetch-site-title', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: endpoint })
+                });
+                const data = await response.json();
+
+                var msg = '📡 域名: ' + endpoint + '\\n\\n';
+
+                if (data.ping && data.pingInfo) {
+                    var info = data.pingInfo;
+                    msg += '✅ Ping 成功\\n';
+                    msg += '⏱️ 延迟: ' + info.latency + 'ms\\n';
+                    msg += '📊 状态: HTTP ' + info.status + '\\n';
+                    if (info.server) msg += '🖥️ 服务器: ' + info.server + '\\n';
+                    if (info.isApi) msg += '🔌 类型: API站点\\n';
+                    if (info.hasModels) {
+                        msg += '🤖 模型数: ' + info.modelCount + '\\n';
+                        if (info.sampleModels && info.sampleModels.length > 0) {
+                            msg += '📋 示例: ' + info.sampleModels.slice(0, 3).join(', ') + '\\n';
+                        }
+                    }
+                    if (data.title) msg += '📝 标题: ' + data.title;
+                } else {
+                    msg += '❌ Ping 失败 - 站点可能已失效或无法访问';
+                }
+
+                alert(msg);
+            } catch (error) {
+                showAlert('❌ 请求失败: ' + error.message, 'error');
+            }
+        }
+
+        // 合并重复的白名单条目
+        async function mergeWhitelist() {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) {
+                showAlert('❌ 请先输入管理员密钥', 'error');
+                return;
+            }
+
+            showAlert('🔍 正在分析...', 'info');
+
+            try {
+                // 先预览
+                const previewRes = await fetch('/merge-whitelist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, preview: true })
+                });
+                const preview = await previewRes.json();
+
+                if (!preview.success) {
+                    showAlert(preview.message, 'error');
+                    return;
+                }
+
+                if (!preview.mergeGroups || preview.mergeGroups.length === 0) {
+                    showAlert('✅ 没有需要合并的重复条目', 'success');
+                    return;
+                }
+
+                // 显示预览
+                var msg = '将进行以下合并：\\n\\n';
+                preview.mergeGroups.forEach(function(g) {
+                    msg += '📦 ' + g.sources.join(' + ') + '\\n   → ' + g.target + '\\n\\n';
+                });
+                msg += '共 ' + preview.mergeGroups.length + ' 组，删除 ' + preview.deleteCount + ' 条重复\\n\\n确定执行吗？';
+
+                if (!confirm(msg)) {
+                    showAlert('❌ 已取消', 'info');
+                    return;
+                }
+
+                // 执行合并
+                const response = await fetch('/merge-whitelist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, preview: false })
+                });
+                const result = await response.json();
+                showAlert(result.message, result.success ? 'success' : 'error');
+                if (result.success) loadWhitelistEndpoints();
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
             }
         }
 
@@ -1607,21 +1774,79 @@ function handleAdmin(env) {
         // 手动添加白名单
         async function manualWhitelist() {
             const endpoint = document.getElementById('manualWhitelistEndpoint').value.trim();
-            if (!endpoint) { showAlert('❌ 请输入端点名称或URL', 'error'); return; }
-            await whitelistEndpoint(endpoint);
+            var siteName = document.getElementById('whitelistSiteName').value.trim();
+            if (!endpoint) { showAlert('❌ 请输入端点URL', 'error'); return; }
+
+            // 自动获取站点名称
+            if (!siteName) {
+                try {
+                    showAlert('🔍 正在获取站点名称...', 'info');
+                    const titleRes = await fetch('/fetch-site-title', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: endpoint })
+                    });
+                    const titleData = await titleRes.json();
+                    if (titleData.success && titleData.title) {
+                        siteName = titleData.title;
+                    }
+                } catch (e) {
+                    console.log('获取标题失败');
+                }
+                if (!siteName) {
+                    try {
+                        var urlObj = new URL(endpoint.startsWith('http') ? endpoint : 'https://' + endpoint);
+                        siteName = urlObj.hostname.replace(/^www\\./, '').replace(/^api\\./, '');
+                    } catch (e) {
+                        siteName = endpoint.split('/')[0];
+                    }
+                }
+            }
+
+            await whitelistEndpoint(endpoint, siteName);
             document.getElementById('manualWhitelistEndpoint').value = '';
+            document.getElementById('whitelistSiteName').value = '';
         }
 
         // 手动添加可疑
         async function manualSuspicious() {
             const endpoint = document.getElementById('manualSuspiciousEndpoint').value.trim();
-            if (!endpoint) { showAlert('❌ 请输入端点名称或URL', 'error'); return; }
-            await suspiciousEndpoint(endpoint);
+            var siteName = document.getElementById('suspiciousSiteName').value.trim();
+            if (!endpoint) { showAlert('❌ 请输入端点URL', 'error'); return; }
+
+            // 自动获取站点名称
+            if (!siteName) {
+                try {
+                    showAlert('🔍 正在获取站点名称...', 'info');
+                    const titleRes = await fetch('/fetch-site-title', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: endpoint })
+                    });
+                    const titleData = await titleRes.json();
+                    if (titleData.success && titleData.title) {
+                        siteName = titleData.title;
+                    }
+                } catch (e) {
+                    console.log('获取标题失败');
+                }
+                if (!siteName) {
+                    try {
+                        var urlObj = new URL(endpoint.startsWith('http') ? endpoint : 'https://' + endpoint);
+                        siteName = urlObj.hostname.replace(/^www\\./, '').replace(/^api\\./, '');
+                    } catch (e) {
+                        siteName = endpoint.split('/')[0];
+                    }
+                }
+            }
+
+            await suspiciousEndpoint(endpoint, siteName);
             document.getElementById('manualSuspiciousEndpoint').value = '';
+            document.getElementById('suspiciousSiteName').value = '';
         }
 
         // 标记为可疑
-        async function suspiciousEndpoint(endpoint) {
+        async function suspiciousEndpoint(endpoint, siteName) {
             const adminKey = document.getElementById('adminKey').value;
             if (!adminKey) { showAlert('❌ 请先输入管理员密钥', 'error'); return; }
 
@@ -1629,7 +1854,7 @@ function handleAdmin(env) {
                 const response = await fetch('/suspicious-endpoint', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ adminKey, endpoint })
+                    body: JSON.stringify({ adminKey, endpoint, siteName: siteName || '' })
                 });
                 const result = await response.json();
                 showAlert(result.message, result.success ? 'success' : 'error');
@@ -1675,16 +1900,18 @@ function handleAdmin(env) {
                 if (result.success && result.data && result.data.length > 0) {
                     listDiv.innerHTML = result.data.map(function(item) {
                         var linkUrl = item.endpoint && item.endpoint.startsWith('http') ? item.endpoint : 'https://' + (item.endpoint || '');
-                        return '<div class="list-item" style="display: flex; justify-content: space-between; align-items: center; border-left-color: #f59e0b;">' +
-                            '<div>' +
-                                '<a href="' + linkUrl + '" target="_blank" style="display: block; font-family: Courier New, monospace; color: #f59e0b; font-weight: 700; font-size: 14px; margin-bottom: 4px; text-decoration: underline; cursor: pointer;">' + item.endpoint + '</a>' +
-                                '<div style="color: #666; font-size: 11px;">添加时间: ' + new Date(item.addedAt).toLocaleString('zh-CN') + '</div>' +
+                        var siteName = item.siteName || '未知站点';
+                        return '<div style="background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%); border: 1px solid #f59e0b; border-radius: 12px; padding: 16px; border-left: 4px solid #f59e0b;">' +
+                            '<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">' +
+                                '<div style="font-size: 16px; font-weight: 700; color: #f59e0b;">⚠️ ' + siteName + '</div>' +
+                                '<button onclick="unsuspiciousEndpoint(this.dataset.ep)" data-ep="' + item.endpoint + '" style="padding: 6px 14px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">移除</button>' +
                             '</div>' +
-                            '<button onclick="unsuspiciousEndpoint(this.dataset.ep)" data-ep="' + item.endpoint + '" style="padding: 4px 10px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">移除</button>' +
+                            '<a href="' + linkUrl + '" target="_blank" style="display: block; font-family: Courier New, monospace; color: #fbbf24; font-size: 13px; margin-bottom: 8px; word-break: break-all; text-decoration: underline;">' + item.endpoint + '</a>' +
+                            '<div style="color: #888; font-size: 11px;">添加时间: ' + new Date(item.addedAt).toLocaleString('zh-CN') + '</div>' +
                         '</div>';
                     }).join('');
                 } else {
-                    listDiv.innerHTML = '<p style="color: #888; text-align: center;">暂无可疑端点</p>';
+                    listDiv.innerHTML = '<p style="color: #888; text-align: center;">暂无可疑端点 ✅</p>';
                 }
             } catch (error) {
                 console.error('加载可疑列表失败:', error);
@@ -1828,10 +2055,84 @@ function handleAdmin(env) {
             }
         }
 
+        // 提取主域名（去掉子域名前缀）
+        function extractRootDomain(url) {
+            try {
+                var fullUrl = url.startsWith('http') ? url : 'https://' + url;
+                var urlObj = new URL(fullUrl);
+                var hostname = urlObj.hostname.toLowerCase();
+                // 去掉常见子域名前缀
+                hostname = hostname.replace(/^(www|api|pro|app|v1|v2|chat|gpt|ai|openai|claude)\\./, '');
+                // 提取主域名（最后两段，如 chr1.com）
+                var parts = hostname.split('.');
+                if (parts.length > 2) {
+                    // 处理 co.uk, com.cn 等二级后缀
+                    var tld = parts.slice(-2).join('.');
+                    if (['co.uk', 'com.cn', 'net.cn', 'org.cn', 'com.hk', 'co.jp'].includes(tld)) {
+                        hostname = parts.slice(-3).join('.');
+                    } else {
+                        hostname = parts.slice(-2).join('.');
+                    }
+                }
+                return hostname;
+            } catch (e) {
+                return url.split('/')[0].replace(/^(www|api|pro|app)\\./, '');
+            }
+        }
+
+        // 提取域名（保留子域名，只去掉协议和路径）
+        function extractFullDomain(url) {
+            try {
+                var fullUrl = url.startsWith('http') ? url : 'https://' + url;
+                var urlObj = new URL(fullUrl);
+                return urlObj.hostname.toLowerCase();
+            } catch (e) {
+                return url.split('/')[0].toLowerCase();
+            }
+        }
+
+        // 预览黑名单匹配域名
+        function previewBlacklistDomain() {
+            var endpoint = document.getElementById('blacklistEndpoint').value.trim();
+            var previewDiv = document.getElementById('blacklistPreview');
+            var contentDiv = document.getElementById('blacklistPreviewContent');
+
+            if (!endpoint) {
+                previewDiv.style.display = 'none';
+                return;
+            }
+
+            var fullDomain = extractFullDomain(endpoint);
+            var rootDomain = extractRootDomain(endpoint);
+
+            contentDiv.innerHTML =
+                '<div style="margin-bottom: 8px;">' +
+                    '<label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">' +
+                        '<input type="radio" name="blacklistMode" value="full" checked style="accent-color: #f59e0b;"> ' +
+                        '<span>输入域名: <strong style="color: #f59e0b;">' + fullDomain + '</strong></span>' +
+                        '<span style="color: #666; font-size: 11px;">（匹配 ' + fullDomain + ', ' + fullDomain + '/v1）</span>' +
+                    '</label>' +
+                '</div>' +
+                '<div>' +
+                    '<label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">' +
+                        '<input type="radio" name="blacklistMode" value="root" style="accent-color: #ef4444;"> ' +
+                        '<span>主域名: <strong style="color: #ef4444;">' + rootDomain + '</strong></span>' +
+                        '<span style="color: #666; font-size: 11px;">（匹配所有子域名: api., pro., www. 等）</span>' +
+                    '</label>' +
+                '</div>';
+            previewDiv.style.display = 'block';
+        }
+
         // 添加黑名单
         async function addBlacklist() {
             var siteName = document.getElementById('blacklistSiteName').value.trim();
-            const endpoint = document.getElementById('blacklistEndpoint').value.trim();
+            var inputEndpoint = document.getElementById('blacklistEndpoint').value.trim();
+
+            // 根据用户选择决定使用哪个域名
+            var modeRadio = document.querySelector('input[name="blacklistMode"]:checked');
+            var useRoot = modeRadio && modeRadio.value === 'root';
+            var endpoint = useRoot ? extractRootDomain(inputEndpoint) : extractFullDomain(inputEndpoint);
+
             const adminKey = document.getElementById('adminKey').value;
 
             if (!adminKey) {
@@ -1843,16 +2144,33 @@ function handleAdmin(env) {
                 return;
             }
 
-            // 如果没输入站点名称，尝试自动获取网页标题
+            // 如果没输入站点名称，尝试自动获取网页标题 + ping 检测
             if (!siteName) {
                 try {
-                    showAlert('🔍 正在获取站点名称...', 'info');
+                    showAlert('🔍 正在 Ping 并获取站点名称...', 'info');
                     const titleRes = await fetch('/fetch-site-title', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: endpoint })
+                        body: JSON.stringify({ url: inputEndpoint })
                     });
                     const titleData = await titleRes.json();
+
+                    // 显示详细 ping 结果
+                    if (titleData.ping && titleData.pingInfo) {
+                        var info = titleData.pingInfo;
+                        var details = '📡 Ping: ' + info.latency + 'ms | HTTP ' + info.status;
+                        if (info.server) details += ' | ' + info.server;
+                        if (info.isApi) details += ' | API站点';
+                        if (info.hasModels) details += ' | 🤖 ' + info.modelCount + '个模型';
+                        if (titleData.title) details += '\\n📝 标题: ' + titleData.title;
+                        if (info.sampleModels && info.sampleModels.length > 0) {
+                            details += '\\n🎯 模型: ' + info.sampleModels.slice(0, 3).join(', ');
+                        }
+                        showAlert(details, 'success');
+                    } else {
+                        showAlert('⚠️ Ping 失败 - 站点可能已失效', 'error');
+                    }
+
                     if (titleData.success && titleData.title) {
                         siteName = titleData.title;
                         // 如果是 New API，改成不知名贩子
@@ -1862,15 +2180,16 @@ function handleAdmin(env) {
                     }
                 } catch (e) {
                     console.log('获取标题失败，使用域名');
+                    showAlert('❌ 网络请求失败', 'error');
                 }
 
                 // 如果还是没有，从URL提取域名
                 if (!siteName) {
                     try {
-                        var urlObj = new URL(endpoint.startsWith('http') ? endpoint : 'https://' + endpoint);
+                        var urlObj = new URL(inputEndpoint.startsWith('http') ? inputEndpoint : 'https://' + inputEndpoint);
                         siteName = urlObj.hostname.replace(/^www\\./, '').replace(/^api\\./, '');
                     } catch (e) {
-                        siteName = endpoint.split('/')[0];
+                        siteName = inputEndpoint.split('/')[0];
                     }
                 }
             }
@@ -1891,6 +2210,7 @@ function handleAdmin(env) {
                 if (result.success) {
                     document.getElementById('blacklistSiteName').value = '';
                     document.getElementById('blacklistEndpoint').value = '';
+                    document.getElementById('blacklistPreview').style.display = 'none';
                     loadBlacklist();
                 }
             } catch (error) {
@@ -1933,15 +2253,19 @@ function handleAdmin(env) {
                     // 如果不是完整URL，构造一个用于跳转
                     var linkUrl = displayUrl.startsWith('http') ? displayUrl : 'https://' + displayUrl;
 
+                    var mergedInfo = item.mergedFrom && item.mergedFrom.length > 1 ?
+                        '<div style="color: #666; font-size: 10px; margin-bottom: 8px;">📦 合并自: ' + item.mergedFrom.join(', ') + '</div>' : '';
                     return '<div style="background: #1a1a1a; border: 2px solid #7c2d12; border-radius: 12px; padding: 20px;" data-sitename="' + (item.siteName || '') + '" data-endpoint="' + safeEndpoint + '">' +
                         '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">' +
                             '<span style="background: #7c2d12; color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 14px; font-weight: 700;">☠️ ' + (item.siteName || '未知站点') + '</span>' +
                         '</div>' +
-                        '<a href="' + linkUrl + '" target="_blank" style="display: block; font-family: Courier New, monospace; font-weight: 600; color: #4a9eff; font-size: 15px; word-break: break-all; margin-bottom: 12px; text-decoration: underline; cursor: pointer;">' + displayUrl + '</a>' +
+                        '<a href="' + linkUrl + '" target="_blank" style="display: block; font-family: Courier New, monospace; font-weight: 600; color: #4a9eff; font-size: 15px; word-break: break-all; margin-bottom: 8px; text-decoration: underline; cursor: pointer;">' + displayUrl + '</a>' +
+                        mergedInfo +
                         '<div style="color: #666; font-size: 12px; margin-bottom: 14px;">添加时间: ' + (item.addedAt ? new Date(item.addedAt).toLocaleString("zh-CN") : '-') + '</div>' +
                         '<div style="display: flex; gap: 8px;">' +
-                            '<button onclick="editBlacklist(this.dataset.ep, this.dataset.name)" data-ep="' + safeEndpoint + '" data-name="' + (item.siteName || '') + '" style="padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">✏️ 编辑</button>' +
-                            '<button onclick="removeBlacklist(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 8px 16px; background: #374151; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">🗑️ 移除</button>' +
+                            '<button onclick="pingBlacklist(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">📡 详情</button>' +
+                            '<button onclick="editBlacklist(this.dataset.ep, this.dataset.name)" data-ep="' + safeEndpoint + '" data-name="' + (item.siteName || '') + '" style="padding: 8px 16px; background: #374151; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">✏️ 编辑</button>' +
+                            '<button onclick="removeBlacklist(this.dataset.ep)" data-ep="' + safeEndpoint + '" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">🗑️ 移除</button>' +
                         '</div>' +
                     '</div>';
                 }).join('');
@@ -1964,6 +2288,44 @@ function handleAdmin(env) {
             }
 
             renderBlacklist(filtered);
+        }
+
+        // Ping 黑名单域名查看详情
+        async function pingBlacklist(endpoint) {
+            showAlert('📡 正在 Ping ' + endpoint + ' ...', 'info');
+
+            try {
+                const response = await fetch('/fetch-site-title', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: endpoint })
+                });
+                const data = await response.json();
+
+                var msg = '📡 域名: ' + endpoint + '\\n\\n';
+
+                if (data.ping && data.pingInfo) {
+                    var info = data.pingInfo;
+                    msg += '✅ Ping 成功\\n';
+                    msg += '⏱️ 延迟: ' + info.latency + 'ms\\n';
+                    msg += '📊 状态: HTTP ' + info.status + '\\n';
+                    if (info.server) msg += '🖥️ 服务器: ' + info.server + '\\n';
+                    if (info.isApi) msg += '🔌 类型: API站点\\n';
+                    if (info.hasModels) {
+                        msg += '🤖 模型数: ' + info.modelCount + '\\n';
+                        if (info.sampleModels && info.sampleModels.length > 0) {
+                            msg += '📋 示例: ' + info.sampleModels.slice(0, 3).join(', ') + '\\n';
+                        }
+                    }
+                    if (data.title) msg += '📝 标题: ' + data.title;
+                } else {
+                    msg += '❌ Ping 失败 - 站点可能已失效或无法访问';
+                }
+
+                alert(msg);
+            } catch (error) {
+                showAlert('❌ 请求失败: ' + error.message, 'error');
+            }
         }
 
         // 移除黑名单
@@ -2015,6 +2377,61 @@ function handleAdmin(env) {
             }
         }
 
+        // 合并重复的黑名单条目（同主域名）
+        async function mergeBlacklist() {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) {
+                showAlert('❌ 请先输入管理员密钥', 'error');
+                return;
+            }
+
+            showAlert('🔍 正在分析...', 'info');
+
+            try {
+                // 先预览
+                const previewRes = await fetch('/merge-blacklist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, preview: true })
+                });
+                const preview = await previewRes.json();
+
+                if (!preview.success) {
+                    showAlert(preview.message, 'error');
+                    return;
+                }
+
+                if (!preview.mergeGroups || preview.mergeGroups.length === 0) {
+                    showAlert('✅ 没有需要合并的重复条目', 'success');
+                    return;
+                }
+
+                // 显示预览
+                var msg = '将进行以下合并：\\n\\n';
+                preview.mergeGroups.forEach(function(g) {
+                    msg += '📦 ' + g.sources.join(' + ') + '\\n   → ' + g.target + '\\n\\n';
+                });
+                msg += '共 ' + preview.mergeGroups.length + ' 组，删除 ' + preview.deleteCount + ' 条重复\\n\\n确定执行吗？';
+
+                if (!confirm(msg)) {
+                    showAlert('❌ 已取消', 'info');
+                    return;
+                }
+
+                // 执行合并
+                const response = await fetch('/merge-blacklist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, preview: false })
+                });
+                const result = await response.json();
+                showAlert(result.message, result.success ? 'success' : 'error');
+                if (result.success) loadBlacklist();
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+
         // 显示端点详情弹窗
         async function showEndpointDetail(endpoint) {
             const adminKey = document.getElementById('adminKey').value;
@@ -2040,6 +2457,8 @@ function handleAdmin(env) {
 
                 // 构建状态标签
                 let statusBadges = '';
+                if (data.isReseller) statusBadges += '<span style="background:#dc2626;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;margin-right:6px;">🏪 贩子</span>';
+                if (data.isPublic) statusBadges += '<span style="background:#059669;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;margin-right:6px;">💚 公益</span>';
                 if (data.isBanned) statusBadges += '<span style="background:#7c2d12;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;margin-right:6px;">🚫 已禁用</span>';
                 if (data.isBlacklisted) statusBadges += '<span style="background:#dc2626;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;margin-right:6px;">☠️ 黑名单</span>';
                 if (data.isWhitelisted) statusBadges += '<span style="background:#065f46;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px;margin-right:6px;">✅ 白名单</span>';
@@ -2181,13 +2600,31 @@ function handleAdmin(env) {
                         return '<span style="display: inline-block; background: #1f2937; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin: 2px;">' + m + '</span>';
                     }).join('');
 
-                    return '<div style="background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 12px; padding: 20px;">' +
-                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
-                            '<a href="' + (item.endpoint.startsWith('http') ? item.endpoint : 'https://' + item.endpoint) + '" target="_blank" style="font-family: monospace; color: #4a9eff; font-size: 14px; word-break: break-all; text-decoration: underline;">' + item.endpoint + '</a>' +
+                    var safeEp = String(item.endpoint || '').split(String.fromCharCode(39)).join('').split(String.fromCharCode(34)).join('');
+                    var isReseller = item.isReseller ? true : false;
+                    var isPublic = item.isPublic ? true : false;
+                    var badges = '';
+                    if (isReseller) badges += '<span style="background: #dc2626; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">🏪 贩子</span>';
+                    if (isPublic) badges += '<span style="background: #059669; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">💚 公益</span>';
+                    var resellerBtn = isReseller ?
+                        '<button onclick="toggleReseller(this.dataset.ep, false)" data-ep="' + safeEp + '" style="padding: 6px 12px; background: #374151; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">取消贩子</button>' :
+                        '<button onclick="toggleReseller(this.dataset.ep, true)" data-ep="' + safeEp + '" style="padding: 6px 12px; background: #dc2626; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">🏪 贩子</button>';
+                    var publicBtn = isPublic ?
+                        '<button onclick="togglePublic(this.dataset.ep, false)" data-ep="' + safeEp + '" style="padding: 6px 12px; background: #374151; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">取消公益</button>' :
+                        '<button onclick="togglePublic(this.dataset.ep, true)" data-ep="' + safeEp + '" style="padding: 6px 12px; background: #059669; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">💚 公益</button>';
+
+                    var borderColor = isReseller ? '#dc2626' : (isPublic ? '#059669' : '#3a3a3a');
+                    return '<div style="background: #1a1a1a; border: 1px solid ' + borderColor + '; border-radius: 12px; padding: 20px;">' +
+                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">' +
+                            '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">' +
+                                '<a href="' + (item.endpoint.startsWith('http') ? item.endpoint : 'https://' + item.endpoint) + '" target="_blank" style="font-family: monospace; color: #4a9eff; font-size: 14px; word-break: break-all; text-decoration: underline;">' + item.endpoint + '</a>' +
+                                badges +
+                            '</div>' +
                             '<span style="color: #888; font-size: 12px;">上报 ' + (item.reportCount || 1) + ' 次</span>' +
                         '</div>' +
                         '<div style="color: #666; font-size: 12px; margin-bottom: 10px;">最后上报: ' + (item.lastReport ? new Date(item.lastReport).toLocaleString("zh-CN") : '-') + '</div>' +
-                        '<div style="display: flex; flex-wrap: wrap; gap: 4px;">' + modelsHtml + '</div>' +
+                        '<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px;">' + modelsHtml + '</div>' +
+                        '<div style="display: flex; gap: 8px; flex-wrap: wrap;">' + resellerBtn + publicBtn + '</div>' +
                     '</div>';
                 }).join('');
             } else {
@@ -2202,8 +2639,17 @@ function handleAdmin(env) {
             if (!window.allModelReports) return;
 
             let filtered = window.allModelReports;
+
+            // 贩子筛选
+            if (window.resellerFilterOn) {
+                filtered = filtered.filter(function(item) {
+                    return item.isReseller === true;
+                });
+            }
+
+            // 搜索筛选
             if (searchText) {
-                filtered = window.allModelReports.filter(function(item) {
+                filtered = filtered.filter(function(item) {
                     const endpoint = (item.endpoint || '').toLowerCase();
                     const models = (item.models || []).join(' ').toLowerCase();
                     return endpoint.includes(searchText) || models.includes(searchText);
@@ -2211,6 +2657,65 @@ function handleAdmin(env) {
             }
 
             renderModelReports(filtered, true);
+        }
+
+        // 切换贩子筛选
+        window.resellerFilterOn = false;
+        function toggleResellerFilter() {
+            window.resellerFilterOn = !window.resellerFilterOn;
+            var btn = document.getElementById('resellerFilterBtn');
+            if (window.resellerFilterOn) {
+                btn.style.background = '#dc2626';
+                btn.textContent = '🏪 显示全部';
+            } else {
+                btn.style.background = '#374151';
+                btn.textContent = '🏪 只看贩子';
+            }
+            filterModelReports();
+        }
+
+        // 切换贩子标签
+        async function toggleReseller(endpoint, isReseller) {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) {
+                showAlert('❌ 请先输入管理员密钥', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/toggle-reseller', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, endpoint, isReseller })
+                });
+                const result = await response.json();
+                showAlert(result.message, result.success ? 'success' : 'error');
+                if (result.success) loadModelReports();
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
+        }
+
+        // 切换公益站标签
+        async function togglePublic(endpoint, isPublic) {
+            const adminKey = document.getElementById('adminKey').value;
+            if (!adminKey) {
+                showAlert('❌ 请先输入管理员密钥', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/toggle-public', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, endpoint, isPublic })
+                });
+                const result = await response.json();
+                showAlert(result.message, result.success ? 'success' : 'error');
+                if (result.success) loadModelReports();
+            } catch (error) {
+                showAlert('❌ 网络错误: ' + error.message, 'error');
+            }
         }
 
         // 导出黑名单为TXT
@@ -3158,7 +3663,7 @@ async function handleGetCode(request, env, corsHeaders) {
  */
 async function handleWhitelistEndpoint(request, env, corsHeaders) {
   try {
-    const { adminKey, endpoint } = await request.json();
+    const { adminKey, endpoint, siteName } = await request.json();
 
     if (!adminKey || adminKey !== env.ADMIN_SECRET) {
       return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
@@ -3173,6 +3678,7 @@ async function handleWhitelistEndpoint(request, env, corsHeaders) {
 
     whitelist[endpoint] = {
       endpoint: endpoint,
+      siteName: siteName || '',
       addedAt: new Date().toISOString(),
     };
 
@@ -3240,7 +3746,7 @@ async function handleGetWhitelistEndpoints(request, env, corsHeaders) {
  */
 async function handleSuspiciousEndpoint(request, env, corsHeaders) {
   try {
-    const { adminKey, endpoint } = await request.json();
+    const { adminKey, endpoint, siteName } = await request.json();
 
     if (!adminKey || adminKey !== env.ADMIN_SECRET) {
       return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
@@ -3255,6 +3761,7 @@ async function handleSuspiciousEndpoint(request, env, corsHeaders) {
 
     suspicious[endpoint] = {
       endpoint: endpoint,
+      siteName: siteName || '',
       addedAt: new Date().toISOString(),
     };
 
@@ -3434,88 +3941,217 @@ async function handleEditBlacklist(request, env, corsHeaders) {
 }
 
 /**
- * 获取网页标题（用于自动填充黑名单站点名）
+ * 获取网页标题 + 完整 Ping 检测（域名信息）
  */
 async function handleFetchSiteTitle(request, env, corsHeaders) {
   try {
     const { url } = await request.json();
 
     if (!url) {
-      return jsonResponse({ success: false, title: '', error: 'no url' }, 200, corsHeaders);
+      return jsonResponse({ success: false, title: '', error: 'no url', ping: false }, 200, corsHeaders);
     }
 
-    // 规范化URL - 提取基础域名
-    let targetUrl = url;
-    if (!targetUrl.startsWith('http')) {
-      targetUrl = 'https://' + targetUrl;
+    // 规范化URL
+    let baseUrl = url;
+    if (!baseUrl.startsWith('http')) {
+      baseUrl = 'https://' + baseUrl;
     }
 
-    // 提取基础URL（去掉路径，只保留根域名）
+    let urlObj;
     try {
-      const urlObj = new URL(targetUrl);
-      targetUrl = urlObj.origin; // 只保留 https://domain.com
+      urlObj = new URL(baseUrl);
     } catch (e) {
-      // URL 解析失败，保持原样
+      return jsonResponse({ success: false, title: '', error: 'invalid url', ping: false }, 200, corsHeaders);
     }
 
-    console.log('🔍 正在获取网页标题:', targetUrl);
-
-    // 抓取网页，添加超时
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-      },
-      signal: controller.signal,
-      redirect: 'follow',
-    });
-
-    clearTimeout(timeoutId);
-
-    console.log('📥 响应状态:', response.status, response.headers.get('content-type'));
-
-    if (!response.ok) {
-      return jsonResponse({ success: false, title: '', error: 'status ' + response.status }, 200, corsHeaders);
-    }
-
-    const html = await response.text();
-    console.log('📄 HTML 长度:', html.length);
-
-    // 提取 <title> 标签内容（支持多种格式）
+    const domain = urlObj.hostname;
     let title = '';
-    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-    if (titleMatch && titleMatch[1]) {
-      title = titleMatch[1].trim();
+    const pingInfo = {
+      success: false,
+      status: 0,
+      latency: 0,
+      server: '',
+      contentType: '',
+      isApi: false,
+      hasModels: false,
+      modelCount: 0,
+      sampleModels: [],
+    };
+
+    // 1. 先 Ping 主站获取基本信息
+    const startTime = Date.now();
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const response = await fetch(urlObj.origin, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          Accept: 'text/html,application/json,*/*',
+        },
+        signal: controller.signal,
+        redirect: 'follow',
+      });
+
+      clearTimeout(timeoutId);
+      pingInfo.latency = Date.now() - startTime;
+      pingInfo.success = true;
+      pingInfo.status = response.status;
+      pingInfo.server = response.headers.get('server') || '';
+      pingInfo.contentType = response.headers.get('content-type') || '';
+
+      // 检查是否是 JSON API
+      if (pingInfo.contentType.includes('application/json')) {
+        pingInfo.isApi = true;
+      }
+
+      // 尝试读取内容获取标题
+      if (response.ok) {
+        const text = await response.text();
+
+        // HTML 标题提取（多种方式）
+        if (pingInfo.contentType.includes('text/html')) {
+          // 1. <title> 标签
+          const titleMatch = text.match(/<title[^>]*>([^<]+)<\/title>/i);
+          if (titleMatch && titleMatch[1]) title = titleMatch[1].trim();
+
+          // 2. og:title
+          if (!title) {
+            const ogMatch =
+              text.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
+              text.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
+            if (ogMatch && ogMatch[1]) title = ogMatch[1].trim();
+          }
+
+          // 3. twitter:title
+          if (!title) {
+            const twMatch = text.match(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i);
+            if (twMatch && twMatch[1]) title = twMatch[1].trim();
+          }
+
+          // 4. <meta name="title">
+          if (!title) {
+            const metaMatch = text.match(/<meta[^>]+name=["']title["'][^>]+content=["']([^"']+)["']/i);
+            if (metaMatch && metaMatch[1]) title = metaMatch[1].trim();
+          }
+
+          // 5. <h1> 标签
+          if (!title) {
+            const h1Match = text.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+            if (h1Match && h1Match[1]) title = h1Match[1].trim();
+          }
+
+          // 6. description 作为后备
+          if (!title) {
+            const descMatch = text.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i);
+            if (descMatch && descMatch[1] && descMatch[1].length < 50) title = descMatch[1].trim();
+          }
+        }
+
+        // JSON 响应中提取 (有些 API 站点返回 JSON)
+        if (!title && pingInfo.contentType.includes('application/json')) {
+          try {
+            const json = JSON.parse(text);
+            title = json.title || json.name || json.siteName || json.site_name || '';
+          } catch (e) {
+            // JSON 解析失败
+          }
+        }
+      }
+    } catch (e) {
+      console.log('❌ 主站请求失败:', e.message);
     }
 
-    // 如果没有 title，尝试 og:title
+    // 2. 检测 /v1/models API 端点
+    try {
+      const modelsUrl = urlObj.origin + '/v1/models';
+      const controller2 = new AbortController();
+      const timeoutId2 = setTimeout(() => controller2.abort(), 5000);
+
+      const modelsRes = await fetch(modelsUrl, {
+        headers: { Accept: 'application/json' },
+        signal: controller2.signal,
+      });
+
+      clearTimeout(timeoutId2);
+
+      if (modelsRes.ok) {
+        const modelsData = await modelsRes.json();
+        if (modelsData.data && Array.isArray(modelsData.data)) {
+          pingInfo.hasModels = true;
+          pingInfo.isApi = true;
+          pingInfo.modelCount = modelsData.data.length;
+          pingInfo.sampleModels = modelsData.data.slice(0, 5).map(m => m.id || m.name || 'unknown');
+        }
+      }
+    } catch (e) {
+      // /v1/models 不存在或需要认证
+    }
+
+    // 3. 如果主站没标题，尝试多个 URL 变体
     if (!title) {
-      const ogMatch = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
-      if (ogMatch && ogMatch[1]) {
-        title = ogMatch[1].trim();
+      const urlVariants = [];
+
+      // 去掉常见子域名前缀
+      if (domain.startsWith('api.')) {
+        urlVariants.push(urlObj.origin.replace('://api.', '://www.'));
+        urlVariants.push(urlObj.origin.replace('://api.', '://'));
+      } else if (domain.startsWith('pro.')) {
+        urlVariants.push(urlObj.origin.replace('://pro.', '://www.'));
+        urlVariants.push(urlObj.origin.replace('://pro.', '://'));
+      } else if (domain.startsWith('app.')) {
+        urlVariants.push(urlObj.origin.replace('://app.', '://www.'));
+        urlVariants.push(urlObj.origin.replace('://app.', '://'));
+      } else if (!domain.startsWith('www.')) {
+        // 没有子域名，尝试加 www
+        urlVariants.push(urlObj.protocol + '//www.' + domain);
+      }
+
+      // 去重
+      const uniqueVariants = [...new Set(urlVariants)].filter(u => u !== urlObj.origin);
+
+      for (const variantUrl of uniqueVariants) {
+        if (title) break;
+        try {
+          const controller3 = new AbortController();
+          const timeoutId3 = setTimeout(() => controller3.abort(), 4000);
+
+          const variantRes = await fetch(variantUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              Accept: 'text/html',
+            },
+            signal: controller3.signal,
+            redirect: 'follow',
+          });
+
+          clearTimeout(timeoutId3);
+
+          if (variantRes.ok) {
+            const html = await variantRes.text();
+            // 尝试多种方式提取
+            let match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+            if (match && match[1]) {
+              title = match[1].trim();
+            }
+            if (!title) {
+              match = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+              if (match && match[1]) title = match[1].trim();
+            }
+            if (!title) {
+              match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+              if (match && match[1]) title = match[1].trim();
+            }
+          }
+        } catch (e) {
+          // 变体 URL 请求失败，继续尝试下一个
+        }
       }
     }
 
-    // 如果还是没有，尝试 h1
-    if (!title) {
-      const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-      if (h1Match && h1Match[1]) {
-        title = h1Match[1].trim();
-      }
-    }
-
-    console.log('📝 提取到标题:', title);
-
-    // 清理标题（去掉常见后缀）
+    // 清理标题
     if (title) {
       title = title.replace(/[-–—|·].*$/, '').trim();
-      title = title.replace(/^\s+|\s+$/g, '');
-      // 解码 HTML 实体
       title = title
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
@@ -3523,10 +4159,356 @@ async function handleFetchSiteTitle(request, env, corsHeaders) {
         .replace(/&quot;/g, '"');
     }
 
-    return jsonResponse({ success: !!title, title: title || '' }, 200, corsHeaders);
+    return jsonResponse(
+      {
+        success: !!title,
+        title: title || '',
+        domain: domain,
+        ping: pingInfo.success,
+        pingStatus: pingInfo.status,
+        pingInfo: pingInfo,
+      },
+      200,
+      corsHeaders,
+    );
   } catch (error) {
-    console.error('获取网页标题失败:', error.message || error);
-    return jsonResponse({ success: false, title: '', error: error.message || 'unknown' }, 200, corsHeaders);
+    return jsonResponse({ success: false, title: '', error: error.message, ping: false }, 200, corsHeaders);
+  }
+}
+
+/**
+ * 合并重复的黑名单条目（同主域名的合并为主域名）
+ */
+async function handleMergeBlacklist(request, env, corsHeaders) {
+  try {
+    const { adminKey, preview } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    const blacklistStr = await redisGet('blacklist_endpoints');
+    const blacklist = blacklistStr ? JSON.parse(blacklistStr) : {};
+
+    if (Object.keys(blacklist).length === 0) {
+      return jsonResponse({ success: false, message: '❌ 黑名单为空' }, 400, corsHeaders);
+    }
+
+    // 检测是否为 IP 地址
+    function isIPAddress(str) {
+      return /^(\d{1,3}\.){3}\d{1,3}$/.test(str) || str === 'localhost';
+    }
+
+    // 提取主域名的辅助函数
+    function getRootDomain(domain) {
+      // IP 地址不合并，保持原样
+      if (isIPAddress(domain)) {
+        return domain;
+      }
+      const parts = domain.toLowerCase().split('.');
+      // 处理常见二级域名后缀
+      const secondLevelTlds = ['com', 'net', 'org', 'co', 'io', 'ai', 'me', 'cc', 'work', 'icu', 'top', 'xyz', 'dev'];
+      if (parts.length >= 3 && secondLevelTlds.includes(parts[parts.length - 1])) {
+        return parts.slice(-2).join('.');
+      }
+      if (parts.length >= 2) {
+        return parts.slice(-2).join('.');
+      }
+      return domain;
+    }
+
+    // 按主域名分组
+    const domainGroups = {};
+    for (const [endpoint, info] of Object.entries(blacklist)) {
+      const root = getRootDomain(endpoint);
+      if (!domainGroups[root]) {
+        domainGroups[root] = [];
+      }
+      domainGroups[root].push({ endpoint, info });
+    }
+
+    // 找出需要合并的组（条目数 > 1 的组）
+    const mergeGroups = [];
+    let deletedCount = 0;
+
+    for (const [root, entries] of Object.entries(domainGroups)) {
+      if (entries.length > 1) {
+        mergeGroups.push({
+          target: root,
+          sources: entries.map(e => e.endpoint),
+        });
+        deletedCount += entries.length - 1;
+      }
+    }
+
+    // 预览模式：只返回预览结果
+    if (preview) {
+      return jsonResponse(
+        {
+          success: true,
+          mergeGroups: mergeGroups,
+          deleteCount: deletedCount,
+        },
+        200,
+        corsHeaders,
+      );
+    }
+
+    // 执行合并
+    const newBlacklist = {};
+
+    for (const [root, entries] of Object.entries(domainGroups)) {
+      // 合并站点名称（取最长非空的）
+      let siteName = '';
+      let earliestTime = entries[0].info.addedAt;
+      for (const e of entries) {
+        if (e.info.siteName && e.info.siteName.length > (siteName || '').length) {
+          siteName = e.info.siteName;
+        }
+        if (e.info.addedAt && (!earliestTime || new Date(e.info.addedAt) < new Date(earliestTime))) {
+          earliestTime = e.info.addedAt;
+        }
+      }
+
+      // 使用主域名作为 key
+      newBlacklist[root] = {
+        endpoint: root,
+        siteName: siteName || root,
+        addedAt: earliestTime,
+        mergedFrom: entries.length > 1 ? entries.map(e => e.endpoint) : undefined,
+      };
+    }
+
+    await redisSet('blacklist_endpoints', JSON.stringify(newBlacklist));
+
+    const beforeCount = Object.keys(blacklist).length;
+    const afterCount = Object.keys(newBlacklist).length;
+
+    return jsonResponse(
+      {
+        success: true,
+        message: `✅ 合并完成！原 ${beforeCount} 条 → ${afterCount} 条（删除 ${deletedCount} 条重复）`,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    return jsonResponse({ success: false, message: '❌ 合并失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 合并重复的白名单条目（同主域名的合并为主域名）
+ */
+async function handleMergeWhitelist(request, env, corsHeaders) {
+  try {
+    const { adminKey, preview } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    const whitelistStr = await redisGet('whitelist_endpoints');
+    const whitelist = whitelistStr ? JSON.parse(whitelistStr) : {};
+
+    if (Object.keys(whitelist).length === 0) {
+      return jsonResponse({ success: false, message: '❌ 白名单为空' }, 400, corsHeaders);
+    }
+
+    // 从 URL 提取 hostname
+    function extractHostname(url) {
+      try {
+        const fullUrl = url.startsWith('http') ? url : 'https://' + url;
+        return new URL(fullUrl).hostname.toLowerCase();
+      } catch (e) {
+        return url.split('/')[0].toLowerCase();
+      }
+    }
+
+    // 检测是否为 IP 地址
+    function isIPAddress(str) {
+      return /^(\d{1,3}\.){3}\d{1,3}$/.test(str) || str === 'localhost';
+    }
+
+    // 提取主域名
+    function getRootDomain(hostname) {
+      // IP 地址不合并，保持原样
+      if (isIPAddress(hostname)) {
+        return hostname;
+      }
+      const parts = hostname.split('.');
+      const secondLevelTlds = ['com', 'net', 'org', 'co', 'io', 'ai', 'me', 'cc', 'work', 'icu', 'top', 'xyz', 'dev'];
+      if (parts.length >= 3 && secondLevelTlds.includes(parts[parts.length - 1])) {
+        return parts.slice(-2).join('.');
+      }
+      if (parts.length >= 2) {
+        return parts.slice(-2).join('.');
+      }
+      return hostname;
+    }
+
+    // 按主域名分组（所有子域名归到同一组）
+    const domainGroups = {};
+    for (const [endpoint, info] of Object.entries(whitelist)) {
+      const hostname = extractHostname(endpoint);
+      const root = getRootDomain(hostname);
+      if (!domainGroups[root]) {
+        domainGroups[root] = [];
+      }
+      domainGroups[root].push({ endpoint, info, hostname });
+    }
+
+    // 找出需要合并的组（条目数 > 1 的组）
+    const mergeGroups = [];
+    let deletedCount = 0;
+
+    for (const [root, entries] of Object.entries(domainGroups)) {
+      if (entries.length > 1) {
+        mergeGroups.push({
+          target: root,
+          sources: entries.map(e => e.endpoint),
+        });
+        deletedCount += entries.length - 1;
+      }
+    }
+
+    // 预览模式：只返回预览结果
+    if (preview) {
+      return jsonResponse(
+        {
+          success: true,
+          mergeGroups: mergeGroups,
+          deleteCount: deletedCount,
+        },
+        200,
+        corsHeaders,
+      );
+    }
+
+    // 执行合并
+    const newWhitelist = {};
+
+    for (const [root, entries] of Object.entries(domainGroups)) {
+      // 合并站点名（取最长非空的）
+      let siteName = '';
+      let earliestTime = entries[0].info.addedAt;
+      for (const e of entries) {
+        if (e.info.siteName && e.info.siteName.length > (siteName || '').length) {
+          siteName = e.info.siteName;
+        }
+        if (e.info.addedAt && (!earliestTime || new Date(e.info.addedAt) < new Date(earliestTime))) {
+          earliestTime = e.info.addedAt;
+        }
+      }
+
+      // 使用主域名作为 key
+      newWhitelist[root] = {
+        endpoint: root,
+        siteName: siteName || root,
+        addedAt: earliestTime,
+        mergedFrom: entries.length > 1 ? entries.map(e => e.endpoint) : undefined,
+      };
+
+      if (entries.length > 1) {
+        deletedCount += entries.length - 1;
+      }
+    }
+
+    await redisSet('whitelist_endpoints', JSON.stringify(newWhitelist));
+
+    const beforeCount = Object.keys(whitelist).length;
+    const afterCount = Object.keys(newWhitelist).length;
+
+    return jsonResponse(
+      {
+        success: true,
+        message: `✅ 合并完成！原 ${beforeCount} 条 → ${afterCount} 条（删除 ${deletedCount} 条重复）`,
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    return jsonResponse({ success: false, message: '❌ 合并失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 切换端点的贩子标签
+ */
+async function handleToggleReseller(request, env, corsHeaders) {
+  try {
+    const { adminKey, endpoint, isReseller } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    if (!endpoint) {
+      return jsonResponse({ success: false, message: '❌ 请提供端点' }, 400, corsHeaders);
+    }
+
+    // 获取模型记录
+    const reportsStr = await redisGet('model_reports');
+    const reports = reportsStr ? JSON.parse(reportsStr) : {};
+
+    if (!reports[endpoint]) {
+      return jsonResponse({ success: false, message: '❌ 找不到该端点的记录' }, 404, corsHeaders);
+    }
+
+    // 更新贩子标签
+    reports[endpoint].isReseller = isReseller;
+
+    await redisSet('model_reports', JSON.stringify(reports));
+
+    return jsonResponse(
+      {
+        success: true,
+        message: isReseller ? '✅ 已标记为贩子' : '✅ 已取消贩子标签',
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    return jsonResponse({ success: false, message: '❌ 操作失败: ' + error.message }, 500, corsHeaders);
+  }
+}
+
+/**
+ * 切换端点的公益站标签
+ */
+async function handleTogglePublic(request, env, corsHeaders) {
+  try {
+    const { adminKey, endpoint, isPublic } = await request.json();
+
+    if (!adminKey || adminKey !== env.ADMIN_SECRET) {
+      return jsonResponse({ success: false, message: '❌ 管理员密钥错误' }, 403, corsHeaders);
+    }
+
+    if (!endpoint) {
+      return jsonResponse({ success: false, message: '❌ 请提供端点' }, 400, corsHeaders);
+    }
+
+    const reportsStr = await redisGet('model_reports');
+    const reports = reportsStr ? JSON.parse(reportsStr) : {};
+
+    if (!reports[endpoint]) {
+      return jsonResponse({ success: false, message: '❌ 找不到该端点的记录' }, 404, corsHeaders);
+    }
+
+    reports[endpoint].isPublic = isPublic;
+
+    await redisSet('model_reports', JSON.stringify(reports));
+
+    return jsonResponse(
+      {
+        success: true,
+        message: isPublic ? '✅ 已标记为公益站' : '✅ 已取消公益标签',
+      },
+      200,
+      corsHeaders,
+    );
+  } catch (error) {
+    return jsonResponse({ success: false, message: '❌ 操作失败: ' + error.message }, 500, corsHeaders);
   }
 }
 
@@ -3633,6 +4615,8 @@ async function handleGetModelReports(request, env, corsHeaders) {
         models: info.models,
         lastReport: info.lastReport,
         reportCount: info.reportCount,
+        isReseller: info.isReseller || false,
+        isPublic: info.isPublic || false,
       }))
       .sort((a, b) => new Date(b.lastReport).getTime() - new Date(a.lastReport).getTime());
 
@@ -3680,20 +4664,20 @@ async function handleGetEndpointDetail(request, env, corsHeaders) {
       }
     }
 
-    // 获取禁用状态
+    // 获取禁用状态（存储为对象）
     const bannedStr = await redisGet('banned_endpoints');
-    const banned = bannedStr ? JSON.parse(bannedStr) : [];
-    const isBanned = banned.includes(endpoint);
+    const banned = bannedStr ? JSON.parse(bannedStr) : {};
+    const isBanned = !!banned[endpoint];
 
-    // 获取白名单状态
+    // 获取白名单状态（存储为对象）
     const whitelistStr = await redisGet('whitelist_endpoints');
-    const whitelist = whitelistStr ? JSON.parse(whitelistStr) : [];
-    const isWhitelisted = whitelist.includes(endpoint);
+    const whitelist = whitelistStr ? JSON.parse(whitelistStr) : {};
+    const isWhitelisted = !!whitelist[endpoint];
 
-    // 获取可疑状态
+    // 获取可疑状态（存储为对象）
     const suspiciousStr = await redisGet('suspicious_endpoints');
-    const suspicious = suspiciousStr ? JSON.parse(suspiciousStr) : [];
-    const isSuspicious = suspicious.includes(endpoint);
+    const suspicious = suspiciousStr ? JSON.parse(suspiciousStr) : {};
+    const isSuspicious = !!suspicious[endpoint];
 
     const data = {
       endpoint,
@@ -3707,6 +4691,8 @@ async function handleGetEndpointDetail(request, env, corsHeaders) {
       models: modelInfo?.models || [],
       lastModelReport: modelInfo?.lastReport || null,
       modelReportCount: modelInfo?.reportCount || 0,
+      isReseller: modelInfo?.isReseller || false,
+      isPublic: modelInfo?.isPublic || false,
       // 状态
       isBanned,
       isBlacklisted,
