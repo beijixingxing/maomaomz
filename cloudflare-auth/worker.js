@@ -337,10 +337,15 @@ async function handleVerify(request, env, corsHeaders) {
     const bannedEndpointsStr = await redisGet('banned_endpoints');
     const bannedEndpoints = bannedEndpointsStr ? JSON.parse(bannedEndpointsStr) : {};
 
+    // 🔥 拆分多个 URL（客户端可能发送 "url1 | url2 | url3"）
+    const endpointList = cleanApiEndpoint.split(/\s*\|\s*/).filter(e => e && e !== 'unknown');
+
     let matchedBanned = null;
-    if (cleanApiEndpoint !== 'unknown') {
+    for (const singleEndpoint of endpointList) {
+      if (matchedBanned) break;
+
       // 🔥 更激进的清理：去掉协议、/v1、尾部斜杠
-      const lowerEndpoint = cleanApiEndpoint
+      const lowerEndpoint = singleEndpoint
         .toLowerCase()
         .replace(/^https?:\/\//, '')
         .replace(/\/v1\/?$/, '')
@@ -363,6 +368,7 @@ async function handleVerify(request, env, corsHeaders) {
         ) {
           matchedBanned = bannedEndpoints[key];
           matchedBanned.matchedKey = key;
+          matchedBanned.matchedEndpoint = singleEndpoint;
           break;
         }
       }
@@ -402,9 +408,12 @@ async function handleVerify(request, env, corsHeaders) {
 
     // 模糊匹配：检查用户端点是否包含黑名单中的任何关键词（兼容带/不带 /v1、https://）
     let matchedBlacklist = null;
-    if (cleanApiEndpoint !== 'unknown') {
+    // 🔥 复用拆分后的 endpointList
+    for (const singleEndpoint of endpointList) {
+      if (matchedBlacklist) break;
+
       // 🔥 更激进的清理：去掉协议、/v1、尾部斜杠
-      const lowerEndpoint = cleanApiEndpoint
+      const lowerEndpoint = singleEndpoint
         .toLowerCase()
         .replace(/^https?:\/\//, '')
         .replace(/\/v1\/?$/, '')
@@ -427,6 +436,7 @@ async function handleVerify(request, env, corsHeaders) {
         ) {
           matchedBlacklist = blacklist[key];
           matchedBlacklist.matchedKey = key;
+          matchedBlacklist.matchedEndpoint = singleEndpoint;
           break;
         }
       }
